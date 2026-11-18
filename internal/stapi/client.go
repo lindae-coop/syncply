@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -29,9 +30,25 @@ type Client struct {
 	HTTP *http.Client
 }
 
+// New crea un cliente. base pode ser "http(s)://host:porto" ou
+// "unix:///ruta/ao/socket" (GUI de Syncthing nun socket Unix).
 func New(name, base, key string) *Client {
-	return &Client{Name: name, Base: strings.TrimRight(base, "/"), Key: key,
-		HTTP: &http.Client{Timeout: 15 * time.Second}}
+	hc := &http.Client{Timeout: 15 * time.Second}
+	if sock, ok := strings.CutPrefix(base, "unix://"); ok {
+		hc.Transport = &http.Transport{
+			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+				var d net.Dialer
+				return d.DialContext(ctx, "unix", sock)
+			},
+		}
+		base = "http://syncthing"
+	}
+	return &Client{Name: name, Base: strings.TrimRight(base, "/"), Key: key, HTTP: hc}
+}
+
+// Shutdown pide a Syncthing que remate.
+func (c *Client) Shutdown(ctx context.Context) error {
+	return c.Do(ctx, http.MethodPost, "/rest/system/shutdown", nil, nil)
 }
 
 func (c *Client) Do(ctx context.Context, method, path string, in, out any) error {
