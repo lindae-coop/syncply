@@ -1,0 +1,60 @@
+# Contorno de desenvolvemento do prototipo (Podman rootless).
+# Non se publica ningún porto no host: a API REST de Syncthing só é
+# accesible desde a rede interna "stnet" (contedor "tools") e con API key.
+name: cld
+
+x-syncthing: &syncthing
+  image: docker.io/syncthing/syncthing:2.1.7
+  environment:
+    # En Podman rootless, o root do contedor é o teu usuario no host:
+    # os ficheiros de ./.dev quedan ao teu nome.
+    PUID: "0"
+    PGID: "0"
+    STGUIADDRESS: "0.0.0.0:8384"
+    STGUIAPIKEY: ${ST_APIKEY:-cld-dev-apikey-NON-USAR-EN-PRODUCION}
+    STNOUPGRADE: "1"
+    STNODEFAULTFOLDER: "1"
+  networks: [stnet]
+  restart: unless-stopped
+
+services:
+  st-server:
+    <<: *syncthing
+    hostname: st-server
+    volumes:
+      - ./.dev/st-server:/var/syncthing:Z
+
+  st-client1:
+    <<: *syncthing
+    hostname: st-client1
+    volumes:
+      - ./.dev/st-client1:/var/syncthing:Z
+
+  st-client2:
+    <<: *syncthing
+    hostname: st-client2
+    volumes:
+      - ./.dev/st-client2:/var/syncthing:Z
+
+  # Ferramentas en Go (sen instalar Go no host). Uso: make proto ARGS="..."
+  tools:
+    image: docker.io/library/golang:1.27.4-alpine
+    working_dir: /src
+    environment:
+      ST_APIKEY: ${ST_APIKEY:-cld-dev-apikey-NON-USAR-EN-PRODUCION}
+      CGO_ENABLED: "0"
+      GOFLAGS: "-buildvcs=false"
+    volumes:
+      - ./:/src:z
+      - ./.dev:/nodes:z
+      - gocache:/root/.cache/go-build
+      - gomod:/go/pkg/mod
+    networks: [stnet]
+    entrypoint: ["go", "run", "./cmd/stproto"]
+
+networks:
+  stnet: {}
+
+volumes:
+  gocache: {}
+  gomod: {}
