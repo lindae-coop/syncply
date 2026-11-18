@@ -9,6 +9,8 @@ Syncthing se instalan no equipo: todo corre en contedores.
 
 ```sh
 make demo     # parte de cero e valida o fluxo completo
+make fresh    # parte de cero con SFTPGo preparado e sen emparellar
+make ui C=3   # abre a web do cliente 3 no navegador (como o acceso directo)
 make status   # estado de dispositivos, carpetas e conexións
 make help     # resto de ordes
 make clean    # para os contedores e borra o estado (./.dev)
@@ -24,11 +26,12 @@ Que levanta `compose.yaml`:
 | `st-client2` | Cliente de proba (bob)                                   |
 | `st-client3` | Cliente de proba (alice, segundo equipo)                 |
 | `pairsrv`    | Servizo de emparellamento con TOTP (`cmd/pairsrv`)       |
+| `cld-client1..3` | Cliente de escritorio `cld` de cada nodo; web en `127.0.0.1:8411..8413` |
 | `tools`      | Go 1.27 para executar `cmd/stproto` e os tests           |
 
-- Non se publica **ningún porto** no host. A API REST só é accesible desde a
-  rede interna `stnet` e con API key (`ST_APIKEY`, cun valor por defecto só
-  para desenvolvemento).
+- A API REST de Syncthing só é accesible desde a rede interna `stnet` e con
+  API key (`ST_APIKEY`, cun valor por defecto só para desenvolvemento). O
+  único porto publicado é a web dos clientes `cld`, e só en `127.0.0.1`.
 - O estado de cada nodo garda en `./.dev/<nodo>` (ignorado por git). Os
   datos sincronizados están en `./.dev/<nodo>/data/`.
 - `PUID=0`: en Podman rootless o root do contedor é o teu usuario, así que os
@@ -100,6 +103,38 @@ el no WebClient. Todos teñen o grupo primario `syncthing`:
 |---------|--------------------|---------------------------|--------------------|
 | alice   | escritura → **sincroniza** | escritura → **sincroniza** | só lectura → non |
 | bob     | só lectura → non   | escritura → **sincroniza** | só lectura → non   |
+
+## Cliente `cld`
+
+Un só binario ([cmd/cld](cmd/cld/main.go), [internal/client](internal/client)):
+
+- `cld daemon`: servizo de usuario. Fala co Syncthing local e serve a web de
+  configuración só en `127.0.0.1` (porto libre). Nesa web o usuario:
+  - vincula o equipo co seu usuario e o código OTP;
+  - ve os recursos que sincroniza (estado, tamaño) e os que ofrece o
+    servidor, escolle a carpeta local de cada un e acepta, ou deixa de
+    sincronizar (os ficheiros locais quedan);
+  - pausa 1 h / 8 h (retómase só) ou detén ata retomar;
+  - ve os seus equipos e revoga outros (cun código OTP novo).
+- `cld open`: o que executa o **acceso directo**. Le `ui.json` (porto e
+  clave de control, `0600`, só do usuario), pídelle ao daemon unha URL de
+  acceso dun só uso (60 s) e ábrea no navegador. O usuario non ten que saber
+  porto, enderezo nin contrasinal.
+- `cld shortcut`: crea o acceso directo `cld` no menú de aplicacións (Linux,
+  `~/.local/share/applications/cld.desktop`). En Windows e macOS farao o
+  instalador.
+
+Seguridade da web: só loopback; URL de acceso dun só uso → cookie de sesión
+`HttpOnly`, `SameSite=Strict`; comprobación de `Host` (DNS rebinding) e de
+`Origin`/`Sec-Fetch-Site` nos POST (CSRF); CSP sen JavaScript.
+
+Configuración do instalador (`cld.json`): `pairsrvURL` e, opcionalmente,
+`serverDeviceID` (se se indica, o emparellamento só se acepta con ese
+servidor). Exemplo de desenvolvemento: [dev/cld.json](dev/cld.json).
+
+Probar a web en desenvolvemento: `make fresh` e despois `make ui C=1`
+(usuario `alice`; o código OTP sae do segredo de
+[dev/sftpgo-demo.json](dev/sftpgo-demo.json) en calquera app autenticadora).
 
 ## Pasos solos
 

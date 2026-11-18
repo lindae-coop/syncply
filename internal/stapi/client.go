@@ -232,3 +232,29 @@ func (c *Client) Connections(ctx context.Context) (map[string]Connection, error)
 	err := c.Do(ctx, http.MethodGet, "/rest/system/connections", nil, &out)
 	return out.Connections, err
 }
+
+// PauseAll e ResumeAll pausan ou retoman a sincronización con todos os
+// dispositivos (marca "paused" en cada un na configuración).
+func (c *Client) PauseAll(ctx context.Context) error {
+	return c.Do(ctx, http.MethodPost, "/rest/system/pause", nil, nil)
+}
+
+func (c *Client) ResumeAll(ctx context.Context) error {
+	return c.Do(ctx, http.MethodPost, "/rest/system/resume", nil, nil)
+}
+
+// FolderStatus é un resumo de /rest/db/status.
+type FolderStatus struct {
+	State       string `json:"state"` // idle, scanning, syncing, error...
+	Error       string `json:"error"`
+	GlobalBytes int64  `json:"globalBytes"`
+	GlobalFiles int64  `json:"globalFiles"`
+	NeedBytes   int64  `json:"needBytes"`
+	NeedFiles   int64  `json:"needFiles"`
+}
+
+func (c *Client) FolderStatus(ctx context.Context, id string) (FolderStatus, error) {
+	var out FolderStatus
+	err := c.Do(ctx, http.MethodGet, "/rest/db/status?folder="+url.QueryEscape(id), nil, &out)
+	return out, err
+}

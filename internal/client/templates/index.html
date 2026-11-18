@@ -1,0 +1,94 @@
+{{template "head"}}
+{{if .Overview.Paired}}{{template "nav" "index"}}{{else}}<header><h1>cld</h1></header>{{end}}
+{{template "flash" .}}
+
+{{if not .Overview.Paired}}
+<section>
+  <h2>Vincular este equipo</h2>
+  <p class="muted">Introduce o teu usuario e o código de 6 díxitos da túa app autenticadora (o mesmo que usas para entrar no servidor de ficheiros).</p>
+  <form method="post" action="/pair">
+    <label for="user">Usuario</label>
+    <input type="text" id="user" name="user" autocomplete="username" required autofocus>
+    <label for="otp">Código</label>
+    <input type="text" id="otp" name="otp" class="otp" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required>
+    <label for="device">Nome deste equipo</label>
+    <input type="text" id="device" name="device" value="{{.Overview.Hostname}}" maxlength="64" required>
+    <p><button class="primary">Vincular</button></p>
+  </form>
+</section>
+{{else}}
+
+<section>
+  <div class="row">
+    <div>
+      <div><strong>{{.Overview.User}}</strong> <span class="muted">· {{.Overview.DeviceName}}</span></div>
+      {{if .Overview.Paused}}
+        <div class="warn"><span class="dot warn"></span>Sincronización en pausa{{if not .Overview.ResumeAt.IsZero}} ata as {{localt .Overview.ResumeAt}}{{end}}</div>
+      {{else if .Overview.ServerConnected}}
+        <div class="ok"><span class="dot"></span>Conectado ao servidor</div>
+      {{else}}
+        <div class="bad"><span class="dot bad"></span>Sen conexión co servidor</div>
+      {{end}}
+    </div>
+    <div style="margin-left:auto" class="row">
+      {{if .Overview.Paused}}
+        <form method="post" action="/resume" class="inline"><button class="primary">Retomar</button></form>
+      {{else}}
+        <form method="post" action="/pause" class="inline"><input type="hidden" name="for" value="1h"><button>Pausar 1 hora</button></form>
+        <form method="post" action="/pause" class="inline"><input type="hidden" name="for" value="8h"><button>Pausar 8 horas</button></form>
+        <form method="post" action="/pause" class="inline"><input type="hidden" name="for" value="0s"><button>Deter</button></form>
+      {{end}}
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Sincronizando</h2>
+  {{range .Overview.Folders}}
+  <div class="item">
+    <div class="row">
+      <span class="name">{{.Label}}</span>
+      {{if .StatusErr}}<span class="bad">sen estado</span>
+      {{else if eq .Status.State "error"}}<span class="bad">erro: {{.Status.Error}}</span>
+      {{else if gt .Status.NeedFiles 0}}<span class="warn">sincronizando · faltan {{.Status.NeedFiles}} ficheiros ({{bytes .Status.NeedBytes}})</span>
+      {{else if eq .Status.State "idle"}}<span class="ok">ao día</span>
+      {{else}}<span class="muted">{{.Status.State}}</span>{{end}}
+      <span class="muted" style="margin-left:auto">{{.Status.GlobalFiles}} ficheiros · {{bytes .Status.GlobalBytes}}</span>
+    </div>
+    <div class="path">{{.Path}}</div>
+    <details>
+      <summary>Deixar de sincronizar</summary>
+      <form method="post" action="/unsync">
+        <input type="hidden" name="id" value="{{.ID}}">
+        <p class="muted">Os ficheiros desta carpeta quedan no equipo, pero deixan de actualizarse. Podes volver engadila máis tarde.</p>
+        <button class="danger">Deixar de sincronizar «{{.Label}}»</button>
+      </form>
+    </details>
+  </div>
+  {{else}}
+  <p class="muted">Aínda non sincronizas ningún recurso.</p>
+  {{end}}
+</section>
+
+<section>
+  <h2>Dispoñibles no servidor</h2>
+  {{range .Overview.Offers}}
+  <div class="item">
+    <div class="name">{{.Label}}</div>
+    <form method="post" action="/accept" class="flex">
+      <input type="hidden" name="id" value="{{.ID}}">
+      <div class="grow">
+        <label for="p-{{.ID}}">Carpeta neste equipo</label>
+        <input type="text" id="p-{{.ID}}" name="path" value="{{.SuggestedPath}}" required>
+      </div>
+      <button class="primary">Sincronizar</button>
+    </form>
+  </div>
+  {{else}}
+  <p class="muted">{{if .Overview.ServerConnected}}Non hai máis recursos dispoñibles.{{else}}Os recursos dispoñibles aparecerán cando haxa conexión co servidor.{{end}}</p>
+  {{end}}
+</section>
+
+<p class="muted"><a href="/">Actualizar</a></p>
+{{end}}
+{{template "foot"}}

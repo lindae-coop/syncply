@@ -1,0 +1,42 @@
+{{template "head"}}
+{{template "nav" "devices"}}
+{{template "flash" .}}
+
+{{if not .Overview.Paired}}
+<section><p>Este equipo aínda non está vinculado. <a href="/">Vincúlao primeiro</a>.</p></section>
+{{else}}
+<section>
+  <h2>Equipos vinculados á túa conta</h2>
+  {{if .DeviceErr}}<p class="bad">{{.DeviceErr}}</p>{{end}}
+  {{with .Devices}}
+  <p class="muted">Tes {{len .}} {{if eq (len .) 1}}equipo{{else}}equipos{{end}}.</p>
+  {{range .}}
+  <div class="item">
+    <div class="row">
+      <span class="name">{{.Name}}</span>
+      {{if .Current}}<span class="muted">(este equipo)</span>{{end}}
+      {{if .Connected}}<span class="ok"><span class="dot"></span>conectado</span>
+      {{else}}<span class="muted">{{if .LastSeen.IsZero}}nunca conectado{{else}}última conexión {{localt .LastSeen}}{{end}}</span>{{end}}
+    </div>
+    <div class="muted">Vinculado o {{localt .AddedAt}}</div>
+    {{if not .Current}}
+    <details>
+      <summary>Revogar este equipo</summary>
+      <form method="post" action="/revoke" class="flex">
+        <input type="hidden" name="id" value="{{.ID}}">
+        <input type="hidden" name="back" value="/devices">
+        <div>
+          <label for="otp-{{.ID}}">Código da túa app autenticadora</label>
+          <input type="text" id="otp-{{.ID}}" name="otp" class="otp" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required>
+        </div>
+        <button class="danger">Revogar «{{.Name}}»</button>
+      </form>
+      <p class="muted">Deixará de sincronizar co servidor e cos teus outros equipos. Os ficheiros que xa ten non se borran.</p>
+    </details>
+    {{end}}
+  </div>
+  {{end}}
+  {{end}}
+</section>
+{{end}}
+{{template "foot"}}

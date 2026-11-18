@@ -1,6 +1,7 @@
 # Contorno de desenvolvemento do prototipo (Podman rootless).
-# Non se publica ningún porto no host: as APIs só son accesibles desde a
-# rede interna "stnet".
+# As APIs só son accesibles desde a rede interna "stnet". A única excepción
+# é a web dos clientes cld, publicada só en 127.0.0.1 do equipo (como no
+# cliente real) para abrila co navegador: make ui C=1.
 name: cld
 
 x-syncthing: &syncthing
@@ -31,6 +32,10 @@ x-go: &go
     CGO_ENABLED: "0"
     GOFLAGS: "-buildvcs=false"
   networks: [stnet]
+
+x-cld: &cld
+  <<: *go
+  restart: unless-stopped
 
 services:
   # SFTPGo con BD SQLite. Os datos dos usuarios (/srv/sftpgo/data) móntanse
@@ -95,6 +100,46 @@ services:
       - gocache:/root/.cache/go-build
       - gomod:/go/pkg/mod
     restart: unless-stopped
+
+  # Clientes de escritorio (web de configuración) de cada nodo cliente.
+  cld-client1:
+    <<: *cld
+    hostname: cld-client1
+    command: ["go", "run", "./cmd/cld", "daemon", "-dir", "/cfg", "-config", "dev/cld.json",
+              "-listen", "0.0.0.0:8400", "-public-url", "http://127.0.0.1:8411",
+              "-st-url", "http://st-client1:8384", "-folders-base", "/var/syncthing/data"]
+    ports: ["127.0.0.1:8411:8400"]
+    volumes:
+      - ./:/src:z
+      - ./.dev/cld-client1:/cfg:Z
+      - gocache:/root/.cache/go-build
+      - gomod:/go/pkg/mod
+
+  cld-client2:
+    <<: *cld
+    hostname: cld-client2
+    command: ["go", "run", "./cmd/cld", "daemon", "-dir", "/cfg", "-config", "dev/cld.json",
+              "-listen", "0.0.0.0:8400", "-public-url", "http://127.0.0.1:8412",
+              "-st-url", "http://st-client2:8384", "-folders-base", "/var/syncthing/data"]
+    ports: ["127.0.0.1:8412:8400"]
+    volumes:
+      - ./:/src:z
+      - ./.dev/cld-client2:/cfg:Z
+      - gocache:/root/.cache/go-build
+      - gomod:/go/pkg/mod
+
+  cld-client3:
+    <<: *cld
+    hostname: cld-client3
+    command: ["go", "run", "./cmd/cld", "daemon", "-dir", "/cfg", "-config", "dev/cld.json",
+              "-listen", "0.0.0.0:8400", "-public-url", "http://127.0.0.1:8413",
+              "-st-url", "http://st-client3:8384", "-folders-base", "/var/syncthing/data"]
+    ports: ["127.0.0.1:8413:8400"]
+    volumes:
+      - ./:/src:z
+      - ./.dev/cld-client3:/cfg:Z
+      - gocache:/root/.cache/go-build
+      - gomod:/go/pkg/mod
 
   # Ferramentas en Go (sen instalar Go no host). Uso: make proto ARGS="..."
   tools:

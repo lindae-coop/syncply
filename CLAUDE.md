@@ -106,6 +106,17 @@ O cliente envía OTP + o seu Device ID; o servidor valida o OTP, autoriza ese di
 4. Listar os endpoints REST de Syncthing necesarios.
 5. Decidir despois se se fusiona o núcleo en SFTPGo ou se mantén o proceso separado.
 
+## Cliente `cld` (prototipo)
+
+- Decidido: app de configuración como **web local** servida por `cld daemon` en `127.0.0.1`; acceso sen coñecer detalles mediante un **acceso directo** que executa `cld open` (URL dun só uso → cookie de sesión). Ver README.
+- Verificado a man contra o contorno: vincular co OTP desde a web, ver recursos, aceptar nunha carpeta escollida, deixar de sincronizar, pausar/retomar, listar equipos, rexeitamento CSRF.
+- Tras "deixar de sincronizar", a oferta tarda ~20 s en volver (reconexión co servidor).
+- Pendente:
+  - O daemon aínda **non arranca nin supervisa Syncthing**: "Deter" é unha pausa indefinida. Ao supervisalo, deter = parar o proceso.
+  - Instaladores por SO (servizo de usuario: systemd user / LaunchAgent / tarefa de inicio; acceso directo; Syncthing incluído; `cld.json` co servidor). Icona na bandexa (require CGO en Linux/macOS).
+  - Cambiar a carpeta local dun recurso xa aceptado (hoxe: deixar de sincronizar e volver aceptar).
+  - API de Syncthing do cliente nun socket Unix.
+
 ## Para o futuro: cambios en SFTPGo ao integrar (pedidos polo usuario)
 
 - **Eliminar do código de SFTPGo as funcionalidades que deixan de ter sentido con Syncthing.** Exemplo: as **cotas dos usuarios**, que non se aplican ao que escribe Syncthing. Revisar tamén outras do mesmo tipo (límites de transferencia, filtros de ficheiros, hooks por operación…) e decidir caso a caso.
