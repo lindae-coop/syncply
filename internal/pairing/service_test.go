@@ -3,6 +3,8 @@ package pairing
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -330,5 +332,47 @@ func TestFolderNoLongerOffered(t *testing.T) {
 	}
 	if _, ok := e.st.devices[devB1]; !ok {
 		t.Error("o equipo debe seguir vinculado aínda sen carpetas")
+	}
+}
+
+func TestHookHandler(t *testing.T) {
+	e := newEnv(t)
+	h := e.svc.HookHandler("token-secreto-de-proba")
+	for _, c := range []struct {
+		auth string
+		want int
+	}{
+		{"", http.StatusUnauthorized},
+		{"Bearer outro", http.StatusUnauthorized},
+		{"Bearer token-secreto-de-proba", http.StatusAccepted},
+		{"Bearer token-secreto-de-proba", http.StatusAccepted}, // xúntase coa anterior
+	} {
+		req := httptest.NewRequest(http.MethodPost, "/internal/v1/sync", nil)
+		if c.auth != "" {
+			req.Header.Set("Authorization", c.auth)
+		}
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != c.want {
+			t.Errorf("%q: %d, quería %d", c.auth, rec.Code, c.want)
+		}
+	}
+	select {
+	case <-e.svc.ReconcileRequests():
+	default:
+		t.Fatal("non se pediu reconciliación")
+	}
+	select {
+	case <-e.svc.ReconcileRequests():
+		t.Fatal("as peticións seguidas deberían xuntarse")
+	default:
+	}
+	// Sen token configurado, a API interna rexeita todo.
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/internal/v1/sync", nil)
+	req.Header.Set("Authorization", "Bearer ")
+	e.svc.HookHandler("").ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("sen token: %d", rec.Code)
 	}
 }

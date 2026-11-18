@@ -38,9 +38,16 @@ Que levanta `compose.yaml`:
 
 Emparella equipos co Syncthing do servidor mediante o **OTP (TOTP) da conta
 de SFTPGo** e mantén a configuración do servidor de acordo co rexistro
-`usuario → equipos` e cos permisos de SFTPGo. Reconcilia en cada cambio e
-periodicamente (`-reconcile`, 10 s en desenvolvemento), así que os cambios
-feitos en SFTPGo aplícanse sós.
+`usuario → equipos` e cos permisos de SFTPGo. Reconcilia:
+
+- en cada emparellamento e revogación;
+- cando **SFTPGo avisa** dun cambio en usuarios ou grupos: unha regra do
+  xestor de eventos (`pairsrv-sync`) chama a `POST /internal/v1/sync` nun
+  listener separado (`-hook-listen`, `:8081`) cun token compartido
+  (`PAIRSRV_HOOK_TOKEN`). Aplícase en ~1 s;
+- periodicamente (`-reconcile`; 5 min en desenvolvemento, para que a demo
+  probe os avisos). Cobre os cambios que non xeran eventos en SFTPGo
+  (cartafoles), un Syncthing reiniciado ou avisos perdidos.
 
 Le **directamente a BD de SFTPGo** (só lectura) — ver
 [internal/sftpgo](internal/sftpgo/directory.go):
@@ -72,11 +79,22 @@ Le **directamente a BD de SFTPGo** (só lectura) — ver
 - Un equipo vinculado a un usuario non pode vinculalo outro.
 - O estado garda en `./.dev/pairsrv/state.json` (só o hash dos tokens).
 
+## Ficheiros de Syncthing en SFTPGo
+
+Un grupo **primario** `syncthing` oculta en SFTPGo (`deny_policy` 1) os
+ficheiros internos de Syncthing: `.stfolder`, `.stversions`, `.stignore`,
+`~syncthing~*` e `.syncthing.*.tmp`. Así os usuarios non os ven nin os poden
+borrar (borrar `.stfolder` para a sincronización da carpeta). Os conflitos
+(`*.sync-conflict-*`) si se ven: son contido do usuario. Os patróns de `/`
+só se herdan dun grupo primario; ao integrar en SFTPGo isto debería ir no
+código.
+
 ## Datos de proba
 
 [dev/sftpgo-demo.json](dev/sftpgo-demo.json) (contrasinais e segredos
 públicos, só para desenvolvemento). `make proto ARGS=sftpgo-setup` créaos en
-SFTPGo e activa o TOTP de cada usuario como faría el no WebClient:
+SFTPGo, crea a regra de eventos e activa o TOTP de cada usuario como faría
+el no WebClient. Todos teñen o grupo primario `syncthing`:
 
 | Usuario | Directorio persoal | `/comun` (grupo `equipo`) | `/arquivo` (grupo) |
 |---------|--------------------|---------------------------|--------------------|

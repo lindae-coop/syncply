@@ -94,12 +94,14 @@ O cliente envía OTP + o seu Device ID; o servidor valida o OTP, autoriza ese di
 - SFTPGo lembra os códigos usados (2 min) só en memoria do seu proceso: un código usado en pairsrv aínda vale para iniciar sesión en SFTPGo e viceversa (pairsrv rexeita os seus propios reusos).
 - Ficheiros subidos pola API de SFTPGo chegan aos clientes (~12 s); o que escriben os clientes aparece no disco de SFTPGo.
 - Desactivar un usuario en SFTPGo quítalle o acceso aos seus equipos no seguinte ciclo de reconciliación; reactivalo devólvello sen emparellar de novo.
+- **Xestor de eventos:** unha regra de provedor (`add`/`update`/`delete` sobre `user` e `group`) cunha acción HTTP avisa a pairsrv e o cambio aplícase en ~1 s. Os **cartafoles non xeran eventos de provedor** (`provider_objects` non inclúe `folder`): un cambio de `mapped_path` só chega coa reconciliación periódica. Non hai restricións para chamar a hosts internos.
+- **Ocultar ficheiros de Syncthing:** filtros `file_patterns` con `deny_policy: 1` en `/`. Os de `/` só se herdan de grupos **primarios** (os secundarios ignóranos), por iso o grupo primario `syncthing`.
 - Limitacións coñecidas: os filtros de ficheiros (patróns permitidos/denegados), as cotas e os hooks de SFTPGo non se aplican ao que escribe Syncthing; `.stfolder` e temporais de Syncthing vense desde SFTPGo.
 
 ## Próximos pasos propostos
 
 1. ~~Prototipo mínimo~~ e ~~validar fluxo OTP, pending folders, propagación de pares e baixas~~ (feito; GUI aínda en TCP interno, non en socket Unix).
-2. ~~Integrar con SFTPGo~~ (feito lendo a BD). Pendente: avisar a pairsrv desde o xestor de eventos de SFTPGo (alta/cambio/baixa de usuarios) en vez de depender só da reconciliación periódica; ocultar `.stfolder` e temporais de Syncthing en SFTPGo.
+2. ~~Integrar con SFTPGo~~ (feito lendo a BD), ~~avisos do xestor de eventos~~ e ~~ocultar os ficheiros de Syncthing~~ (grupo primario `syncthing`).
 3. Deseñar o modelo de datos do servidor (usuarios, dispositivos, carpetas, permisos) e a súa tradución á configuración de Syncthing.
 4. Listar os endpoints REST de Syncthing necesarios.
 5. Decidir despois se se fusiona o núcleo en SFTPGo ou se mantén o proceso separado.
@@ -107,4 +109,5 @@ O cliente envía OTP + o seu Device ID; o servidor valida o OTP, autoriza ese di
 ## Para o futuro: cambios en SFTPGo ao integrar (pedidos polo usuario)
 
 - **Eliminar do código de SFTPGo as funcionalidades que deixan de ter sentido con Syncthing.** Exemplo: as **cotas dos usuarios**, que non se aplican ao que escribe Syncthing. Revisar tamén outras do mesmo tipo (límites de transferencia, filtros de ficheiros, hooks por operación…) e decidir caso a caso.
+- Ocultar os ficheiros internos de Syncthing directamente no código de SFTPGo, sen depender dun grupo primario configurado a man.
 - **Indicadores visuais en SFTPGo** (WebAdmin e/ou WebClient) para cada recurso: se se ofrece ou non en Syncthing. Nos **non ofrecidos**, un tooltip ou similar co **motivo** (p. ex. sen permiso de escritura completo, almacenamento non local ou cifrado, permisos máis restritivos nunha subruta, usuario sen TOTP). Implica que `internal/sftpgo` devolva o motivo de exclusión de cada recurso, non só a lista dos ofrecidos.

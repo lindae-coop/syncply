@@ -403,7 +403,22 @@ func cmdDemo(ctx context.Context) error {
 		}
 	}
 
-	step("Desactivar bob en SFTPGo: o seu equipo perde o acceso")
+	step("SFTPGo oculta os ficheiros internos de Syncthing")
+	if err := waitExists(ctx, ".stfolder existe no disco de /comun", filepath.Join(nodesMount, "sftpgo/data/shared/comun/.stfolder")); err != nil {
+		return err
+	}
+	names, err := sftpgoList(ctx, "bob", "/comun")
+	if err != nil {
+		return err
+	}
+	if !slices.Contains(names, name) || slices.ContainsFunc(names, func(n string) bool { return strings.HasPrefix(n, ".st") || strings.HasPrefix(n, "~syncthing~") }) {
+		return fmt.Errorf("listaxe de /comun para bob: %v", names)
+	}
+	fmt.Printf("  OK  bob ve /comun sen .stfolder: %v\n", names)
+
+	// A reconciliación periódica de pairsrv está a 5 min (compose.yaml): se
+	// isto pasa en segundos é polo aviso do xestor de eventos de SFTPGo.
+	step("Desactivar bob en SFTPGo: o seu equipo perde o acceso (aviso de SFTPGo)")
 	if err := sftpgoSetStatus(ctx, "bob", 0); err != nil {
 		return err
 	}
@@ -418,12 +433,12 @@ func cmdDemo(ctx context.Context) error {
 	}); err != nil {
 		return err
 	}
-	_, err := listDevices(ctx, "st-client2")
+	_, err = listDevices(ctx, "st-client2")
 	if err := expect(err, 401, "o token de st-client2 non vale mentres bob estea desactivado"); err != nil {
 		return err
 	}
 
-	step("Reactivar bob: recupera o acceso sen volver emparellar")
+	step("Reactivar bob: recupera o acceso sen volver emparellar (aviso de SFTPGo)")
 	if err := sftpgoSetStatus(ctx, "bob", 1); err != nil {
 		return err
 	}

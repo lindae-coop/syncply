@@ -63,6 +63,8 @@ type Service struct {
 	mu       sync.Mutex
 	state    *State
 	serverID string
+
+	kick chan struct{}
 }
 
 func NewService(ctx context.Context, opts Options, dir Directory, st Syncthing, statePath string) (*Service, error) {
@@ -77,8 +79,21 @@ func NewService(ctx context.Context, opts Options, dir Directory, st Syncthing, 
 	if err != nil {
 		return nil, err
 	}
-	return &Service{opts: opts, dir: dir, st: st, statePath: statePath, now: time.Now, state: state, serverID: id}, nil
+	return &Service{opts: opts, dir: dir, st: st, statePath: statePath, now: time.Now, state: state, serverID: id,
+		kick: make(chan struct{}, 1)}, nil
 }
+
+// RequestReconcile pide unha reconciliación sen agardar por ela. Varias
+// peticións seguidas xúntanse nunha soa.
+func (s *Service) RequestReconcile() {
+	select {
+	case s.kick <- struct{}{}:
+	default:
+	}
+}
+
+// ReconcileRequests é a canle pola que chegan as peticións de RequestReconcile.
+func (s *Service) ReconcileRequests() <-chan struct{} { return s.kick }
 
 func (s *Service) snapshot(ctx context.Context) (*Snapshot, error) {
 	snap, err := s.dir.Snapshot(ctx)

@@ -23,7 +23,8 @@ import (
 func main() {
 	cfgPath := flag.String("config", "dev/pairsrv.json", "ficheiro de configuración")
 	statePath := flag.String("state", ".dev/pairsrv/state.json", "ficheiro de estado")
-	listen := flag.String("listen", ":8080", "enderezo de escoita")
+	listen := flag.String("listen", ":8080", "enderezo de escoita da API dos clientes")
+	hookListen := flag.String("hook-listen", "", "enderezo da API interna para SFTPGo (token en PAIRSRV_HOOK_TOKEN); baleiro: desactivada")
 	reconcileEvery := flag.Duration("reconcile", time.Minute, "intervalo de reconciliación con Syncthing")
 	flag.Parse()
 
@@ -55,8 +56,9 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// Reconciliación periódica: recupera a configuración se Syncthing se
-	// reinicia, se alguén a toca a man ou se fallou unha aplicación anterior.
+	// Reconciliación ao recibir avisos de SFTPGo e periódica: a periódica
+	// cubre os cambios que non xeran eventos (cartafoles), un Syncthing
+	// reiniciado, cambios feitos a man ou avisos perdidos.
 	go func() {
 		for {
 			if err := svc.Reconcile(ctx); err != nil && ctx.Err() == nil {
@@ -65,10 +67,29 @@ func main() {
 			select {
 			case <-ctx.Done():
 				return
+			case <-svc.ReconcileRequests():
 			case <-time.After(*reconcileEvery):
 			}
 		}
 	}()
+
+	if *hookListen != "" {
+		token := os.Getenv("PAIRSRV_HOOK_TOKEN")
+		if len(token) < 16 {
+			log.Fatal("PAIRSRV_HOOK_TOKEN: fai falta un token de polo menos 16 caracteres")
+		}
+		hook := &http.Server{Addr: *hookListen, Handler: svc.HookHandler(token), ReadHeaderTimeout: 10 * time.Second}
+		go func() {
+			<-ctx.Done()
+			hook.Close()
+		}()
+		go func() {
+			log.Printf("API interna escoitando en %s", *hookListen)
+			if err := hook.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				log.Fatal(err)
+			}
+		}()
+	}
 
 	srv := &http.Server{
 		Addr:              *listen,

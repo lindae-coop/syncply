@@ -26,6 +26,7 @@ x-go: &go
   working_dir: /src
   environment:
     <<: *sftpgo-env
+    PAIRSRV_HOOK_TOKEN: ${PAIRSRV_HOOK_TOKEN:-cld-dev-hook-NON-USAR-EN-PRODUCION}
     ST_APIKEY: ${ST_APIKEY:-cld-dev-apikey-NON-USAR-EN-PRODUCION}
     CGO_ENABLED: "0"
     GOFLAGS: "-buildvcs=false"
@@ -75,7 +76,9 @@ services:
       - ./.dev/st-client3:/var/syncthing:Z
 
   # Servizo de emparellamento: le usuarios e TOTP da BD de SFTPGo (só
-  # lectura) e configura st-server. Reconcilia cada 10 s en desenvolvemento.
+  # lectura) e configura st-server. :8080 é a API dos clientes; :8081, a
+  # interna para os avisos do xestor de eventos de SFTPGo. A reconciliación
+  # periódica vai a 5 min para que a demo comprobe que os avisos funcionan.
   pairsrv:
     <<: *go
     hostname: pairsrv
@@ -83,7 +86,8 @@ services:
               "-config", "dev/pairsrv.json",
               "-state", "/state/state.json",
               "-listen", ":8080",
-              "-reconcile", "10s"]
+              "-hook-listen", ":8081",
+              "-reconcile", "5m"]
     volumes:
       - ./:/src:z
       - ./.dev/pairsrv:/state:Z

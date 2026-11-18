@@ -1,6 +1,7 @@
 package pairing
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"log"
@@ -58,6 +59,24 @@ func (s *Service) Handler() http.Handler {
 		log.Printf("revoke user=%q device=%q (desde %q): OK", c.User, id, c.DeviceID)
 		w.WriteHeader(http.StatusNoContent)
 	}))
+	return mux
+}
+
+// HookHandler expón a API interna para SFTPGo (xestor de eventos). Vai nun
+// listener separado e protexida cun token compartido:
+//
+//	POST /internal/v1/sync   (Bearer hookToken) → 202; pide unha reconciliación
+func (s *Service) HookHandler(hookToken string) http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /internal/v1/sync", func(w http.ResponseWriter, r *http.Request) {
+		tok, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+		if hookToken == "" || subtle.ConstantTimeCompare([]byte(tok), []byte(hookToken)) != 1 {
+			writeErr(w, ErrUnauthorized)
+			return
+		}
+		s.RequestReconcile()
+		w.WriteHeader(http.StatusAccepted)
+	})
 	return mux
 }
 

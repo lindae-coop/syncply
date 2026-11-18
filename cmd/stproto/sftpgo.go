@@ -28,20 +28,22 @@ type demoData struct {
 		Path string `json:"path"`
 	} `json:"folders"`
 	Groups []struct {
-		Name        string              `json:"name"`
-		Folders     map[string]string   `json:"folders"` // ruta virtual → cartafol
-		Permissions map[string][]string `json:"permissions"`
+		Name         string              `json:"name"`
+		Folders      map[string]string   `json:"folders"` // ruta virtual → cartafol
+		Permissions  map[string][]string `json:"permissions"`
+		FilePatterns []any               `json:"filePatterns"`
 	} `json:"groups"`
 	Users []demoUser `json:"users"`
 }
 
 type demoUser struct {
-	Name        string              `json:"name"`
-	Password    string              `json:"password"`
-	TOTPSecret  string              `json:"totpSecret"`
-	HomeDir     string              `json:"homeDir"`
-	Permissions map[string][]string `json:"permissions"`
-	Groups      []string            `json:"groups"`
+	Name         string              `json:"name"`
+	Password     string              `json:"password"`
+	TOTPSecret   string              `json:"totpSecret"`
+	HomeDir      string              `json:"homeDir"`
+	Permissions  map[string][]string `json:"permissions"`
+	PrimaryGroup string              `json:"primaryGroup"`
+	Groups       []string            `json:"groups"` // secundarios
 }
 
 func loadDemo() (*demoData, error) {
@@ -169,16 +171,45 @@ func cmdSFTPGoSetup(ctx context.Context) error {
 		for vp, name := range g.Folders {
 			vfs = append(vfs, map[string]any{"name": name, "virtual_path": vp})
 		}
+		settings := map[string]any{"permissions": g.Permissions}
+		if len(g.FilePatterns) > 0 {
+			settings["filters"] = map[string]any{"file_patterns": g.FilePatterns}
+		}
 		if _, err := create("groups", g.Name, map[string]any{
-			"name": g.Name, "virtual_folders": vfs,
-			"user_settings": map[string]any{"permissions": g.Permissions},
+			"name": g.Name, "virtual_folders": vfs, "user_settings": settings,
 		}); err != nil {
 			return err
 		}
 	}
+	// Aviso a pairsrv cando cambian usuarios ou grupos. Os cartafoles non
+	// xeran eventos de provedor: eses cambios chegan coa reconciliación periódica.
+	if _, err := create("eventactions", "pairsrv-sync", map[string]any{
+		"name": "pairsrv-sync", "type": 1,
+		"description": "Pide a pairsrv que aplique en Syncthing os cambios de usuarios e grupos",
+		"options": map[string]any{"http_config": map[string]any{
+			"endpoint": "http://pairsrv:8081/internal/v1/sync", "method": "POST", "timeout": 10,
+			"headers": []map[string]string{{"key": "Authorization", "value": "Bearer " + os.Getenv("PAIRSRV_HOOK_TOKEN")}},
+		}},
+	}); err != nil {
+		return err
+	}
+	if _, err := create("eventrules", "pairsrv-sync", map[string]any{
+		"name": "pairsrv-sync", "status": 1, "trigger": 2,
+		"conditions": map[string]any{
+			"provider_events": []string{"add", "update", "delete"},
+			"options":         map[string]any{"provider_objects": []string{"user", "group"}},
+		},
+		"actions": []map[string]any{{"name": "pairsrv-sync", "order": 1}},
+	}); err != nil {
+		return err
+	}
+
 	for i := range d.Users {
 		u := &d.Users[i]
 		var groups []map[string]any
+		if u.PrimaryGroup != "" {
+			groups = append(groups, map[string]any{"name": u.PrimaryGroup, "type": 1})
+		}
 		for _, g := range u.Groups {
 			groups = append(groups, map[string]any{"name": g, "type": 2}) // secundario
 		}
@@ -241,4 +272,31 @@ func sftpgoSetStatus(ctx context.Context, user string, status int) error {
 	u["status"] = status
 	body, hdr := jsonBody(u)
 	return sftpgoCall(ctx, http.MethodPut, "/users/"+url.PathEscape(user), admin, hdr, body, nil)
+}
+
+// sftpgoList lista un directorio como o usuario (con OTP).
+func sftpgoList(ctx context.Context, user, vpath string) ([]string, error) {
+	d, err := loadDemo()
+	if err != nil {
+		return nil, err
+	}
+	u := d.user(user)
+	if u == nil {
+		return nil, fmt.Errorf("usuario de proba descoñecido: %s", user)
+	}
+	tok, err := userAuth(ctx, u, true)
+	if err != nil {
+		return nil, err
+	}
+	var entries []struct {
+		Name string `json:"name"`
+	}
+	if err := sftpgoCall(ctx, http.MethodGet, "/user/dirs?"+url.Values{"path": {vpath}}.Encode(), tok, nil, nil, &entries); err != nil {
+		return nil, err
+	}
+	var names []string
+	for _, e := range entries {
+		names = append(names, e.Name)
+	}
+	return names, nil
 }
