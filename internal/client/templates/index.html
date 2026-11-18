@@ -2,7 +2,19 @@
 {{if .Overview.Paired}}{{template "nav" "index"}}{{else}}<header><h1>cld</h1></header>{{end}}
 {{template "flash" .}}
 
-{{if not .Overview.Paired}}
+{{if .Overview.Stopped}}
+<section>
+  <div class="row">
+    <div class="warn"><span class="dot warn"></span>Sincronización detida</div>
+    <form method="post" action="/start" class="inline" style="margin-left:auto"><button class="primary">Arrancar</button></form>
+  </div>
+  <p class="muted">Mentres estea detida non se envía nin se recibe ningún cambio.</p>
+</section>
+{{else if .Overview.Starting}}
+<section>
+  <div class="muted"><span class="dot warn"></span>Iniciando a sincronización… <a href="/">Actualizar</a></div>
+</section>
+{{else if not .Overview.Paired}}
 <section>
   <h2>Vincular este equipo</h2>
   <p class="muted">Introduce o teu usuario e o código de 6 díxitos da túa app autenticadora (o mesmo que usas para entrar no servidor de ficheiros).</p>
@@ -36,8 +48,8 @@
       {{else}}
         <form method="post" action="/pause" class="inline"><input type="hidden" name="for" value="1h"><button>Pausar 1 hora</button></form>
         <form method="post" action="/pause" class="inline"><input type="hidden" name="for" value="8h"><button>Pausar 8 horas</button></form>
-        <form method="post" action="/pause" class="inline"><input type="hidden" name="for" value="0s"><button>Deter</button></form>
       {{end}}
+      <form method="post" action="/stop" class="inline"><button>Deter</button></form>
     </div>
   </div>
 </section>

@@ -23,6 +23,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
@@ -79,7 +80,10 @@ func daemon(args []string) error {
 	cfgPath := fs.String("config", "", "configuración do instalador (por defecto <dir>/cld.json)")
 	listen := fs.String("listen", "127.0.0.1:0", "enderezo da web (porto 0: un libre)")
 	publicURL := fs.String("public-url", "", "URL coa que o navegador chega á web (por defecto http://<listen>)")
-	stURL := fs.String("st-url", "http://127.0.0.1:8384", "API do Syncthing local")
+	stURL := fs.String("st-url", "", "API dun Syncthing externo (se se indica, cld non arranca o seu)")
+	stBin := fs.String("syncthing", "", "binario de Syncthing (por defecto, xunto a cld ou no PATH)")
+	stHome := fs.String("st-home", "", "directorio de Syncthing (por defecto <dir>/syncthing)")
+	stGUI := fs.String("st-gui", "", "enderezo da API de Syncthing (por defecto, socket Unix en <st-home>; en Windows, porto libre en 127.0.0.1)")
 	foldersBase := fs.String("folders-base", "", "onde se suxire crear as carpetas (por defecto ~/cld)")
 	fs.Parse(args)
 
@@ -97,20 +101,29 @@ func daemon(args []string) error {
 	if err != nil {
 		return err
 	}
-	st := stapi.New("syncthing", *stURL, os.Getenv("ST_APIKEY"))
-
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	wctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
-	err = st.WaitHealthy(wctx)
-	cancel()
+
+	app, err := client.NewApp(cfg, nil, filepath.Join(*dir, "state.json"), *foldersBase)
 	if err != nil {
 		return err
 	}
-
-	app, err := client.NewApp(cfg, st, filepath.Join(*dir, "state.json"), *foldersBase)
-	if err != nil {
-		return err
+	var supDone chan struct{}
+	if *stURL != "" {
+		// Syncthing externo (p. ex. xa instalado como servizo).
+		st := stapi.New("syncthing", *stURL, os.Getenv("ST_APIKEY"))
+		app.SetSyncthingClient(st)
+		wctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+		err = st.WaitHealthy(wctx)
+		cancel()
+		if err != nil {
+			return err
+		}
+	} else {
+		supDone, err = superviseSyncthing(ctx, app, *dir, *stBin, *stHome, *stGUI)
+		if err != nil {
+			return err
+		}
 	}
 	ln, err := net.Listen("tcp", *listen)
 	if err != nil {
@@ -157,7 +170,113 @@ func daemon(args []string) error {
 	if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
+	if supDone != nil {
+		<-supDone // agardar a que Syncthing remate
+	}
 	return nil
+}
+
+// superviseSyncthing prepara e lanza o Syncthing propio do cliente.
+func superviseSyncthing(ctx context.Context, app *client.App, dir, bin, home, gui string) (chan struct{}, error) {
+	if bin == "" {
+		var err error
+		if bin, err = findSyncthing(); err != nil {
+			return nil, err
+		}
+	}
+	if home == "" {
+		home = filepath.Join(dir, "syncthing")
+	}
+	if err := os.MkdirAll(home, 0o700); err != nil {
+		return nil, err
+	}
+	if gui == "" {
+		if runtime.GOOS == "windows" {
+			port, err := freePort()
+			if err != nil {
+				return nil, err
+			}
+			gui = "127.0.0.1:" + port
+		} else {
+			gui = "unix://" + filepath.Join(home, "gui.sock")
+		}
+	}
+	key := os.Getenv("ST_APIKEY") // desenvolvemento: chave fixa compartida con stproto
+	if key == "" {
+		var err error
+		if key, err = app.SyncthingAPIKey(); err != nil {
+			return nil, err
+		}
+	}
+	apiBase := gui
+	if !strings.HasPrefix(gui, "unix://") {
+		h, p, err := net.SplitHostPort(strings.TrimPrefix(gui, "http://"))
+		if err != nil {
+			return nil, fmt.Errorf("st-gui: %w", err)
+		}
+		if h == "" || h == "0.0.0.0" || h == "::" {
+			h = "127.0.0.1"
+		}
+		apiBase = "http://" + net.JoinHostPort(h, p)
+	}
+	st := stapi.New("syncthing", apiBase, key)
+	app.SetSyncthingClient(st)
+
+	sup := &client.Supervisor{
+		Bin: bin, Home: home, GUIAddress: gui, APIKey: key,
+		Shutdown: st.Shutdown,
+		OnStart: func(ctx context.Context) {
+			wctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+			defer cancel()
+			if err := st.WaitHealthy(wctx); err != nil {
+				log.Printf("syncthing non responde: %v", err)
+				return
+			}
+			if err := app.ApplyOptions(ctx); err != nil {
+				log.Printf("aplicando opcións de syncthing: %v", err)
+			}
+		},
+	}
+	app.SetSupervisor(sup)
+	if !app.Stopped() {
+		sup.Start()
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		sup.Run(ctx)
+	}()
+	log.Printf("cld: syncthing %s (home %s, API %s)", bin, home, gui)
+	return done, nil
+}
+
+// findSyncthing busca o binario xunto a cld e despois no PATH.
+func findSyncthing() (string, error) {
+	name := "syncthing"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	if exe, err := os.Executable(); err == nil {
+		p := filepath.Join(filepath.Dir(exe), name)
+		if _, err := os.Stat(p); err == nil {
+			return p, nil
+		}
+	}
+	p, err := exec.LookPath(name)
+	if err != nil {
+		return "", fmt.Errorf("non se atopa syncthing (xunto a cld nin no PATH); usa -syncthing ou -st-url")
+	}
+	return p, nil
+}
+
+func freePort() (string, error) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return "", err
+	}
+	defer l.Close()
+	_, p, _ := net.SplitHostPort(l.Addr().String())
+	return p, nil
 }
 
 func randKey() string {

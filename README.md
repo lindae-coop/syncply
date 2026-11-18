@@ -23,11 +23,10 @@ Que levanta `compose.yaml`:
 |--------------|----------------------------------------------------------|
 | `sftpgo`     | SFTPGo 2.7.6 (BD SQLite), datos en `/srv/sftpgo/data`    |
 | `st-server`  | Syncthing do servidor; ve os datos de SFTPGo na mesma ruta |
-| `st-client1` | Cliente de proba (alice)                                 |
-| `st-client2` | Cliente de proba (bob)                                   |
-| `st-client3` | Cliente de proba (alice, segundo equipo)                 |
+| `st-client1` | Cliente de proba (alice): `cld daemon` + o seu Syncthing; web en `127.0.0.1:8411` |
+| `st-client2` | Cliente de proba (bob); web en `127.0.0.1:8412`          |
+| `st-client3` | Cliente de proba (alice, segundo equipo); web en `127.0.0.1:8413` |
 | `pairsrv`    | Servizo de emparellamento con TOTP (`cmd/pairsrv`)       |
-| `cld-client1..3` | Cliente de escritorio `cld` de cada nodo; web en `127.0.0.1:8411..8413` |
 | `tools`      | Go 1.27 para executar `cmd/stproto` e os tests           |
 
 - A API REST de Syncthing só é accesible desde a rede interna `stnet` e con
@@ -109,13 +108,22 @@ el no WebClient. Todos teñen o grupo primario `syncthing`:
 
 Un só binario ([cmd/cld](cmd/cld/main.go), [internal/client](internal/client)):
 
-- `cld daemon`: servizo de usuario. Fala co Syncthing local e serve a web de
-  configuración só en `127.0.0.1` (porto libre). Nesa web o usuario:
+- `cld daemon`: servizo de usuario. **Arranca e vixía o seu propio
+  Syncthing** (proceso fillo con `--no-restart`: reinícioo ao momento se
+  Syncthing pide reiniciarse e con espera crecente se falla) e serve a web
+  de configuración só en `127.0.0.1` (porto libre).
+  - Syncthing vai en `<dir>/syncthing` (`0700`), coa **API nun socket Unix**
+    (`gui.sock`; en Windows, porto libre en loopback) e unha API key
+    aleatoria gardada no estado. Busca o binario `syncthing` xunto a `cld`
+    ou no PATH (`-syncthing`). Con `-st-url` usa un Syncthing externo.
+  - Aplica `syncthingOptions` de `cld.json` cada vez que Syncthing arranca.
+  - Nesa web o usuario:
   - vincula o equipo co seu usuario e o código OTP;
   - ve os recursos que sincroniza (estado, tamaño) e os que ofrece o
     servidor, escolle a carpeta local de cada un e acepta, ou deixa de
     sincronizar (os ficheiros locais quedan);
-  - pausa 1 h / 8 h (retómase só) ou detén ata retomar;
+  - pausa 1 h / 8 h (retómase só), ou **detén** (para o proceso de
+    Syncthing; lémbrase entre reinicios) e arranca;
   - ve os seus equipos e revoga outros (cun código OTP novo).
 - `cld open`: o que executa o **acceso directo**. Le `ui.json` (porto e
   clave de control, `0600`, só do usuario), pídelle ao daemon unha URL de
@@ -129,9 +137,14 @@ Seguridade da web: só loopback; URL de acceso dun só uso → cookie de sesión
 `HttpOnly`, `SameSite=Strict`; comprobación de `Host` (DNS rebinding) e de
 `Origin`/`Sec-Fetch-Site` nos POST (CSRF); CSP sen JavaScript.
 
-Configuración do instalador (`cld.json`): `pairsrvURL` e, opcionalmente,
+Configuración do instalador (`cld.json`): `pairsrvURL`, opcionalmente
 `serverDeviceID` (se se indica, o emparellamento só se acepta con ese
-servidor). Exemplo de desenvolvemento: [dev/cld.json](dev/cld.json).
+servidor) e `syncthingOptions` (descubrimento, relays, informes de uso…).
+
+No contorno, os contedores `st-clientN` usan a imaxe
+[dev/Containerfile.client](dev/Containerfile.client) (Go + binario de
+Syncthing 2.1.7). A API de Syncthing vai en TCP interno (`-st-gui
+0.0.0.0:8384`, `ST_APIKEY`) para que `stproto` siga chegando a ela. Exemplo de desenvolvemento: [dev/cld.json](dev/cld.json).
 
 Probar a web en desenvolvemento: `make fresh`, `make ui C=1` e vincular co
 usuario `alice` e o código que dá `make otp U=alice` (válido uns 30-60 s).

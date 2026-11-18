@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"time"
 )
@@ -154,6 +155,12 @@ func (s *Supervisor) Run(ctx context.Context) {
 func (s *Supervisor) runOnce(ctx context.Context) (int, error) {
 	if err := os.MkdirAll(s.Home, 0o700); err != nil {
 		return -1, err
+	}
+	// Un socket que quedou dunha execución anterior impediría escoitar.
+	if sock, ok := strings.CutPrefix(s.GUIAddress, "unix://"); ok {
+		if fi, err := os.Lstat(sock); err == nil && fi.Mode()&os.ModeSocket != 0 {
+			os.Remove(sock)
+		}
 	}
 	cmd := exec.Command(s.Bin, "serve",
 		"--home="+s.Home,

@@ -1,7 +1,8 @@
 COMPOSE  ?= podman-compose
 NODES    := st-server st-client1 st-client2 st-client3
-CLIENTS  := cld-client1 cld-client2 cld-client3
-SERVICES := sftpgo $(NODES) pairsrv $(CLIENTS)
+CLIENTS  := st-client1 st-client2 st-client3
+SERVICES := sftpgo $(NODES) pairsrv
+CLIENT_IMAGE := localhost/cld-client-dev:latest
 ARGS     ?= status
 C        ?= 1
 RUN      := $(COMPOSE) run --rm tools
@@ -9,7 +10,7 @@ RUN      := $(COMPOSE) run --rm tools
 .PHONY: help up down restart logs proto demo fresh ui otp status test clean
 
 help:
-	@echo "make up       - arranca SFTPGo, os nodos Syncthing, pairsrv e os clientes cld"
+	@echo "make up       - arranca SFTPGo, o Syncthing do servidor, pairsrv e os clientes (cld + o seu Syncthing)"
 	@echo "make demo     - parte de cero e valida o fluxo completo"
 	@echo "make fresh    - parte de cero con SFTPGo preparado e sen emparellar (para probar a web)"
 	@echo "make ui C=1   - abre no navegador a web do cliente 1 (como o acceso directo)"
@@ -23,7 +24,8 @@ help:
 	@echo "make clean    - para e borra ./.dev (estado dos nodos)"
 
 up:
-	@mkdir -p $(addprefix .dev/,$(NODES) $(CLIENTS) pairsrv sftpgo/lib sftpgo/data)
+	@mkdir -p $(addprefix .dev/,$(NODES) cld-client1 cld-client2 cld-client3 pairsrv sftpgo/lib sftpgo/data)
+	@podman image exists $(CLIENT_IMAGE) || $(COMPOSE) build st-client1
 	$(COMPOSE) up -d $(SERVICES)
 
 down:
@@ -51,9 +53,9 @@ fresh:
 # Igual que `cld open` no acceso directo: pídelle ao daemon unha URL dun só
 # uso e ábrea no navegador do equipo.
 ui:
-	@url=$$($(COMPOSE) exec -T cld-client$(C) go run ./cmd/cld open -dir /cfg -print 2>/dev/null | tail -1); \
+	@url=$$($(COMPOSE) exec -T st-client$(C) go run ./cmd/cld open -dir /cfg -print 2>/dev/null | tail -1); \
 	  case "$$url" in http*) echo "$$url"; xdg-open "$$url" >/dev/null 2>&1 || true;; \
-	  *) echo "cld-client$(C) non responde (make up?)"; exit 1;; esac
+	  *) echo "st-client$(C) non responde (make up?)"; exit 1;; esac
 
 U ?= alice
 otp:

@@ -33,8 +33,18 @@ x-go: &go
     GOFLAGS: "-buildvcs=false"
   networks: [stnet]
 
-x-cld: &cld
+# Clientes: cada contedor executa `cld daemon`, que arranca o seu propio
+# Syncthing (como no equipo dun usuario). Hostname st-clientN para que stproto
+# chegue á API de Syncthing (en desenvolvemento en TCP interno con
+# ST_APIKEY; no cliente real vai nun socket Unix). A web publícase só en
+# 127.0.0.1. Reutiliza ./.dev/st-clientN/config como directorio de Syncthing
+# (mesma identidade que cando eran contedores de Syncthing).
+x-client: &client
   <<: *go
+  image: localhost/cld-client-dev:latest
+  build:
+    context: dev
+    dockerfile: Containerfile.client
   restart: unless-stopped
 
 services:
@@ -61,24 +71,51 @@ services:
       - ./.dev/st-server:/var/syncthing:Z
       - ./.dev/sftpgo/data:/srv/sftpgo/data:z
 
-  # Clientes de proba (no demo: client1 e client3 son de alice, client2 de bob).
+  # No demo: client1 e client3 son de alice, client2 de bob.
   st-client1:
-    <<: *syncthing
+    <<: *client
     hostname: st-client1
+    command: ["go", "run", "./cmd/cld", "daemon", "-dir", "/cfg", "-config", "dev/cld.json",
+              "-listen", "0.0.0.0:8400", "-public-url", "http://127.0.0.1:8411",
+              "-st-home", "/var/syncthing/config", "-st-gui", "0.0.0.0:8384",
+              "-folders-base", "/var/syncthing/data"]
+    ports: ["127.0.0.1:8411:8400"]
     volumes:
+      - ./:/src:z
       - ./.dev/st-client1:/var/syncthing:Z
+      - ./.dev/cld-client1:/cfg:Z
+      - gocache:/root/.cache/go-build
+      - gomod:/go/pkg/mod
 
   st-client2:
-    <<: *syncthing
+    <<: *client
     hostname: st-client2
+    command: ["go", "run", "./cmd/cld", "daemon", "-dir", "/cfg", "-config", "dev/cld.json",
+              "-listen", "0.0.0.0:8400", "-public-url", "http://127.0.0.1:8412",
+              "-st-home", "/var/syncthing/config", "-st-gui", "0.0.0.0:8384",
+              "-folders-base", "/var/syncthing/data"]
+    ports: ["127.0.0.1:8412:8400"]
     volumes:
+      - ./:/src:z
       - ./.dev/st-client2:/var/syncthing:Z
+      - ./.dev/cld-client2:/cfg:Z
+      - gocache:/root/.cache/go-build
+      - gomod:/go/pkg/mod
 
   st-client3:
-    <<: *syncthing
+    <<: *client
     hostname: st-client3
+    command: ["go", "run", "./cmd/cld", "daemon", "-dir", "/cfg", "-config", "dev/cld.json",
+              "-listen", "0.0.0.0:8400", "-public-url", "http://127.0.0.1:8413",
+              "-st-home", "/var/syncthing/config", "-st-gui", "0.0.0.0:8384",
+              "-folders-base", "/var/syncthing/data"]
+    ports: ["127.0.0.1:8413:8400"]
     volumes:
+      - ./:/src:z
       - ./.dev/st-client3:/var/syncthing:Z
+      - ./.dev/cld-client3:/cfg:Z
+      - gocache:/root/.cache/go-build
+      - gomod:/go/pkg/mod
 
   # Servizo de emparellamento: le usuarios e TOTP da BD de SFTPGo (só
   # lectura) e configura st-server. :8080 é a API dos clientes; :8081, a
@@ -100,46 +137,6 @@ services:
       - gocache:/root/.cache/go-build
       - gomod:/go/pkg/mod
     restart: unless-stopped
-
-  # Clientes de escritorio (web de configuración) de cada nodo cliente.
-  cld-client1:
-    <<: *cld
-    hostname: cld-client1
-    command: ["go", "run", "./cmd/cld", "daemon", "-dir", "/cfg", "-config", "dev/cld.json",
-              "-listen", "0.0.0.0:8400", "-public-url", "http://127.0.0.1:8411",
-              "-st-url", "http://st-client1:8384", "-folders-base", "/var/syncthing/data"]
-    ports: ["127.0.0.1:8411:8400"]
-    volumes:
-      - ./:/src:z
-      - ./.dev/cld-client1:/cfg:Z
-      - gocache:/root/.cache/go-build
-      - gomod:/go/pkg/mod
-
-  cld-client2:
-    <<: *cld
-    hostname: cld-client2
-    command: ["go", "run", "./cmd/cld", "daemon", "-dir", "/cfg", "-config", "dev/cld.json",
-              "-listen", "0.0.0.0:8400", "-public-url", "http://127.0.0.1:8412",
-              "-st-url", "http://st-client2:8384", "-folders-base", "/var/syncthing/data"]
-    ports: ["127.0.0.1:8412:8400"]
-    volumes:
-      - ./:/src:z
-      - ./.dev/cld-client2:/cfg:Z
-      - gocache:/root/.cache/go-build
-      - gomod:/go/pkg/mod
-
-  cld-client3:
-    <<: *cld
-    hostname: cld-client3
-    command: ["go", "run", "./cmd/cld", "daemon", "-dir", "/cfg", "-config", "dev/cld.json",
-              "-listen", "0.0.0.0:8400", "-public-url", "http://127.0.0.1:8413",
-              "-st-url", "http://st-client3:8384", "-folders-base", "/var/syncthing/data"]
-    ports: ["127.0.0.1:8413:8400"]
-    volumes:
-      - ./:/src:z
-      - ./.dev/cld-client3:/cfg:Z
-      - gocache:/root/.cache/go-build
-      - gomod:/go/pkg/mod
 
   # Ferramentas en Go (sen instalar Go no host). Uso: make proto ARGS="..."
   tools:

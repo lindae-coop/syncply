@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -27,6 +28,9 @@ type Config struct {
 	// Se se indica, o emparellamento só se acepta se o servidor responde con
 	// este Device ID (a "clave do servidor preinstalada").
 	ServerDeviceID string `json:"serverDeviceID,omitempty"`
+	// Opcións de Syncthing aplicadas cada vez que arranca (PATCH
+	// /rest/config/options): descubrimento, relays, informes de uso...
+	SyncthingOptions map[string]any `json:"syncthingOptions,omitempty"`
 }
 
 func LoadConfig(path string) (*Config, error) {
@@ -52,6 +56,9 @@ type State struct {
 	ServerDeviceID string    `json:"serverDeviceID,omitempty"`
 	DeviceName     string    `json:"deviceName,omitempty"`
 	ResumeAt       time.Time `json:"resumeAt,omitzero"` // pausa temporal
+	Stopped        bool      `json:"stopped,omitempty"` // Syncthing detido polo usuario
+	// API key do Syncthing que arranca o daemon (xérase a primeira vez).
+	SyncthingAPIKey string `json:"syncthingAPIKey,omitempty"`
 }
 
 func (s *State) paired() bool { return s.Token != "" && s.ServerDeviceID != "" }
@@ -64,8 +71,74 @@ type App struct {
 	http        *http.Client
 	now         func() time.Time
 
+	sup *Supervisor // nil se Syncthing é externo (non o arranca cld)
+
 	mu    sync.Mutex
 	state State
+}
+
+// SetSyncthingClient indica o cliente da API de Syncthing (cando non se
+// coñece ao crear a App: a API key pode estar no estado).
+func (a *App) SetSyncthingClient(st *stapi.Client) { a.st = st }
+
+// SetSupervisor indica que Syncthing o arranca este daemon.
+func (a *App) SetSupervisor(sup *Supervisor) { a.sup = sup }
+
+// SyncthingAPIKey devolve a API key do Syncthing propio, xerándoa a primeira vez.
+func (a *App) SyncthingAPIKey() (string, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.state.SyncthingAPIKey == "" {
+		a.state.SyncthingAPIKey = randToken()
+		if err := a.saveLocked(); err != nil {
+			return "", err
+		}
+	}
+	return a.state.SyncthingAPIKey, nil
+}
+
+// Stopped indica se o usuario detivo a sincronización.
+func (a *App) Stopped() bool { return a.snapshotState().Stopped }
+
+// ApplyOptions aplica cld.json → syncthingOptions.
+func (a *App) ApplyOptions(ctx context.Context) error {
+	if len(a.cfg.SyncthingOptions) == 0 {
+		return nil
+	}
+	return a.st.PatchOptions(ctx, a.cfg.SyncthingOptions)
+}
+
+// running comproba que Syncthing estea en marcha antes dunha acción.
+func (a *App) running() error {
+	if a.sup != nil && !a.sup.Wanted() {
+		return userErr("A sincronización está detida. Arráncaa primeiro.")
+	}
+	return nil
+}
+
+// Stop detén Syncthing (só se o arranca este daemon). Lémbrase ao reiniciar.
+func (a *App) Stop(ctx context.Context) error {
+	if a.sup == nil {
+		return userErr("Este cliente non xestiona o proceso de Syncthing.")
+	}
+	if err := a.sup.Stop(ctx); err != nil {
+		return err
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.state.Stopped = true
+	return a.saveLocked()
+}
+
+func (a *App) Start(ctx context.Context) error {
+	if a.sup == nil {
+		return userErr("Este cliente non xestiona o proceso de Syncthing.")
+	}
+	a.sup.Start()
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.state.Stopped = false
+	return a.saveLocked()
 }
 
 func NewApp(cfg *Config, st *stapi.Client, statePath, foldersBase string) (*App, error) {
@@ -170,6 +243,9 @@ func (a *App) Pair(ctx context.Context, user, otp, deviceName string) error {
 	if user == "" || otp == "" || deviceName == "" {
 		return userErr("Enche o usuario, o código e o nome do equipo.")
 	}
+	if err := a.running(); err != nil {
+		return err
+	}
 	myID, err := a.st.MyID(ctx)
 	if err != nil {
 		return err
@@ -193,7 +269,8 @@ func (a *App) Pair(ctx context.Context, user, otp, deviceName string) error {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	a.state = State{User: user, Token: resp.Token, ServerDeviceID: resp.ServerDeviceID, DeviceName: deviceName}
+	a.state.User, a.state.Token, a.state.DeviceName = user, resp.Token, deviceName
+	a.state.ServerDeviceID = resp.ServerDeviceID
 	return a.saveLocked()
 }
 
@@ -234,6 +311,8 @@ type Overview struct {
 	ServerConnected bool
 	Paused          bool
 	ResumeAt        time.Time
+	Stopped         bool // Syncthing detido polo usuario
+	Starting        bool // Syncthing arrancando (aínda non responde)
 	Folders         []FolderView
 	Offers          []OfferView
 }
@@ -241,12 +320,20 @@ type Overview struct {
 func (a *App) Overview(ctx context.Context) (*Overview, error) {
 	s := a.snapshotState()
 	ov := &Overview{Paired: s.paired(), User: s.User, DeviceName: s.DeviceName, ResumeAt: s.ResumeAt}
+	if a.sup != nil && !a.sup.Wanted() {
+		ov.Stopped = true
+		return ov, nil
+	}
 	if !ov.Paired {
 		ov.Hostname, _ = os.Hostname()
 		return ov, nil
 	}
 	devs, err := a.st.Devices(ctx)
 	if err != nil {
+		if a.sup != nil && !a.sup.Running() || isUnreachable(err) {
+			ov.Starting = true
+			return ov, nil
+		}
 		return nil, err
 	}
 	for _, d := range devs {
@@ -313,6 +400,9 @@ func (a *App) suggestPath(label string) string {
 
 // Accept acepta un recurso ofrecido polo servidor e sincronízao en path.
 func (a *App) Accept(ctx context.Context, id, path string) error {
+	if err := a.running(); err != nil {
+		return err
+	}
 	s := a.snapshotState()
 	path = filepath.Clean(strings.TrimSpace(path))
 	if !filepath.IsAbs(path) {
@@ -363,6 +453,9 @@ func (a *App) Accept(ctx context.Context, id, path string) error {
 // Unsync deixa de sincronizar un recurso. Os ficheiros locais non se borran.
 // Reconéctase co servidor para que o recurso volva aparecer como ofrecido.
 func (a *App) Unsync(ctx context.Context, id string) error {
+	if err := a.running(); err != nil {
+		return err
+	}
 	if err := a.st.DeleteFolder(ctx, id); err != nil {
 		return err
 	}
@@ -375,8 +468,18 @@ func (a *App) Unsync(ctx context.Context, id string) error {
 
 // --- Pausa -------------------------------------------------------------------
 
+// isUnreachable: Syncthing non responde (arrancando ou caído).
+func isUnreachable(err error) bool {
+	var ne net.Error
+	var oe *net.OpError
+	return errors.As(err, &oe) || errors.As(err, &ne)
+}
+
 // Pause pausa toda a sincronización; con d > 0 retómase soa despois.
 func (a *App) Pause(ctx context.Context, d time.Duration) error {
+	if err := a.running(); err != nil {
+		return err
+	}
 	if err := a.st.PauseAll(ctx); err != nil {
 		return err
 	}
@@ -390,6 +493,9 @@ func (a *App) Pause(ctx context.Context, d time.Duration) error {
 }
 
 func (a *App) Resume(ctx context.Context) error {
+	if err := a.running(); err != nil {
+		return err
+	}
 	if err := a.st.ResumeAll(ctx); err != nil {
 		return err
 	}
@@ -402,7 +508,7 @@ func (a *App) Resume(ctx context.Context) error {
 // Tick aplica as tarefas periódicas (fin da pausa temporal).
 func (a *App) Tick(ctx context.Context) error {
 	s := a.snapshotState()
-	if !s.ResumeAt.IsZero() && !a.now().Before(s.ResumeAt) {
+	if !s.ResumeAt.IsZero() && !a.now().Before(s.ResumeAt) && a.running() == nil {
 		return a.Resume(ctx)
 	}
 	return nil

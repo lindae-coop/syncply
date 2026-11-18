@@ -106,6 +106,12 @@ func (w *Web) Handler() http.Handler {
 	mux.HandleFunc("POST /resume", w.action(func(r *http.Request) (string, error) {
 		return "Sincronización retomada.", w.app.Resume(r.Context())
 	}))
+	mux.HandleFunc("POST /stop", w.action(func(r *http.Request) (string, error) {
+		return "Sincronización detida. Non se sincronizará nada ata que a arranques.", w.app.Stop(r.Context())
+	}))
+	mux.HandleFunc("POST /start", w.action(func(r *http.Request) (string, error) {
+		return "Sincronización arrancada.", w.app.Start(r.Context())
+	}))
 	mux.HandleFunc("POST /revoke", w.action(func(r *http.Request) (string, error) {
 		return "Equipo revogado.", w.app.Revoke(r.Context(), r.FormValue("id"), r.FormValue("otp"))
 	}))

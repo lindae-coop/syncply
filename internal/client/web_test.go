@@ -229,3 +229,20 @@ func TestHumanBytes(t *testing.T) {
 		}
 	}
 }
+
+func TestStoppedState(t *testing.T) {
+	w, h := newTestWeb(t, true)
+	w.app.SetSupervisor(&Supervisor{}) // sen Start: detido
+	c := login(t, h)
+	body := do(h, http.MethodGet, "/", nil, c, nil).Body.String()
+	if !strings.Contains(body, "Sincronización detida") || !strings.Contains(body, "Arrancar") {
+		t.Error("non se amosa o estado detido")
+	}
+	if strings.Contains(body, "Dispoñibles no servidor") {
+		t.Error("detido non debería consultar recursos")
+	}
+	rec := do(h, http.MethodPost, "/pause", nil, c, url.Values{"for": {"1h"}})
+	if loc := rec.Header().Get("Location"); !strings.Contains(loc, "detida") {
+		t.Errorf("pausar estando detido: %s", loc)
+	}
+}
