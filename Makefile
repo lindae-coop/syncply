@@ -7,7 +7,14 @@ ARGS     ?= status
 C        ?= 1
 RUN      := $(COMPOSE) run --rm tools
 
-.PHONY: help up down restart logs proto demo fresh ui otp status test clean
+.PHONY: help up down restart logs proto demo fresh ui otp dist installtest status test clean
+
+# Paquete de Linux. CLD_CONFIG é o cld.json que leva (no futuro, xerado por
+# SFTPGo para cada servidor).
+VERSION    ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+CLD_CONFIG ?= dev/cld.json
+SYNCTHING_IMAGE := docker.io/syncthing/syncthing:2.1.7
+DIST       := dist/cld-linux-amd64
 
 help:
 	@echo "make up       - arranca SFTPGo, o Syncthing do servidor, pairsrv e os clientes (cld + o seu Syncthing)"
@@ -15,6 +22,8 @@ help:
 	@echo "make fresh    - parte de cero con SFTPGo preparado e sen emparellar (para probar a web)"
 	@echo "make ui C=1   - abre no navegador a web do cliente 1 (como o acceso directo)"
 	@echo "make otp U=alice - código OTP actual dun usuario de proba"
+	@echo "make dist     - paquete de Linux (dist/cld-linux-amd64.tar.gz) co instalador"
+	@echo "make installtest - proba o paquete nun Debian con systemd (require make up e SFTPGo preparado)"
 	@echo "make status   - estado de dispositivos, carpetas e conexións"
 	@echo "make test     - tests unitarios"
 	@echo "make proto ARGS='...' - executa cmd/stproto con argumentos"
@@ -60,6 +69,19 @@ ui:
 U ?= alice
 otp:
 	@$(RUN) go run ./cmd/stproto otp $(U) 2>/dev/null | tail -1
+
+dist:
+	@mkdir -p $(DIST)
+	$(RUN) sh -c 'GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w -X main.version=$(VERSION)" -o $(DIST)/cld ./cmd/cld'
+	podman run --rm --entrypoint cat $(SYNCTHING_IMAGE) /bin/syncthing > $(DIST)/syncthing
+	cp $(CLD_CONFIG) $(DIST)/cld.json
+	cp packaging/linux/install.sh packaging/linux/LICENZAS.txt $(DIST)/
+	chmod 755 $(DIST)/cld $(DIST)/syncthing $(DIST)/install.sh
+	tar -C dist -czf $(DIST).tar.gz cld-linux-amd64
+	@echo "Paquete: $(DIST).tar.gz ($(VERSION))"
+
+installtest: dist
+	dev/installtest.sh
 
 status:
 	$(RUN) go run ./cmd/stproto status

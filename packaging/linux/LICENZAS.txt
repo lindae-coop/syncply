@@ -1,0 +1,7 @@
+Este paquete inclúe:
+
+- cld: cliente do proxecto cld (SFTPGo + Syncthing).
+
+- Syncthing 2.1.7, binario oficial sen modificar.
+  Licenza: Mozilla Public License 2.0 (https://mozilla.org/MPL/2.0/).
+  Código fonte: https://github.com/syncthing/syncthing/tree/v2.1.7

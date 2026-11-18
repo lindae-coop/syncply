@@ -31,6 +31,9 @@ import (
 	"github.com/DanBaDo/cld/internal/stapi"
 )
 
+// version gravase ao compilar: -ldflags "-X main.version=..."
+var version = "dev"
+
 func main() {
 	if len(os.Args) < 2 {
 		usage()
@@ -43,6 +46,8 @@ func main() {
 		err = open(os.Args[2:])
 	case "shortcut":
 		err = shortcut(os.Args[2:])
+	case "version":
+		fmt.Println("cld", version)
 	default:
 		usage()
 	}
@@ -53,7 +58,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "uso: cld daemon|open|shortcut [opcións]  (-h para axuda)")
+	fmt.Fprintln(os.Stderr, "uso: cld daemon|open|shortcut|version [opcións]  (-h para axuda)")
 	os.Exit(2)
 }
 
@@ -166,7 +171,7 @@ func daemon(args []string) error {
 		defer c()
 		srv.Shutdown(sctx)
 	}()
-	log.Printf("cld: web en %s (escoita en %s)", info.URL, ln.Addr())
+	log.Printf("cld %s: web en %s (escoita en %s)", version, info.URL, ln.Addr())
 	if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}

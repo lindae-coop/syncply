@@ -90,7 +90,7 @@ func usage() {
   pending <cliente>            lista as carpetas ofrecidas ao cliente
   accept <cliente> <folderID>  o cliente acepta a carpeta ofrecida
   devices <cliente>            equipos do usuario, vistos desde ese cliente
-  revoke <desde> <equipo> <usuario>
+  revoke <desde> <equipo|deviceID> <usuario>
                                desde un equipo, revoga outro (pide OTP novo)
   status                       estado de todos os nodos
   demo                         fluxo completo con verificacións`)

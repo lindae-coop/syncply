@@ -1,0 +1,9 @@
+# Imaxe para probar o instalador de Linux: Debian 13 con systemd e un usuario
+# normal (ana) con linger, para que exista o seu systemd de usuario.
+FROM docker.io/library/debian:13
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      systemd systemd-sysv dbus-user-session curl ca-certificates procps \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd -m -s /bin/bash ana \
+    && mkdir -p /var/lib/systemd/linger && touch /var/lib/systemd/linger/ana
+CMD ["/sbin/init"]

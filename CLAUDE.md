@@ -113,9 +113,11 @@ O cliente envía OTP + o seu Device ID; o servidor valida o OTP, autoriza ese di
 - Tras "deixar de sincronizar", a oferta tarda ~20 s en volver (reconexión co servidor).
 - Vinculación probada polo usuario nun navegador real.
 - `cld daemon` arranca e supervisa o seu Syncthing (verificado: Deter para o proceso e o estado mantense tras reiniciar; Arrancar volve conectar; ao pechar o daemon, Syncthing remata limpo; modo por defecto con API en socket Unix e API key xerada). Syncthing 2.1.7 crea dous procesos (pai e fillo) mesmo con `--no-restart`; paran os dous. `make demo` pasa completo cos clientes executando `cld` co seu Syncthing (verificado polo usuario).
+- **Instalador de Linux** (`make dist`, `packaging/linux/install.sh`): por usuario sen root, servizo de systemd de usuario (ou autostart XDG), acceso directo. Verificado con `make installtest` en Debian 13 con systemd: instalar, vincular desde a web, recibir ficheiros, arranque tras reiniciar, desinstalar; e a man o camiño sen systemd. Syncthing 2.1.7 ten `syncthing device-id --home=…` para ver o Device ID sen arrancalo.
 - **Non usar `Referrer-Policy: no-referrer`** coa comprobación de `Origin`: o navegador envía `Origin: null` nos POST á mesma orixe e rexéitanse os formularios propios. Usar `same-origin`.
 - Pendente:
-  - Instaladores por SO (servizo de usuario: systemd user / LaunchAgent / tarefa de inicio; acceso directo; Syncthing incluído; `cld.json` co servidor). Icona na bandexa (require CGO en Linux/macOS).
+  - Instaladores de Windows (tarefa de inicio, menú Inicio) e macOS (LaunchAgent, app). Paquete arm64 (descargar e verificar o binario de Syncthing das súas publicacións). Icona na bandexa (require CGO en Linux/macOS).
+  - Páxina de descarga en SFTPGo que xere o `cld.json` de cada servidor.
   - Cambiar a carpeta local dun recurso xa aceptado (hoxe: deixar de sincronizar e volver aceptar).
 
 ## Para o futuro: cambios en SFTPGo ao integrar (pedidos polo usuario)

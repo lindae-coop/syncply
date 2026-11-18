@@ -12,6 +12,8 @@ make demo     # parte de cero e valida o fluxo completo
 make fresh    # parte de cero con SFTPGo preparado e sen emparellar
 make ui C=3   # abre a web do cliente 3 no navegador (como o acceso directo)
 make otp U=alice  # código OTP actual dun usuario de proba
+make dist         # paquete de Linux co instalador
+make installtest  # proba o paquete nun Debian con systemd
 make status   # estado de dispositivos, carpetas e conexións
 make help     # resto de ordes
 make clean    # para os contedores e borra o estado (./.dev)
@@ -151,6 +153,33 @@ usuario `alice` e o código que dá `make otp U=alice` (válido uns 30-60 s).
 Tamén se pode dar de alta o segredo `totpSecret` de
 [dev/sftpgo-demo.json](dev/sftpgo-demo.json) nunha app autenticadora
 (entrada manual, tipo TOTP). O contrasinal só serve para entrar en SFTPGo.
+
+## Instalador de Linux
+
+`make dist` xera `dist/cld-linux-amd64.tar.gz`: `cld` (estático),
+`syncthing` 2.1.7 (o binario da imaxe oficial fixada), `cld.json`
+(`CLD_CONFIG`, por defecto [dev/cld.json](dev/cld.json)), `install.sh` e
+[LICENZAS.txt](packaging/linux/LICENZAS.txt) (Syncthing é MPL-2.0). De
+momento só amd64.
+
+[install.sh](packaging/linux/install.sh) instala **só para o usuario, sen
+root**:
+
+- binarios en `~/.local/share/cld/bin`, configuración en `~/.config/cld`
+  (`0700`; se cambia `cld.json`, gárdase a anterior);
+- `cld daemon` como **servizo de systemd de usuario** (`cld.service`); sen
+  systemd de usuario, arranque automático XDG (`~/.config/autostart`) e
+  arráncao xa;
+- acceso directo `cld` no menú e, se hai sesión gráfica, abre a web para
+  vincular (`--no-open` para non abrila);
+- `install.sh --uninstall` desinstala e conserva a configuración (identidade
+  do equipo) e as carpetas sincronizadas.
+
+`make installtest` ([dev/installtest.sh](dev/installtest.sh)) próbao nun
+Debian 13 con systemd e un usuario normal, na rede do contorno: instalar,
+servizo activo, vincular como alice desde a web, recibir ficheiros de
+`/comun`, reiniciar o equipo, revogar o equipo e desinstalar. Require o
+contorno en marcha con SFTPGo preparado (`make demo` ou `make fresh`).
 
 ## Pasos solos
 

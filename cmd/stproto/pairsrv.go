@@ -224,9 +224,12 @@ func cmdRevoke(ctx context.Context, from, target, user string) error {
 	if err != nil {
 		return err
 	}
-	targetID, err := node(target).MyID(ctx)
-	if err != nil {
-		return err
+	// target pode ser un nodo do contorno (st-clientN) ou un Device ID.
+	targetID := strings.ToUpper(target)
+	if strings.HasPrefix(target, "st-") {
+		if targetID, err = node(target).MyID(ctx); err != nil {
+			return err
+		}
 	}
 	otp, err := devOTP(ctx, user)
 	if err != nil {
