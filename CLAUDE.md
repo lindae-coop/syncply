@@ -111,6 +111,8 @@ O cliente envía OTP + o seu Device ID; o servidor valida o OTP, autoriza ese di
 - Decidido: app de configuración como **web local** servida por `cld daemon` en `127.0.0.1`; acceso sen coñecer detalles mediante un **acceso directo** que executa `cld open` (URL dun só uso → cookie de sesión). Ver README.
 - Verificado a man contra o contorno: vincular co OTP desde a web, ver recursos, aceptar nunha carpeta escollida, deixar de sincronizar, pausar/retomar, listar equipos, rexeitamento CSRF.
 - Tras "deixar de sincronizar", a oferta tarda ~20 s en volver (reconexión co servidor).
+- Vinculación probada polo usuario nun navegador real.
+- **Non usar `Referrer-Policy: no-referrer`** coa comprobación de `Origin`: o navegador envía `Origin: null` nos POST á mesma orixe e rexéitanse os formularios propios. Usar `same-origin`.
 - Pendente:
   - O daemon aínda **non arranca nin supervisa Syncthing**: "Deter" é unha pausa indefinida. Ao supervisalo, deter = parar o proceso.
   - Instaladores por SO (servizo de usuario: systemd user / LaunchAgent / tarefa de inicio; acceso directo; Syncthing incluído; `cld.json` co servidor). Icona na bandexa (require CGO en Linux/macOS).
