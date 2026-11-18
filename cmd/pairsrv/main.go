@@ -1,9 +1,10 @@
 // pairsrv: servizo de emparellamento de equipos co servidor Syncthing
-// mediante TOTP. Ver internal/pairing.
+// mediante o TOTP da conta de SFTPGo. Ver internal/pairing e internal/sftpgo.
 package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -15,25 +16,26 @@ import (
 	"time"
 
 	"github.com/DanBaDo/cld/internal/pairing"
+	"github.com/DanBaDo/cld/internal/sftpgo"
 	"github.com/DanBaDo/cld/internal/stapi"
-	"github.com/DanBaDo/cld/internal/totp"
 )
 
 func main() {
-	if len(os.Args) > 1 && os.Args[1] == "newsecret" {
-		newSecret(os.Args[2:])
-		return
-	}
 	cfgPath := flag.String("config", "dev/pairsrv.json", "ficheiro de configuración")
 	statePath := flag.String("state", ".dev/pairsrv/state.json", "ficheiro de estado")
 	listen := flag.String("listen", ":8080", "enderezo de escoita")
 	reconcileEvery := flag.Duration("reconcile", time.Minute, "intervalo de reconciliación con Syncthing")
 	flag.Parse()
 
-	cfg, err := pairing.LoadConfig(*cfgPath)
+	cfg, err := loadConfig(*cfgPath)
 	if err != nil {
 		log.Fatal(err)
 	}
+	dir, err := sftpgo.Open(cfg.SFTPGo)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer dir.Close()
 	st := stapi.New("st-server", env("ST_URL", "http://st-server:8384"), os.Getenv("ST_APIKEY"))
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -41,11 +43,14 @@ func main() {
 
 	wctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	err = st.WaitHealthy(wctx)
+	if err == nil {
+		err = waitSFTPGo(wctx, dir)
+	}
 	cancel()
 	if err != nil {
 		log.Fatal(err)
 	}
-	svc, err := pairing.NewService(ctx, cfg, st, *statePath)
+	svc, err := pairing.NewService(ctx, cfg.Options, dir, st, *statePath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -84,17 +89,36 @@ func main() {
 	}
 }
 
-func newSecret(args []string) {
-	user := "usuario"
-	if len(args) > 0 {
-		user = args[0]
-	}
-	s, err := totp.GenerateSecret()
+type config struct {
+	pairing.Options
+	SFTPGo sftpgo.Config `json:"sftpgo"`
+}
+
+func loadConfig(path string) (*config, error) {
+	b, err := os.ReadFile(path)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
-	fmt.Println("segredo:", s)
-	fmt.Println("uri:    ", totp.URI("cld", user, s))
+	var c config
+	if err := json.Unmarshal(b, &c); err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	return &c, nil
+}
+
+// waitSFTPGo agarda a que SFTPGo cree a súa BD (primeiro arranque).
+func waitSFTPGo(ctx context.Context, dir *sftpgo.Directory) error {
+	for {
+		err := dir.CheckSchema(ctx)
+		if err == nil {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return err
+		case <-time.After(2 * time.Second):
+		}
+	}
 }
 
 func env(k, def string) string {

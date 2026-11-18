@@ -19,10 +19,7 @@ import (
 	"github.com/DanBaDo/cld/internal/totp"
 )
 
-const (
-	pairsrvURL = "http://pairsrv:8080"
-	devConfig  = "dev/pairsrv.json" // segredos TOTP de desenvolvemento
-)
+const pairsrvURL = "http://pairsrv:8080"
 
 type apiError struct {
 	Code int
@@ -83,28 +80,24 @@ func waitPairsrv(ctx context.Context) error {
 
 // --- OTP de desenvolvemento -------------------------------------------------
 //
-// Fai de app autenticadora: calcula o código cos segredos de dev/pairsrv.json.
-// O servidor rexeita reutilizar un código (ou un anterior), así que se garda
+// Fai de app autenticadora: calcula o código cos segredos de
+// dev/sftpgo-demo.json (os mesmos que se activan en SFTPGo).
+// pairsrv rexeita reutilizar un código (ou un anterior) e SFTPGo reutilizar o
+// mesmo código, así que se garda
 // o último contador usado por usuario e, se fai falta, agárdase ao seguinte
 // paso de 30 s.
 
 var otpStatePath = filepath.Join(nodesMount, "demo-otp.json")
 
 func devOTP(ctx context.Context, user string) (string, error) {
-	b, err := os.ReadFile(devConfig)
+	d, err := loadDemo()
 	if err != nil {
 		return "", err
 	}
-	var cfg pairing.Config
-	if err := json.Unmarshal(b, &cfg); err != nil {
-		return "", err
-	}
 	var secret []byte
-	for _, u := range cfg.Users {
-		if u.Name == user {
-			if secret, err = totp.DecodeSecret(u.TOTPSecret); err != nil {
-				return "", err
-			}
+	if u := d.user(user); u != nil && u.TOTPSecret != "" {
+		if secret, err = totp.DecodeSecret(u.TOTPSecret); err != nil {
+			return "", err
 		}
 	}
 	if secret == nil {
@@ -125,7 +118,7 @@ func devOTP(ctx context.Context, user string) (string, error) {
 			if err := os.WriteFile(otpStatePath, b, 0o600); err != nil {
 				return "", err
 			}
-			return totp.HOTP(secret, want, totp.Digits), nil
+			return totp.HOTP(totp.SHA1, secret, want, totp.Digits), nil
 		}
 		fmt.Printf("  ..  agardando un código OTP novo para %s\n", user)
 		select {

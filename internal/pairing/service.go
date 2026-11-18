@@ -48,12 +48,14 @@ type Syncthing interface {
 	EnsureDevice(ctx context.Context, id string, patch stapi.Obj) error
 	DeleteDevice(ctx context.Context, id string) error
 	EnsureFolder(ctx context.Context, id string, patch stapi.Obj) error
+	DeleteFolder(ctx context.Context, id string) error
 	Connections(ctx context.Context) (map[string]stapi.Connection, error)
 	DeviceStats(ctx context.Context) (map[string]stapi.DeviceStats, error)
 }
 
 type Service struct {
-	cfg       *Config
+	opts      Options
+	dir       Directory
 	st        Syncthing
 	statePath string
 	now       func() time.Time
@@ -63,7 +65,10 @@ type Service struct {
 	serverID string
 }
 
-func NewService(ctx context.Context, cfg *Config, st Syncthing, statePath string) (*Service, error) {
+func NewService(ctx context.Context, opts Options, dir Directory, st Syncthing, statePath string) (*Service, error) {
+	if err := opts.validate(); err != nil {
+		return nil, err
+	}
 	state, err := loadState(statePath)
 	if err != nil {
 		return nil, err
@@ -72,7 +77,18 @@ func NewService(ctx context.Context, cfg *Config, st Syncthing, statePath string
 	if err != nil {
 		return nil, err
 	}
-	return &Service{cfg: cfg, st: st, statePath: statePath, now: time.Now, state: state, serverID: id}, nil
+	return &Service{opts: opts, dir: dir, st: st, statePath: statePath, now: time.Now, state: state, serverID: id}, nil
+}
+
+func (s *Service) snapshot(ctx context.Context) (*Snapshot, error) {
+	snap, err := s.dir.Snapshot(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("lendo usuarios: %w", err)
+	}
+	if err := snap.Validate(); err != nil {
+		return nil, fmt.Errorf("usuarios: %w", err)
+	}
+	return snap, nil
 }
 
 // checkOTP valida o código, aplica bloqueo por intentos fallidos e rexeita
@@ -82,7 +98,11 @@ func (s *Service) checkOTP(u *User, us *UserState, code string) error {
 	if now.Before(us.LockedUntil) {
 		return ErrLocked
 	}
-	ctr, ok := totp.Validate(u.secret, code, now, otpSkew)
+	var ctr int64
+	ok := false
+	if u.TOTP != nil {
+		ctr, ok = totp.Validate(u.TOTP.Algo, u.TOTP.Secret, code, now, otpSkew)
+	}
 	if !ok || ctr <= us.LastOTPCounter {
 		us.Failures++
 		if us.Failures >= maxFailures {
@@ -124,12 +144,16 @@ func (s *Service) Pair(ctx context.Context, req PairRequest) (*PairResponse, err
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	u := s.cfg.user(req.User)
+	snap, err := s.snapshot(ctx)
+	if err != nil {
+		return nil, err
+	}
+	u := snap.user(req.User)
 	if u == nil {
 		return nil, ErrBadOTP // non revelar se o usuario existe
 	}
 	us := s.state.userState(u.Name)
-	err := s.checkOTP(u, us, req.OTP)
+	err = s.checkOTP(u, us, req.OTP)
 	if serr := s.state.save(s.statePath); serr != nil {
 		return nil, serr
 	}
@@ -141,7 +165,7 @@ func (s *Service) Pair(ctx context.Context, req PairRequest) (*PairResponse, err
 	if owner != "" && owner != u.Name {
 		return nil, ErrDeviceTaken
 	}
-	if owner == "" && len(us.Devices) >= s.cfg.MaxDevicesPerUser {
+	if owner == "" && len(us.Devices) >= s.opts.MaxDevicesPerUser {
 		return nil, ErrDeviceLimit
 	}
 
@@ -158,10 +182,10 @@ func (s *Service) Pair(ctx context.Context, req PairRequest) (*PairResponse, err
 	if err := s.state.save(s.statePath); err != nil {
 		return nil, err
 	}
-	if err := s.reconcileLocked(ctx); err != nil {
+	if err := s.reconcileLocked(ctx, snap); err != nil {
 		return nil, fmt.Errorf("aplicando configuración en Syncthing: %w", err)
 	}
-	return &PairResponse{ServerDeviceID: s.serverID, ServerAddresses: s.cfg.ServerAddresses, Token: token}, nil
+	return &PairResponse{ServerDeviceID: s.serverID, ServerAddresses: s.opts.ServerAddresses, Token: token}, nil
 }
 
 // Caller identifica o equipo autenticado polo seu token.
@@ -170,7 +194,9 @@ type Caller struct {
 	DeviceID string
 }
 
-func (s *Service) Authenticate(token string) (*Caller, error) {
+// Authenticate identifica o equipo polo seu token. Os equipos de usuarios que
+// xa non poden acceder (desactivados ou eliminados en SFTPGo) son rexeitados.
+func (s *Service) Authenticate(ctx context.Context, token string) (*Caller, error) {
 	if token == "" {
 		return nil, ErrUnauthorized
 	}
@@ -180,6 +206,13 @@ func (s *Service) Authenticate(token string) (*Caller, error) {
 	for name, us := range s.state.Users {
 		for _, d := range us.Devices {
 			if d.TokenHash == h {
+				snap, err := s.snapshot(ctx)
+				if err != nil {
+					return nil, err
+				}
+				if snap.user(name) == nil {
+					return nil, ErrUnauthorized
+				}
 				return &Caller{User: name, DeviceID: d.ID}, nil
 			}
 		}
@@ -227,12 +260,16 @@ func (s *Service) Revoke(ctx context.Context, c *Caller, deviceID, otp string) e
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	u := s.cfg.user(c.User)
+	snap, err := s.snapshot(ctx)
+	if err != nil {
+		return err
+	}
+	u := snap.user(c.User)
 	if u == nil {
 		return ErrUnauthorized
 	}
 	us := s.state.userState(u.Name)
-	err := s.checkOTP(u, us, otp)
+	err = s.checkOTP(u, us, otp)
 	if serr := s.state.save(s.statePath); serr != nil {
 		return serr
 	}
@@ -247,29 +284,35 @@ func (s *Service) Revoke(ctx context.Context, c *Caller, deviceID, otp string) e
 	if err := s.state.save(s.statePath); err != nil {
 		return err
 	}
-	return s.reconcileLocked(ctx)
+	return s.reconcileLocked(ctx, snap)
 }
 
 func (s *Service) Reconcile(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.reconcileLocked(ctx)
+	snap, err := s.snapshot(ctx)
+	if err != nil {
+		return err
+	}
+	return s.reconcileLocked(ctx, snap)
 }
 
-// reconcileLocked deixa o Syncthing do servidor como indica o rexistro:
-//   - dispositivos = equipos de todos os usuarios (sobran → fóra);
-//   - cada carpeta configurada compártese con todos os equipos dos usuarios
-//     con acceso a ela. Isto é o que lles permite aos clientes, vía
-//     introducer, coñecer os pares de cada carpeta.
+// reconcileLocked deixa o Syncthing do servidor como indican o rexistro e a
+// instantánea de usuarios:
+//   - dispositivos = equipos dos usuarios con acceso (sobran → fóra);
+//   - cada recurso con algún equipo compártese con todos os equipos dos
+//     usuarios con acceso a el. Isto é o que lles permite aos clientes, vía
+//     introducer, coñecer os pares de cada carpeta;
+//   - as carpetas creadas antes por este servizo que xa non teñen equipos
+//     quítanse da configuración (os datos non se tocan).
 //
-// As carpetas de Syncthing que non estean na configuración non se tocan.
-func (s *Service) reconcileLocked(ctx context.Context) error {
-	type want struct{ name string }
-	devices := map[string]want{}
+// As carpetas de Syncthing que non creou este servizo non se tocan.
+func (s *Service) reconcileLocked(ctx context.Context, snap *Snapshot) error {
+	devices := map[string]string{} // id → nome
 	folderDevs := map[string][]string{}
-	for _, u := range s.cfg.Users {
+	for _, u := range snap.Users {
 		for _, d := range s.state.userState(u.Name).Devices {
-			devices[d.ID] = want{name: u.Name + ": " + d.Name}
+			devices[d.ID] = u.Name + ": " + d.Name
 			for _, f := range u.Folders {
 				folderDevs[f] = append(folderDevs[f], d.ID)
 			}
@@ -288,9 +331,9 @@ func (s *Service) reconcileLocked(ctx context.Context) error {
 			}
 		}
 	}
-	for id, w := range devices {
+	for id, name := range devices {
 		err := s.st.EnsureDevice(ctx, id, stapi.Obj{
-			"name":              w.name,
+			"name":              name,
 			"addresses":         []string{"dynamic"},
 			"introducer":        false,
 			"autoAcceptFolders": false,
@@ -299,10 +342,15 @@ func (s *Service) reconcileLocked(ctx context.Context) error {
 			return err
 		}
 	}
-	for _, f := range s.cfg.Folders {
-		devs := []stapi.Obj{{"deviceID": s.serverID}}
+
+	var managed []string
+	for _, f := range snap.Folders {
 		ids := folderDevs[f.ID]
+		if len(ids) == 0 {
+			continue
+		}
 		slices.Sort(ids)
+		devs := []stapi.Obj{{"deviceID": s.serverID}}
 		for _, id := range ids {
 			devs = append(devs, stapi.Obj{"deviceID": id})
 		}
@@ -315,6 +363,19 @@ func (s *Service) reconcileLocked(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+		managed = append(managed, f.ID)
+	}
+	for _, id := range s.state.Folders {
+		if !slices.Contains(managed, id) {
+			if err := s.st.DeleteFolder(ctx, id); err != nil && !errors.Is(err, stapi.ErrNotFound) {
+				return err
+			}
+		}
+	}
+	slices.Sort(managed)
+	if !slices.Equal(managed, s.state.Folders) {
+		s.state.Folders = managed
+		return s.state.save(s.statePath)
 	}
 	return nil
 }

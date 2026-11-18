@@ -17,21 +17,43 @@ x-syncthing: &syncthing
   networks: [stnet]
   restart: unless-stopped
 
+x-sftpgo-env: &sftpgo-env
+  SFTPGO_ADMIN_USER: admin
+  SFTPGO_ADMIN_PASSWORD: ${SFTPGO_ADMIN_PASSWORD:-cld-dev-admin-NON-USAR-EN-PRODUCION}
+
 x-go: &go
   image: docker.io/library/golang:1.27.4-alpine
   working_dir: /src
   environment:
+    <<: *sftpgo-env
     ST_APIKEY: ${ST_APIKEY:-cld-dev-apikey-NON-USAR-EN-PRODUCION}
     CGO_ENABLED: "0"
     GOFLAGS: "-buildvcs=false"
   networks: [stnet]
 
 services:
+  # SFTPGo con BD SQLite. Os datos dos usuarios (/srv/sftpgo/data) móntanse
+  # na mesma ruta en st-server, para que as rutas de SFTPGo valan tal cal.
+  sftpgo:
+    image: docker.io/drakkan/sftpgo:v2.7.6-alpine
+    hostname: sftpgo
+    user: "0:0"
+    environment:
+      SFTPGO_DATA_PROVIDER__CREATE_DEFAULT_ADMIN: "true"
+      SFTPGO_DEFAULT_ADMIN_USERNAME: admin
+      SFTPGO_DEFAULT_ADMIN_PASSWORD: ${SFTPGO_ADMIN_PASSWORD:-cld-dev-admin-NON-USAR-EN-PRODUCION}
+    volumes:
+      - ./.dev/sftpgo/lib:/var/lib/sftpgo:z
+      - ./.dev/sftpgo/data:/srv/sftpgo/data:z
+    networks: [stnet]
+    restart: unless-stopped
+
   st-server:
     <<: *syncthing
     hostname: st-server
     volumes:
       - ./.dev/st-server:/var/syncthing:Z
+      - ./.dev/sftpgo/data:/srv/sftpgo/data:z
 
   # Clientes de proba (no demo: client1 e client3 son de alice, client2 de bob).
   st-client1:
@@ -52,17 +74,20 @@ services:
     volumes:
       - ./.dev/st-client3:/var/syncthing:Z
 
-  # Servizo de emparellamento (TOTP) do servidor.
+  # Servizo de emparellamento: le usuarios e TOTP da BD de SFTPGo (só
+  # lectura) e configura st-server. Reconcilia cada 10 s en desenvolvemento.
   pairsrv:
     <<: *go
     hostname: pairsrv
     command: ["go", "run", "./cmd/pairsrv",
               "-config", "dev/pairsrv.json",
               "-state", "/state/state.json",
-              "-listen", ":8080"]
+              "-listen", ":8080",
+              "-reconcile", "10s"]
     volumes:
       - ./:/src:z
       - ./.dev/pairsrv:/state:Z
+      - ./.dev/sftpgo/lib:/sftpgo:ro,z
       - gocache:/root/.cache/go-build
       - gomod:/go/pkg/mod
     restart: unless-stopped

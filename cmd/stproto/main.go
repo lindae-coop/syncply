@@ -43,6 +43,8 @@ func main() {
 	switch os.Args[1] {
 	case "init":
 		err = cmdInit(ctx)
+	case "sftpgo-setup":
+		err = cmdSFTPGoSetup(ctx)
 	case "pair": // pair <cliente> <usuario> [otp]
 		need(args, 2)
 		otp := ""
@@ -78,8 +80,9 @@ func main() {
 func usage() {
 	fmt.Fprintln(os.Stderr, `uso: stproto <orde>
   init                         configura os nodos (sen descubrimento global nin relays)
+  sftpgo-setup                 crea en SFTPGo os datos de dev/sftpgo-demo.json
   pair <cliente> <usuario> [otp]  emparella vía pairsrv (sen otp: calcúlao
-                                 cos segredos de dev/pairsrv.json)
+                                 cos segredos de dev/sftpgo-demo.json)
   pending <cliente>            lista as carpetas ofrecidas ao cliente
   accept <cliente> <folderID>  o cliente acepta a carpeta ofrecida
   devices <cliente>            equipos do usuario, vistos desde ese cliente
@@ -246,9 +249,16 @@ func cmdStatus(ctx context.Context) error {
 	return nil
 }
 
-// cmdDemo executa o fluxo completo contra pairsrv e verifica cada paso.
-// alice ten st-client1 e st-client3 (carpetas comun e alice-docs); bob ten
-// st-client2 (só comun).
+// IDs das carpetas que pairsrv crea a partir de SFTPGo.
+const (
+	fComun = "sftpgo-folder-comun" // cartafol virtual do grupo "equipo"
+	fAlice = "sftpgo-home-alice"   // directorio persoal de alice
+)
+
+// cmdDemo executa o fluxo completo con SFTPGo e pairsrv e verifica cada paso.
+// Usuarios (dev/sftpgo-demo.json): alice ten escritura no seu directorio e en
+// /comun; bob só en /comun; ningún en /arquivo. alice usa st-client1 e
+// st-client3; bob, st-client2.
 func cmdDemo(ctx context.Context) error {
 	step := func(s string) { fmt.Printf("\n### %s\n", s) }
 	expect := func(err error, code int, what string) error {
@@ -259,8 +269,11 @@ func cmdDemo(ctx context.Context) error {
 		return nil
 	}
 
-	step("Inicializar nodos e agardar por pairsrv")
+	step("Inicializar nodos e preparar SFTPGo")
 	if err := cmdInit(ctx); err != nil {
+		return err
+	}
+	if err := cmdSFTPGoSetup(ctx); err != nil {
 		return err
 	}
 	if err := waitPairsrv(ctx); err != nil {
@@ -283,9 +296,9 @@ func cmdDemo(ctx context.Context) error {
 		name, user string
 		folders    []string
 	}{
-		{"st-client1", "alice", []string{"comun", "alice-docs"}},
-		{"st-client2", "bob", []string{"comun"}},
-		{"st-client3", "alice", []string{"comun", "alice-docs"}},
+		{"st-client1", "alice", []string{fComun, fAlice}},
+		{"st-client2", "bob", []string{fComun}},
+		{"st-client3", "alice", []string{fComun, fAlice}},
 	}
 	for _, c := range clients {
 		step(fmt.Sprintf("Emparellar %s (%s) e aceptar as carpetas ofrecidas", c.name, c.user))
@@ -326,24 +339,21 @@ func cmdDemo(ctx context.Context) error {
 		}
 	}
 
-	step("Permisos no servidor: alice-docs só cos equipos de alice")
-	f, err := node(server).Folder(ctx, "alice-docs")
-	if err != nil {
-		return err
-	}
-	var with []string
-	for _, d := range asList(f["devices"]) {
-		if id, _ := d["deviceID"].(string); id != ids[server] {
-			with = append(with, id)
+	step("Permisos no servidor")
+	for folder, want := range map[string][]string{
+		fAlice: {"st-client1", "st-client3"},
+		fComun: {"st-client1", "st-client2", "st-client3"},
+	} {
+		if err := waitFor(ctx, folder+" compartida con "+strings.Join(want, ", "), func() (bool, error) {
+			return sharedWith(ctx, folder, ids, want...)
+		}); err != nil {
+			return err
 		}
 	}
-	sort.Strings(with)
-	want := []string{ids["st-client1"], ids["st-client3"]}
-	sort.Strings(want)
-	if !slices.Equal(with, want) {
-		return fmt.Errorf("alice-docs compartida con %v", with)
+	if _, err := node(server).Folder(ctx, "sftpgo-folder-arquivo"); !errors.Is(err, stapi.ErrNotFound) {
+		return fmt.Errorf("arquivo (só lectura) non debería compartirse: %v", err)
 	}
-	fmt.Println("  OK  alice-docs: st-client1, st-client3")
+	fmt.Println("  OK  /arquivo (só lectura) non se comparte")
 
 	step("Introducer: os clientes coñécense e conectan entre eles (P2P)")
 	peers := []string{"st-client1", "st-client2", "st-client3"}
@@ -374,11 +384,60 @@ func cmdDemo(ctx context.Context) error {
 		}
 	}
 
-	step("Sincronización")
-	if err := syncCheck(ctx, "st-client1", "comun", "st-client2", "st-client3"); err != nil {
+	step("Sincronización entre clientes e co disco de SFTPGo")
+	if err := syncCheck(ctx, "st-client1", fComun, "st-client2", "st-client3", "sftpgo:shared/comun"); err != nil {
 		return err
 	}
-	if err := syncCheck(ctx, "st-client3", "alice-docs", "st-client1"); err != nil {
+	if err := syncCheck(ctx, "st-client3", fAlice, "st-client1", "sftpgo:alice"); err != nil {
+		return err
+	}
+
+	step("Ficheiro subido por SFTPGo (API do WebClient, con OTP) chega aos clientes")
+	name := fmt.Sprintf("subido-%d.txt", time.Now().UnixNano())
+	if err := sftpgoUpload(ctx, "alice", "/comun/"+name, "subido por alice a SFTPGo\n"); err != nil {
+		return err
+	}
+	for _, c := range []string{"st-client1", "st-client2", "st-client3"} {
+		if err := waitExists(ctx, fmt.Sprintf("%s: SFTPGo -> %s", fComun, c), clientFile(c, fComun, name)); err != nil {
+			return err
+		}
+	}
+
+	step("Desactivar bob en SFTPGo: o seu equipo perde o acceso")
+	if err := sftpgoSetStatus(ctx, "bob", 0); err != nil {
+		return err
+	}
+	if err := waitFor(ctx, fComun+" xa non inclúe st-client2", func() (bool, error) {
+		return sharedWith(ctx, fComun, ids, "st-client1", "st-client3")
+	}); err != nil {
+		return err
+	}
+	if err := waitFor(ctx, "st-client1 esquece a st-client2", func() (bool, error) {
+		ok, err := introducedIn(ctx, "st-client1", ids["st-client2"], ids[server])
+		return !ok, err
+	}); err != nil {
+		return err
+	}
+	_, err := listDevices(ctx, "st-client2")
+	if err := expect(err, 401, "o token de st-client2 non vale mentres bob estea desactivado"); err != nil {
+		return err
+	}
+
+	step("Reactivar bob: recupera o acceso sen volver emparellar")
+	if err := sftpgoSetStatus(ctx, "bob", 1); err != nil {
+		return err
+	}
+	if err := waitFor(ctx, fComun+" volve incluír st-client2", func() (bool, error) {
+		return sharedWith(ctx, fComun, ids, "st-client1", "st-client2", "st-client3")
+	}); err != nil {
+		return err
+	}
+	if err := waitFor(ctx, "st-client1 volve coñecer a st-client2", func() (bool, error) {
+		return introducedIn(ctx, "st-client1", ids["st-client2"], ids[server])
+	}); err != nil {
+		return err
+	}
+	if err := syncCheck(ctx, "st-client1", fComun, "st-client2"); err != nil {
 		return err
 	}
 
@@ -434,27 +493,59 @@ func cmdDemo(ctx context.Context) error {
 }
 
 // syncCheck crea un ficheiro na carpeta de "from" e agarda que apareza nos
-// demais clientes.
+// destinos: clientes ou "sftpgo:<ruta en /srv/sftpgo/data>".
 func syncCheck(ctx context.Context, from, folder string, to ...string) error {
 	name := fmt.Sprintf("ola-%s-%d.txt", from, time.Now().UnixNano())
-	src := filepath.Join(nodesMount, from, "data", folder, name)
-	if err := os.WriteFile(src, []byte("ola desde "+from+"\n"), 0o644); err != nil {
+	if err := os.WriteFile(clientFile(from, folder, name), []byte("ola desde "+from+"\n"), 0o644); err != nil {
 		return err
 	}
 	for _, t := range to {
-		dst := filepath.Join(nodesMount, t, "data", folder, name)
-		if err := waitFor(ctx, fmt.Sprintf("%s: %s -> %s", folder, from, t), func() (bool, error) {
-			_, err := os.Stat(dst)
-			if errors.Is(err, os.ErrNotExist) {
-				return false, nil
-			}
-			return err == nil, err
-		}); err != nil {
+		dst := clientFile(t, folder, name)
+		if dir, ok := strings.CutPrefix(t, "sftpgo:"); ok {
+			dst = filepath.Join(nodesMount, "sftpgo/data", dir, name)
+		}
+		if err := waitExists(ctx, fmt.Sprintf("%s: %s -> %s", folder, from, t), dst); err != nil {
 			return err
 		}
 	}
 	return nil
 }
+
+func clientFile(client, folder, name string) string {
+	return filepath.Join(nodesMount, client, "data", folder, name)
+}
+
+func waitExists(ctx context.Context, what, p string) error {
+	return waitFor(ctx, what, func() (bool, error) {
+		_, err := os.Stat(p)
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return err == nil, err
+	})
+}
+
+// sharedWith indica se a carpeta do servidor está compartida exactamente cos
+// clientes indicados.
+func sharedWith(ctx context.Context, folder string, ids map[string]string, clients ...string) (bool, error) {
+	f, err := node(server).Folder(ctx, folder)
+	if err != nil {
+		return false, err
+	}
+	var got, want []string
+	for _, d := range asList(f["devices"]) {
+		if id, _ := d["deviceID"].(string); id != ids[server] {
+			got = append(got, id)
+		}
+	}
+	for _, c := range clients {
+		want = append(want, ids[c])
+	}
+	sort.Strings(got)
+	sort.Strings(want)
+	return slices.Equal(got, want), nil
+}
+
 // introducedIn indica se o nodo n ten o dispositivo dev introducido por by.
 func introducedIn(ctx context.Context, n, dev, by string) (bool, error) {
 	devs, err := node(n).Devices(ctx)

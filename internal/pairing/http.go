@@ -68,7 +68,7 @@ func (s *Service) auth(h func(http.ResponseWriter, *http.Request, *Caller)) http
 			writeErr(w, ErrUnauthorized)
 			return
 		}
-		c, err := s.Authenticate(tok)
+		c, err := s.Authenticate(r.Context(), tok)
 		if err != nil {
 			writeErr(w, err)
 			return

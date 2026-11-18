@@ -125,6 +125,11 @@ func (c *Client) DeleteDevice(ctx context.Context, id string) error {
 	return c.Do(ctx, http.MethodDelete, "/rest/config/devices/"+url.PathEscape(id), nil, nil)
 }
 
+// DeleteFolder quita a carpeta da configuración (non borra os datos).
+func (c *Client) DeleteFolder(ctx context.Context, id string) error {
+	return c.Do(ctx, http.MethodDelete, "/rest/config/folders/"+url.PathEscape(id), nil, nil)
+}
+
 // EnsureFolder crea ou actualiza unha carpeta (mesma semántica que EnsureDevice).
 func (c *Client) EnsureFolder(ctx context.Context, id string, patch Obj) error {
 	path := "/rest/config/folders/" + url.PathEscape(id)

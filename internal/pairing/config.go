@@ -1,92 +1,101 @@
 package pairing
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
-	"os"
 
 	"github.com/DanBaDo/cld/internal/totp"
 )
 
-// Config describe usuarios e carpetas. No prototipo vén dun ficheiro; máis
-// adiante sairá de SFTPGo (usuarios e directorios con permiso de escritura).
-type Config struct {
+// Options é a configuración propia do servizo.
+type Options struct {
 	// Enderezos do servidor Syncthing que se lles dan aos clientes.
 	ServerAddresses   []string `json:"serverAddresses"`
 	MaxDevicesPerUser int      `json:"maxDevicesPerUser"`
-	Folders           []Folder `json:"folders"`
-	Users             []User   `json:"users"`
+}
+
+func (o *Options) validate() error {
+	if len(o.ServerAddresses) == 0 {
+		return fmt.Errorf("config: faltan serverAddresses")
+	}
+	if o.MaxDevicesPerUser <= 0 {
+		o.MaxDevicesPerUser = 5
+	}
+	return nil
+}
+
+// Directory é a fonte de usuarios e recursos (SFTPGo). Consúltase en cada
+// emparellamento, revogación e reconciliación, así que os cambios feitos en
+// SFTPGo aplícanse sen reiniciar o servizo.
+type Directory interface {
+	Snapshot(ctx context.Context) (*Snapshot, error)
+}
+
+// Snapshot é o estado dos usuarios nun momento dado. Só inclúe usuarios que
+// poden acceder (activos e sen caducar) e, para cada un, os recursos que se
+// poden sincronizar.
+type Snapshot struct {
+	Users   []User
+	Folders []Folder
 }
 
 type Folder struct {
-	ID    string `json:"id"`
-	Label string `json:"label"`
-	Path  string `json:"path"` // ruta no servidor Syncthing
+	ID    string // ID da carpeta en Syncthing
+	Label string
+	Path  string // ruta no servidor Syncthing
 }
 
 type User struct {
-	Name       string   `json:"name"`
-	TOTPSecret string   `json:"totpSecret"` // base32
-	Folders    []string `json:"folders"`
-
-	secret []byte
+	Name    string
+	TOTP    *TOTP    // nil: o usuario non ten TOTP e non pode emparellar equipos
+	Folders []string // IDs de Folder
 }
 
-func LoadConfig(path string) (*Config, error) {
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	var c Config
-	if err := json.Unmarshal(b, &c); err != nil {
-		return nil, fmt.Errorf("%s: %w", path, err)
-	}
-	return &c, c.validate()
+type TOTP struct {
+	Secret []byte
+	Algo   totp.Algo
 }
 
-func (c *Config) validate() error {
-	if len(c.ServerAddresses) == 0 {
-		return fmt.Errorf("config: faltan serverAddresses")
+func (s *Snapshot) user(name string) *User {
+	for i := range s.Users {
+		if s.Users[i].Name == name {
+			return &s.Users[i]
+		}
 	}
-	if c.MaxDevicesPerUser <= 0 {
-		c.MaxDevicesPerUser = 5
-	}
+	return nil
+}
+
+// Validate comproba a coherencia da instantánea.
+func (s *Snapshot) Validate() error {
 	folders := map[string]bool{}
-	for _, f := range c.Folders {
+	for _, f := range s.Folders {
 		if f.ID == "" || f.Path == "" {
-			return fmt.Errorf("config: carpeta sen id ou path")
+			return fmt.Errorf("carpeta sen id ou path")
 		}
 		if folders[f.ID] {
-			return fmt.Errorf("config: carpeta %q duplicada", f.ID)
+			return fmt.Errorf("carpeta %q duplicada", f.ID)
 		}
 		folders[f.ID] = true
 	}
 	users := map[string]bool{}
-	for i := range c.Users {
-		u := &c.Users[i]
+	for _, u := range s.Users {
 		if u.Name == "" || users[u.Name] {
-			return fmt.Errorf("config: usuario baleiro ou duplicado %q", u.Name)
+			return fmt.Errorf("usuario baleiro ou duplicado %q", u.Name)
 		}
 		users[u.Name] = true
-		s, err := totp.DecodeSecret(u.TOTPSecret)
-		if err != nil {
-			return fmt.Errorf("config: usuario %q: %w", u.Name, err)
+		if u.TOTP != nil && !u.TOTP.Algo.Valid() {
+			return fmt.Errorf("usuario %q: algoritmo TOTP %q non admitido", u.Name, u.TOTP.Algo)
 		}
-		u.secret = s
 		for _, f := range u.Folders {
 			if !folders[f] {
-				return fmt.Errorf("config: usuario %q: carpeta descoñecida %q", u.Name, f)
+				return fmt.Errorf("usuario %q: carpeta descoñecida %q", u.Name, f)
 			}
 		}
 	}
 	return nil
 }
 
-func (c *Config) user(name string) *User {
-	for i := range c.Users {
-		if c.Users[i].Name == name {
-			return &c.Users[i]
-		}
-	}
-	return nil
-}
+// StaticDirectory devolve sempre a mesma instantánea (tests).
+type StaticDirectory struct{ S *Snapshot }
+
+func (d StaticDirectory) Snapshot(context.Context) (*Snapshot, error) { return d.S, nil }

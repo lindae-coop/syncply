@@ -71,7 +71,9 @@ O cliente envía OTP + o seu Device ID; o servidor valida o OTP, autoriza ese di
 ## Contorno de desenvolvemento (decidido)
 
 - Todo en **Podman rootless** + `podman-compose` + `make`; non instalar nada máis no equipo (nin Go nin Syncthing). Ver [README.md](README.md).
-- Versións fixadas: Syncthing **2.1.7** (`docker.io/syncthing/syncthing:2.1.7`), Go **1.27.4** (contedor `tools`).
+- Versións fixadas: Syncthing **2.1.7** (`docker.io/syncthing/syncthing:2.1.7`), SFTPGo **2.7.6** (`docker.io/drakkan/sftpgo:v2.7.6-alpine`, BD SQLite, esquema v33), Go **1.27.4** (contedor `tools`).
+- **pairsrv le directamente a BD de SFTPGo** (usuarios, grupos, cartafoles, permisos e segredo TOTP), reproducindo a súa lóxica en `internal/sftpgo`. Decisión do usuario: o acoplamento non preocupa porque o obxectivo final é integrar o código en SFTPGo. Revisar `internal/sftpgo` ao cambiar de versión de SFTPGo.
+- Recursos ofrecidos: directorio persoal e cartafoles virtuais en disco local con **permiso de escritura completo** (ver README).
 - API de Syncthing só na rede interna dos contedores, sen portos publicados, con API key.
 
 ## Achados verificados (Syncthing 2.1.7, `make demo`)
@@ -82,12 +84,27 @@ O cliente envía OTP + o seu Device ID; o servidor valida o OTP, autoriza ese di
 - **Revogación:** `DELETE /rest/config/devices/{id}` no servidor quítao tamén das carpetas; os clientes conectados eliminan o par introducido ao momento e o revogado queda sen conexión co servidor e cos pares. A súa config local conserva as entradas (non se pode evitar).
 - `/rest/system/connections` pode mostrar `connected: true` un instante en conexións que logo se rexeitan; non fiarse dunha soa mostra.
 - Latencia de sincronización observada ~14 s (`fsWatcherDelayS` = 10 s por defecto).
-- **pairsrv** (`cmd/pairsrv`, `internal/pairing`, `internal/totp`) valida o fluxo OTP de punta a punta: emparellamento, ofertas só das carpetas permitidas, varios equipos por usuario, listaxe de equipos e revogación desde outro equipo do mesmo usuario. O equipo revogado queda sen conexións en ~4 s (antes pode aparecer aínda como conectado).
+- **pairsrv** (`cmd/pairsrv`, `internal/pairing`, `internal/sftpgo`, `internal/totp`) valida o fluxo OTP de punta a punta co TOTP real das contas de SFTPGo: emparellamento, ofertas só das carpetas permitidas, varios equipos por usuario, listaxe de equipos e revogación desde outro equipo do mesmo usuario. O equipo revogado queda sen conexións en ~4 s (antes pode aparecer aínda como conectado).
+
+## Achados verificados (SFTPGo 2.7.6)
+
+- A API devolve os segredos como `Redacted` e non hai endpoint de admin para validar o OTP dun usuario; só `GET /api/v2/user/token` co contrasinal + `X-SFTPGO-OTP`.
+- O segredo TOTP está en `users.filters` → `totp_config.secret`: `Secretbox` co KMS local, `additional_data` = usuario, `key` aleatoria por segredo; `mode: 1` se se cifrou con clave mestra. Algoritmo segundo `mfa.totp[].algo` (sha1 por defecto), 6 díxitos, 30 s, ±1 paso.
+- O admin non pode activar o TOTP ao crear o usuario (ignora `totp_config`); actívao o usuario (`POST /api/v2/user/totp/save`). Un `PUT /users/{u}` do admin conserva o TOTP.
+- SFTPGo lembra os códigos usados (2 min) só en memoria do seu proceso: un código usado en pairsrv aínda vale para iniciar sesión en SFTPGo e viceversa (pairsrv rexeita os seus propios reusos).
+- Ficheiros subidos pola API de SFTPGo chegan aos clientes (~12 s); o que escriben os clientes aparece no disco de SFTPGo.
+- Desactivar un usuario en SFTPGo quítalle o acceso aos seus equipos no seguinte ciclo de reconciliación; reactivalo devólvello sen emparellar de novo.
+- Limitacións coñecidas: os filtros de ficheiros (patróns permitidos/denegados), as cotas e os hooks de SFTPGo non se aplican ao que escribe Syncthing; `.stfolder` e temporais de Syncthing vense desde SFTPGo.
 
 ## Próximos pasos propostos
 
 1. ~~Prototipo mínimo~~ e ~~validar fluxo OTP, pending folders, propagación de pares e baixas~~ (feito; GUI aínda en TCP interno, non en socket Unix).
-2. Integrar con SFTPGo: usuarios, segredo TOTP e carpetas con permiso de escritura en lugar de `dev/pairsrv.json`.
+2. ~~Integrar con SFTPGo~~ (feito lendo a BD). Pendente: avisar a pairsrv desde o xestor de eventos de SFTPGo (alta/cambio/baixa de usuarios) en vez de depender só da reconciliación periódica; ocultar `.stfolder` e temporais de Syncthing en SFTPGo.
 3. Deseñar o modelo de datos do servidor (usuarios, dispositivos, carpetas, permisos) e a súa tradución á configuración de Syncthing.
 4. Listar os endpoints REST de Syncthing necesarios.
 5. Decidir despois se se fusiona o núcleo en SFTPGo ou se mantén o proceso separado.
+
+## Para o futuro: cambios en SFTPGo ao integrar (pedidos polo usuario)
+
+- **Eliminar do código de SFTPGo as funcionalidades que deixan de ter sentido con Syncthing.** Exemplo: as **cotas dos usuarios**, que non se aplican ao que escribe Syncthing. Revisar tamén outras do mesmo tipo (límites de transferencia, filtros de ficheiros, hooks por operación…) e decidir caso a caso.
+- **Indicadores visuais en SFTPGo** (WebAdmin e/ou WebClient) para cada recurso: se se ofrece ou non en Syncthing. Nos **non ofrecidos**, un tooltip ou similar co **motivo** (p. ex. sen permiso de escritura completo, almacenamento non local ou cifrado, permisos máis restritivos nunha subruta, usuario sen TOTP). Implica que `internal/sftpgo` devolva o motivo de exclusión de cada recurso, non só a lista dos ofrecidos.

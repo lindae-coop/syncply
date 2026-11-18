@@ -12,6 +12,8 @@ import (
 // Device IDs son do mesmo usuario. Gárdase nun JSON (abonda para o prototipo).
 type State struct {
 	Users map[string]*UserState `json:"users"`
+	// Carpetas de Syncthing creadas por este servizo (ordenadas).
+	Folders []string `json:"folders,omitempty"`
 }
 
 type UserState struct {

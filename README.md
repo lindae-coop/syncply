@@ -18,7 +18,8 @@ Que levanta `compose.yaml`:
 
 | Servizo      | Papel                                                    |
 |--------------|----------------------------------------------------------|
-| `st-server`  | Syncthing do servidor (no futuro, xunto a SFTPGo)        |
+| `sftpgo`     | SFTPGo 2.7.6 (BD SQLite), datos en `/srv/sftpgo/data`    |
+| `st-server`  | Syncthing do servidor; ve os datos de SFTPGo na mesma ruta |
 | `st-client1` | Cliente de proba (alice)                                 |
 | `st-client2` | Cliente de proba (bob)                                   |
 | `st-client3` | Cliente de proba (alice, segundo equipo)                 |
@@ -35,11 +36,30 @@ Que levanta `compose.yaml`:
 
 ## pairsrv
 
-Emparella equipos co Syncthing do servidor mediante o OTP (TOTP) do usuario e
-mantén a configuración do servidor de acordo co rexistro `usuario → equipos`
-e cos permisos sobre as carpetas (reconcilia ao cambiar e cada minuto).
-Usuarios, segredos e carpetas veñen de [dev/pairsrv.json](dev/pairsrv.json)
-(segredos públicos, só para desenvolvemento); no futuro sairán de SFTPGo.
+Emparella equipos co Syncthing do servidor mediante o **OTP (TOTP) da conta
+de SFTPGo** e mantén a configuración do servidor de acordo co rexistro
+`usuario → equipos` e cos permisos de SFTPGo. Reconcilia en cada cambio e
+periodicamente (`-reconcile`, 10 s en desenvolvemento), así que os cambios
+feitos en SFTPGo aplícanse sós.
+
+Le **directamente a BD de SFTPGo** (só lectura) — ver
+[internal/sftpgo](internal/sftpgo/directory.go):
+
+- **TOTP:** SFTPGo non expón o segredo pola API (sae `Redacted`) nin ten un
+  endpoint para validar o código dun usuario, así que se descifra o segredo
+  como fai o seu KMS local (secretbox; con clave mestra se SFTPGo a usa:
+  `sftpgo.masterKeyFile`). Outros KMS (Vault, nubes) non se admiten.
+- **Usuarios:** activos, sen caducar e non borrados. Se un usuario se
+  desactiva, os seus equipos saen do servidor e os seus tokens deixan de
+  valer; ao reactivalo, volven sen emparellar de novo.
+- **Recursos:** o directorio persoal e os cartafoles virtuais (propios e dos
+  grupos, aplicados como fai SFTPGo) en **disco local** e con **permiso de
+  escritura completo**: `*`, ou `list`, `download`, `upload`, `overwrite`,
+  `create_dirs`, borrar e renomear. Esíxese na raíz do recurso e en calquera
+  ruta con permisos propios dentro del, porque Syncthing escribe sen pasar
+  por SFTPGo.
+- IDs en Syncthing: `sftpgo-home-<usuario>` e `sftpgo-folder-<cartafol>`.
+- Configuración: [dev/pairsrv.json](dev/pairsrv.json).
 
 | Método e ruta                | Autenticación | Uso                                   |
 |------------------------------|---------------|---------------------------------------|
@@ -47,20 +67,31 @@ Usuarios, segredos e carpetas veñen de [dev/pairsrv.json](dev/pairsrv.json)
 | `GET /api/v1/devices`        | Bearer token  | equipos do usuario (conectado, última conexión, cal é o actual) |
 | `DELETE /api/v1/devices/{id}`| Bearer token + `{otp}` | revoga un equipo do usuario    |
 
-- Un código OTP non se pode reutilizar; 5 fallos seguidos bloquean o usuario 5 min.
+- Un código OTP non se pode reutilizar en pairsrv; 5 fallos seguidos bloquean o usuario 5 min.
 - Límite de equipos por usuario (`maxDevicesPerUser`).
 - Un equipo vinculado a un usuario non pode vinculalo outro.
 - O estado garda en `./.dev/pairsrv/state.json` (só o hash dos tokens).
-- Novo segredo: `podman-compose run --rm tools go run ./cmd/pairsrv newsecret <usuario>`.
+
+## Datos de proba
+
+[dev/sftpgo-demo.json](dev/sftpgo-demo.json) (contrasinais e segredos
+públicos, só para desenvolvemento). `make proto ARGS=sftpgo-setup` créaos en
+SFTPGo e activa o TOTP de cada usuario como faría el no WebClient:
+
+| Usuario | Directorio persoal | `/comun` (grupo `equipo`) | `/arquivo` (grupo) |
+|---------|--------------------|---------------------------|--------------------|
+| alice   | escritura → **sincroniza** | escritura → **sincroniza** | só lectura → non |
+| bob     | só lectura → non   | escritura → **sincroniza** | só lectura → non   |
 
 ## Pasos solos
 
 ```sh
 make up
 make proto ARGS="init"
-make proto ARGS="pair st-client1 alice"      # calcula o OTP con dev/pairsrv.json
+make proto ARGS="sftpgo-setup"
+make proto ARGS="pair st-client1 alice"      # calcula o OTP con dev/sftpgo-demo.json
 make proto ARGS="pending st-client1"
-make proto ARGS="accept st-client1 comun"
+make proto ARGS="accept st-client1 sftpgo-folder-comun"
 make proto ARGS="devices st-client1"
 make proto ARGS="revoke st-client1 st-client3 alice"
 ```

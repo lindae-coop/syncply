@@ -1,13 +1,13 @@
 COMPOSE  ?= podman-compose
 NODES    := st-server st-client1 st-client2 st-client3
-SERVICES := $(NODES) pairsrv
+SERVICES := sftpgo $(NODES) pairsrv
 ARGS     ?= status
 RUN      := $(COMPOSE) run --rm tools
 
 .PHONY: help up down restart logs proto demo status test clean
 
 help:
-	@echo "make up       - arranca os nodos Syncthing e pairsrv"
+	@echo "make up       - arranca SFTPGo, os nodos Syncthing e pairsrv"
 	@echo "make demo     - parte de cero e valida o fluxo completo"
 	@echo "make status   - estado de dispositivos, carpetas e conexións"
 	@echo "make test     - tests unitarios"
@@ -18,7 +18,7 @@ help:
 	@echo "make clean    - para e borra ./.dev (estado dos nodos)"
 
 up:
-	@mkdir -p $(addprefix .dev/,$(SERVICES))
+	@mkdir -p $(addprefix .dev/,$(NODES) pairsrv sftpgo/lib sftpgo/data)
 	$(COMPOSE) up -d $(SERVICES)
 
 down:

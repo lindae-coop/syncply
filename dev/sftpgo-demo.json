@@ -1,0 +1,32 @@
+{
+  "_comentario": "SÓ PARA DESENVOLVEMENTO: contrasinais e segredos TOTP públicos. stproto crea isto en SFTPGo e usa os segredos como app autenticadora.",
+  "folders": [
+    {"name": "comun", "path": "/srv/sftpgo/data/shared/comun"},
+    {"name": "arquivo", "path": "/srv/sftpgo/data/shared/arquivo"}
+  ],
+  "groups": [
+    {
+      "name": "equipo",
+      "folders": {"/comun": "comun", "/arquivo": "arquivo"},
+      "permissions": {"/comun": ["*"], "/arquivo": ["list", "download"]}
+    }
+  ],
+  "users": [
+    {
+      "name": "alice",
+      "password": "alice-dev-NON-USAR-EN-PRODUCION",
+      "totpSecret": "S3RZ2OZWS4PTKU2ZAOFSJ567FM6YUIEP",
+      "homeDir": "/srv/sftpgo/data/alice",
+      "permissions": {"/": ["*"]},
+      "groups": ["equipo"]
+    },
+    {
+      "name": "bob",
+      "password": "bob-dev-NON-USAR-EN-PRODUCION",
+      "totpSecret": "DQGQ65D6J552JWSVQ5JGDPIZXXDLZ47D",
+      "homeDir": "/srv/sftpgo/data/bob",
+      "permissions": {"/": ["list", "download"]},
+      "groups": ["equipo"]
+    }
+  ]
+}

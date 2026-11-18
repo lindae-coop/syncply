@@ -48,6 +48,13 @@ func (f *fakeST) EnsureDevice(_ context.Context, id string, p stapi.Obj) error {
 	return nil
 }
 func (f *fakeST) DeleteDevice(_ context.Context, id string) error { delete(f.devices, id); return nil }
+func (f *fakeST) DeleteFolder(_ context.Context, id string) error {
+	if _, ok := f.folders[id]; !ok {
+		return stapi.ErrNotFound
+	}
+	delete(f.folders, id)
+	return nil
+}
 func (f *fakeST) EnsureFolder(_ context.Context, id string, p stapi.Obj) error {
 	d := stapi.Obj{"id": id}
 	for k, v := range p {
@@ -77,34 +84,36 @@ func (f *fakeST) folderDevices(id string) []string {
 type env struct {
 	svc   *Service
 	st    *fakeST
+	snap  *Snapshot
 	clock time.Time
-	sec   map[string][]byte
+}
+
+func secret(t *testing.T, algo totp.Algo) *TOTP {
+	t.Helper()
+	s, _ := totp.GenerateSecret()
+	b, err := totp.DecodeSecret(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &TOTP{Secret: b, Algo: algo}
 }
 
 func newEnv(t *testing.T) *env {
 	t.Helper()
-	secA, _ := totp.GenerateSecret()
-	secB, _ := totp.GenerateSecret()
-	cfg := &Config{
-		ServerAddresses:   []string{"tcp://srv:22000"},
-		MaxDevicesPerUser: 2,
+	snap := &Snapshot{
 		Folders: []Folder{
 			{ID: "comun", Label: "Común", Path: "/d/comun"},
 			{ID: "alice", Label: "Alice", Path: "/d/alice"},
 		},
 		Users: []User{
-			{Name: "alice", TOTPSecret: secA, Folders: []string{"comun", "alice"}},
-			{Name: "bob", TOTPSecret: secB, Folders: []string{"comun"}},
+			{Name: "alice", TOTP: secret(t, totp.SHA1), Folders: []string{"comun", "alice"}},
+			{Name: "bob", TOTP: secret(t, totp.SHA256), Folders: []string{"comun"}},
+			{Name: "carol", Folders: []string{"comun"}}, // sen TOTP
 		},
 	}
-	if err := cfg.validate(); err != nil {
-		t.Fatal(err)
-	}
-	e := &env{st: newFakeST(), clock: time.Unix(1_700_000_000, 0), sec: map[string][]byte{}}
-	for _, u := range cfg.Users {
-		e.sec[u.Name] = u.secret
-	}
-	svc, err := NewService(context.Background(), cfg, e.st, filepath.Join(t.TempDir(), "state.json"))
+	e := &env{st: newFakeST(), snap: snap, clock: time.Unix(1_700_000_000, 0)}
+	opts := Options{ServerAddresses: []string{"tcp://srv:22000"}, MaxDevicesPerUser: 2}
+	svc, err := NewService(context.Background(), opts, StaticDirectory{snap}, e.st, filepath.Join(t.TempDir(), "state.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +125,8 @@ func newEnv(t *testing.T) *env {
 // otp avanza o reloxo un paso e devolve un código novo para o usuario.
 func (e *env) otp(user string) string {
 	e.clock = e.clock.Add(totp.Step)
-	return totp.Code(e.sec[user], e.clock)
+	u := e.snap.user(user).TOTP
+	return totp.Code(u.Algo, u.Secret, e.clock)
 }
 
 func (e *env) pair(user, dev string) (*PairResponse, error) {
@@ -197,10 +207,10 @@ func TestDeviceLimitAndOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatalf("revinculación: %v", err)
 	}
-	if _, err := e.svc.Authenticate(first.Token); !errors.Is(err, ErrUnauthorized) {
+	if _, err := e.svc.Authenticate(context.Background(), first.Token); !errors.Is(err, ErrUnauthorized) {
 		t.Error("o token anterior segue valendo")
 	}
-	if _, err := e.svc.Authenticate(again.Token); err != nil {
+	if _, err := e.svc.Authenticate(context.Background(), again.Token); err != nil {
 		t.Errorf("token novo: %v", err)
 	}
 }
@@ -218,7 +228,7 @@ func TestRevoke(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	c, err := e.svc.Authenticate(r1.Token)
+	c, err := e.svc.Authenticate(context.Background(), r1.Token)
 	if err != nil || c.User != "alice" || c.DeviceID != devA1 {
 		t.Fatalf("auth: %+v %v", c, err)
 	}
@@ -254,5 +264,71 @@ func TestReconcileRemovesUnknownDevices(t *testing.T) {
 	}
 	if _, ok := e.st.devices[srvID]; !ok {
 		t.Error("eliminouse o propio servidor")
+	}
+}
+
+func TestUserWithoutTOTPCannotPair(t *testing.T) {
+	e := newEnv(t)
+	_, err := e.svc.Pair(context.Background(), PairRequest{User: "carol", OTP: "123456", DeviceID: devA1, DeviceName: "x"})
+	if !errors.Is(err, ErrBadOTP) {
+		t.Fatal(err)
+	}
+}
+
+// Cando un usuario perde o acceso (desactivado en SFTPGo), os seus equipos
+// saen do servidor, o seu token deixa de valer e as carpetas que quedan sen
+// equipos quítanse; ao recuperalo, todo volve.
+func TestUserLosesAccess(t *testing.T) {
+	e := newEnv(t)
+	ra, err := e.pair("alice", devA1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.pair("bob", devB1); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	alice := e.snap.Users[0]
+	e.snap.Users = e.snap.Users[1:]
+	if err := e.svc.Reconcile(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := e.st.devices[devA1]; ok {
+		t.Error("o equipo de alice segue no servidor")
+	}
+	if _, ok := e.st.folders["alice"]; ok {
+		t.Error("a carpeta sen equipos segue no servidor")
+	}
+	if got := e.st.folderDevices("comun"); !slices.Equal(got, []string{devB1}) {
+		t.Errorf("comun: %v", got)
+	}
+	if _, err := e.svc.Authenticate(ctx, ra.Token); !errors.Is(err, ErrUnauthorized) {
+		t.Errorf("token de usuario sen acceso: %v", err)
+	}
+
+	e.snap.Users = append(e.snap.Users, alice)
+	if err := e.svc.Reconcile(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.st.folderDevices("alice"); !slices.Equal(got, []string{devA1}) {
+		t.Errorf("alice tras recuperar o acceso: %v", got)
+	}
+}
+
+// Unha carpeta que xa non se ofrece (p. ex. sen permiso de escritura) quítase.
+func TestFolderNoLongerOffered(t *testing.T) {
+	e := newEnv(t)
+	if _, err := e.pair("bob", devB1); err != nil {
+		t.Fatal(err)
+	}
+	e.snap.Users[1].Folders = nil
+	if err := e.svc.Reconcile(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(e.st.folders) != 0 {
+		t.Errorf("carpetas: %v", e.st.folders)
+	}
+	if _, ok := e.st.devices[devB1]; !ok {
+		t.Error("o equipo debe seguir vinculado aínda sen carpetas")
 	}
 }
