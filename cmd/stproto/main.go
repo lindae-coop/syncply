@@ -45,6 +45,9 @@ func main() {
 		err = cmdInit(ctx)
 	case "sftpgo-setup":
 		err = cmdSFTPGoSetup(ctx)
+	case "otp": // otp <usuario>
+		need(args, 1)
+		err = cmdOTP(ctx, args[0])
 	case "pair": // pair <cliente> <usuario> [otp]
 		need(args, 2)
 		otp := ""
@@ -81,6 +84,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr, `uso: stproto <orde>
   init                         configura os nodos (sen descubrimento global nin relays)
   sftpgo-setup                 crea en SFTPGo os datos de dev/sftpgo-demo.json
+  otp <usuario>                código TOTP actual dun usuario de proba
   pair <cliente> <usuario> [otp]  emparella vía pairsrv (sen otp: calcúlao
                                  cos segredos de dev/sftpgo-demo.json)
   pending <cliente>            lista as carpetas ofrecidas ao cliente

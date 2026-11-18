@@ -129,6 +129,17 @@ func devOTP(ctx context.Context, user string) (string, error) {
 	}
 }
 
+// cmdOTP amosa un código para usar a man (p. ex. na web de cld). Márcase
+// como usado para que stproto non volva xerar o mesmo.
+func cmdOTP(ctx context.Context, user string) error {
+	code, err := devOTP(ctx, user)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%s  (código de %s; válido uns 30-60 s)\n", code, user)
+	return nil
+}
+
 // --- Token do equipo --------------------------------------------------------
 
 func tokenPath(client string) string { return filepath.Join(nodesMount, client, "pairsrv-token") }

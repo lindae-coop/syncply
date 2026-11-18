@@ -11,6 +11,7 @@ Syncthing se instalan no equipo: todo corre en contedores.
 make demo     # parte de cero e valida o fluxo completo
 make fresh    # parte de cero con SFTPGo preparado e sen emparellar
 make ui C=3   # abre a web do cliente 3 no navegador (como o acceso directo)
+make otp U=alice  # código OTP actual dun usuario de proba
 make status   # estado de dispositivos, carpetas e conexións
 make help     # resto de ordes
 make clean    # para os contedores e borra o estado (./.dev)
@@ -132,9 +133,11 @@ Configuración do instalador (`cld.json`): `pairsrvURL` e, opcionalmente,
 `serverDeviceID` (se se indica, o emparellamento só se acepta con ese
 servidor). Exemplo de desenvolvemento: [dev/cld.json](dev/cld.json).
 
-Probar a web en desenvolvemento: `make fresh` e despois `make ui C=1`
-(usuario `alice`; o código OTP sae do segredo de
-[dev/sftpgo-demo.json](dev/sftpgo-demo.json) en calquera app autenticadora).
+Probar a web en desenvolvemento: `make fresh`, `make ui C=1` e vincular co
+usuario `alice` e o código que dá `make otp U=alice` (válido uns 30-60 s).
+Tamén se pode dar de alta o segredo `totpSecret` de
+[dev/sftpgo-demo.json](dev/sftpgo-demo.json) nunha app autenticadora
+(entrada manual, tipo TOTP). O contrasinal só serve para entrar en SFTPGo.
 
 ## Pasos solos
 

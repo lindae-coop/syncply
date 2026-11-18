@@ -6,13 +6,14 @@ ARGS     ?= status
 C        ?= 1
 RUN      := $(COMPOSE) run --rm tools
 
-.PHONY: help up down restart logs proto demo fresh ui status test clean
+.PHONY: help up down restart logs proto demo fresh ui otp status test clean
 
 help:
 	@echo "make up       - arranca SFTPGo, os nodos Syncthing, pairsrv e os clientes cld"
 	@echo "make demo     - parte de cero e valida o fluxo completo"
 	@echo "make fresh    - parte de cero con SFTPGo preparado e sen emparellar (para probar a web)"
 	@echo "make ui C=1   - abre no navegador a web do cliente 1 (como o acceso directo)"
+	@echo "make otp U=alice - código OTP actual dun usuario de proba"
 	@echo "make status   - estado de dispositivos, carpetas e conexións"
 	@echo "make test     - tests unitarios"
 	@echo "make proto ARGS='...' - executa cmd/stproto con argumentos"
@@ -53,6 +54,10 @@ ui:
 	@url=$$($(COMPOSE) exec -T cld-client$(C) go run ./cmd/cld open -dir /cfg -print 2>/dev/null | tail -1); \
 	  case "$$url" in http*) echo "$$url"; xdg-open "$$url" >/dev/null 2>&1 || true;; \
 	  *) echo "cld-client$(C) non responde (make up?)"; exit 1;; esac
+
+U ?= alice
+otp:
+	@$(RUN) go run ./cmd/stproto otp $(U) 2>/dev/null | tail -1
 
 status:
 	$(RUN) go run ./cmd/stproto status
