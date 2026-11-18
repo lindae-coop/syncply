@@ -284,7 +284,7 @@ func (a *App) Devices(ctx context.Context) ([]pairing.DeviceInfo, error) {
 func (a *App) Revoke(ctx context.Context, deviceID, otp string) error {
 	s := a.snapshotState()
 	if strings.TrimSpace(otp) == "" {
-		return userErr("Fai falta un código OTP para revogar un equipo.")
+		return userErr("Fai falta un código de vinculación para revogar un equipo.")
 	}
 	return a.pairsrv(ctx, http.MethodDelete, "/api/v1/devices/"+deviceID, s.Token,
 		map[string]string{"otp": strings.TrimSpace(otp)}, nil)

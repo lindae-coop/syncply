@@ -1,0 +1,50 @@
+{{define "index"}}{{template "head"}}
+<meta http-equiv="refresh" content="{{.CodeLeft}}">
+</head>
+<body><main>
+<header>
+  <h1>Sincronización de ficheiros</h1>
+  <span class="who">{{.User}}</span>
+  <form method="post" action="/logout" class="inline"><button>Saír</button></form>
+</header>
+
+<section>
+  <h2>Código de vinculación</h2>
+  <p class="code" id="code">{{.Code.Code}}</p>
+  <div class="bar" title="Tempo ata o seguinte código"><div style="width: {{.CodeShare}}%; animation-duration: {{.CodeLeft}}s"></div></div>
+  <p class="muted">Introdúceo no cliente para vincular un equipo novo ou para revogar outro. Cambia cada 30 segundos e cada código só vale unha vez; esta páxina actualízase soa.</p>
+</section>
+
+{{if .Downloads}}
+<section>
+  <h2>Descargar o cliente</h2>
+  <ul>
+    {{range .Downloads}}<li><a href="{{.URL}}">{{.Label}}</a></li>{{end}}
+  </ul>
+  <p class="muted">Xa vén configurado para este servidor. Ao instalalo, pídeche o teu usuario e o código de arriba.</p>
+</section>
+{{end}}
+
+<section>
+  <h2>Recursos que se sincronizan</h2>
+  {{with .Account.Folders}}
+  <ul>{{range .}}<li>{{.Label}}</li>{{end}}</ul>
+  <p class="muted">Só se ofrecen os recursos nos que tes permiso de escritura. No cliente escolles en que carpeta do equipo se garda cada un.</p>
+  {{else}}
+  <p class="muted">A túa conta non ten ningún recurso que se poida sincronizar (fai falta permiso de escritura).</p>
+  {{end}}
+</section>
+
+<section>
+  <h2>Os teus equipos ({{len .Account.Devices}} de {{.Account.MaxDevices}})</h2>
+  {{with .Account.Devices}}
+  <ul>
+    {{range .}}<li><span class="dot{{if .Connected}} ok{{end}}"></span>{{.Name}}
+      <span class="muted">— {{if .Connected}}conectado{{else}}última conexión {{date .LastSeen}}{{end}}; vinculado o {{date .AddedAt}}</span></li>{{end}}
+  </ul>
+  <p class="muted">Para revogar un equipo, faino desde o cliente doutro dos teus equipos.</p>
+  {{else}}
+  <p class="muted">Aínda non vinculaches ningún equipo.</p>
+  {{end}}
+</section>
+{{template "foot"}}{{end}}

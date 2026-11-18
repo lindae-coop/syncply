@@ -39,7 +39,6 @@ type demoData struct {
 type demoUser struct {
 	Name         string              `json:"name"`
 	Password     string              `json:"password"`
-	TOTPSecret   string              `json:"totpSecret"`
 	HomeDir      string              `json:"homeDir"`
 	Permissions  map[string][]string `json:"permissions"`
 	PrimaryGroup string              `json:"primaryGroup"`
@@ -112,17 +111,9 @@ func adminAuth(ctx context.Context) (string, error) {
 	return sftpgoToken(ctx, "/token", basic(os.Getenv("SFTPGO_ADMIN_USER"), os.Getenv("SFTPGO_ADMIN_PASSWORD")), nil)
 }
 
-// userAuth inicia sesión como usuario. Con TOTP activo, SFTPGo pide o código.
-func userAuth(ctx context.Context, u *demoUser, withOTP bool) (string, error) {
-	var hdr map[string]string
-	if withOTP {
-		code, err := devOTP(ctx, u.Name)
-		if err != nil {
-			return "", err
-		}
-		hdr = map[string]string{"X-SFTPGO-OTP": code}
-	}
-	return sftpgoToken(ctx, "/user/token", basic(u.Name, u.Password), hdr)
+// userAuth inicia sesión como usuario.
+func userAuth(ctx context.Context, u *demoUser) (string, error) {
+	return sftpgoToken(ctx, "/user/token", basic(u.Name, u.Password), nil)
 }
 
 func waitSFTPGo(ctx context.Context) error {
@@ -133,8 +124,7 @@ func waitSFTPGo(ctx context.Context) error {
 }
 
 // cmdSFTPGoSetup crea en SFTPGo os cartafoles, grupos e usuarios de proba e
-// activa o TOTP de cada usuario (como faría o propio usuario no WebClient).
-// Os que xa existen non se tocan.
+// a regra de eventos. Os que xa existen non se tocan.
 func cmdSFTPGoSetup(ctx context.Context) error {
 	d, err := loadDemo()
 	if err != nil {
@@ -213,34 +203,17 @@ func cmdSFTPGoSetup(ctx context.Context) error {
 		for _, g := range u.Groups {
 			groups = append(groups, map[string]any{"name": g, "type": 2}) // secundario
 		}
-		created, err := create("users", u.Name, map[string]any{
+		if _, err := create("users", u.Name, map[string]any{
 			"username": u.Name, "status": 1, "password": u.Password, "home_dir": u.HomeDir,
 			"permissions": u.Permissions, "groups": groups, "filesystem": local,
-		})
-		if err != nil {
+		}); err != nil {
 			return err
 		}
-		if !created || u.TOTPSecret == "" {
-			continue
-		}
-		tok, err := userAuth(ctx, u, false)
-		if err != nil {
-			return err
-		}
-		body, hdr := jsonBody(map[string]any{
-			"enabled": true, "config_name": "Default", "protocols": []string{"HTTP"},
-			"secret": map[string]any{"status": "Plain", "payload": u.TOTPSecret},
-		})
-		if err := sftpgoCall(ctx, http.MethodPost, "/user/totp/save", tok, hdr, body, nil); err != nil {
-			return err
-		}
-		fmt.Printf("sftpgo: TOTP activado para %s\n", u.Name)
 	}
 	return nil
 }
 
-// sftpgoUpload sobe un ficheiro como o usuario (con OTP), igual que desde o
-// WebClient.
+// sftpgoUpload sobe un ficheiro como o usuario, igual que desde o WebClient.
 func sftpgoUpload(ctx context.Context, user, vpath, content string) error {
 	d, err := loadDemo()
 	if err != nil {
@@ -250,7 +223,7 @@ func sftpgoUpload(ctx context.Context, user, vpath, content string) error {
 	if u == nil {
 		return fmt.Errorf("usuario de proba descoñecido: %s", user)
 	}
-	tok, err := userAuth(ctx, u, true)
+	tok, err := userAuth(ctx, u)
 	if err != nil {
 		return err
 	}
@@ -274,7 +247,7 @@ func sftpgoSetStatus(ctx context.Context, user string, status int) error {
 	return sftpgoCall(ctx, http.MethodPut, "/users/"+url.PathEscape(user), admin, hdr, body, nil)
 }
 
-// sftpgoList lista un directorio como o usuario (con OTP).
+// sftpgoList lista un directorio como o usuario.
 func sftpgoList(ctx context.Context, user, vpath string) ([]string, error) {
 	d, err := loadDemo()
 	if err != nil {
@@ -284,7 +257,7 @@ func sftpgoList(ctx context.Context, user, vpath string) ([]string, error) {
 	if u == nil {
 		return nil, fmt.Errorf("usuario de proba descoñecido: %s", user)
 	}
-	tok, err := userAuth(ctx, u, true)
+	tok, err := userAuth(ctx, u)
 	if err != nil {
 		return nil, err
 	}

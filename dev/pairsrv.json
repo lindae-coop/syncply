@@ -3,6 +3,12 @@
   "maxDevicesPerUser": 3,
   "sftpgo": {
     "db": "/sftpgo/sftpgo.db",
-    "totpAlgos": {"Default": "sha1"}
+    "apiURL": "http://sftpgo:8080"
+  },
+  "web": {
+    "secureCookies": false,
+    "downloads": [
+      {"label": "Linux (x86-64)", "url": "/descargas/cld-linux-amd64.tar.gz"}
+    ]
   }
 }

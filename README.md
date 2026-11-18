@@ -11,7 +11,8 @@ Syncthing se instalan no equipo: todo corre en contedores.
 make demo     # parte de cero e valida o fluxo completo
 make fresh    # parte de cero con SFTPGo preparado e sen emparellar
 make ui C=3   # abre a web do cliente 3 no navegador (como o acceso directo)
-make otp U=alice  # código OTP actual dun usuario de proba
+make web          # abre a web de pairsrv (código de vinculación e descarga)
+make otp U=alice  # código de vinculación actual dun usuario de proba
 make dist         # paquete de Linux co instalador
 make installtest  # proba o paquete nun Debian con systemd
 make status   # estado de dispositivos, carpetas e conexións
@@ -28,7 +29,7 @@ Que levanta `compose.yaml`:
 | `st-client1` | Cliente de proba (alice): `cld daemon` + o seu Syncthing; web en `127.0.0.1:8411` |
 | `st-client2` | Cliente de proba (bob); web en `127.0.0.1:8412`          |
 | `st-client3` | Cliente de proba (alice, segundo equipo); web en `127.0.0.1:8413` |
-| `pairsrv`    | Servizo de emparellamento con TOTP (`cmd/pairsrv`)       |
+| `pairsrv`    | Servizo de emparellamento (`cmd/pairsrv`); web dos usuarios en `127.0.0.1:8090` |
 | `tools`      | Go 1.27 para executar `cmd/stproto` e os tests           |
 
 - A API REST de Syncthing só é accesible desde a rede interna `stnet` e con
@@ -41,8 +42,8 @@ Que levanta `compose.yaml`:
 
 ## pairsrv
 
-Emparella equipos co Syncthing do servidor mediante o **OTP (TOTP) da conta
-de SFTPGo** e mantén a configuración do servidor de acordo co rexistro
+Emparella equipos co Syncthing do servidor mediante un **código de
+vinculación** que o usuario ve na **web de pairsrv**, e mantén a configuración do servidor de acordo co rexistro
 `usuario → equipos` e cos permisos de SFTPGo. Reconcilia:
 
 - en cada emparellamento e revogación;
@@ -57,10 +58,6 @@ de SFTPGo** e mantén a configuración do servidor de acordo co rexistro
 Le **directamente a BD de SFTPGo** (só lectura) — ver
 [internal/sftpgo](internal/sftpgo/directory.go):
 
-- **TOTP:** SFTPGo non expón o segredo pola API (sae `Redacted`) nin ten un
-  endpoint para validar o código dun usuario, así que se descifra o segredo
-  como fai o seu KMS local (secretbox; con clave mestra se SFTPGo a usa:
-  `sftpgo.masterKeyFile`). Outros KMS (Vault, nubes) non se admiten.
 - **Usuarios:** activos, sen caducar e non borrados. Se un usuario se
   desactiva, os seus equipos saen do servidor e os seus tokens deixan de
   valer; ao reactivalo, volven sen emparellar de novo.
@@ -73,13 +70,36 @@ Le **directamente a BD de SFTPGo** (só lectura) — ver
 - IDs en Syncthing: `sftpgo-home-<usuario>` e `sftpgo-folder-<cartafol>`.
 - Configuración: [dev/pairsrv.json](dev/pairsrv.json).
 
+### Web dos usuarios e código de vinculación
+
+Na raíz de pairsrv (`/`; en desenvolvemento `make web`,
+`http://127.0.0.1:8090`) o usuario entra co **usuario e contrasinal de
+SFTPGo**, que se comproban coa API de SFTPGo (`GET /api/v2/user/token`;
+`sftpgo.apiURL`). Se ten activado o segundo factor en SFTPGo, indica tamén
+ese código. Dentro ve:
+
+- o **código de vinculación**: 6 díxitos que cambian cada 30 s, cunha barra
+  co tempo restante (a páxina recárgase soa; sen JavaScript). É un TOTP
+  cun segredo por usuario xerado e gardado por pairsrv (no seu estado), non
+  o 2FA de SFTPGo: non fai falta ningunha app autenticadora. Se o código
+  actual xa se usou, mostra o seguinte, que xa se acepta;
+- as **descargas** do cliente (`web.downloads`; pairsrv serve os ficheiros
+  dun directorio en `/descargas/` con `-downloads`; en desenvolvemento,
+  `./dist`);
+- os recursos que se lle ofrecen e os seus equipos (cantos de cantos).
+
+Sesión en memoria (15 min sen actividade) con cookie `HttpOnly`,
+`SameSite=Strict` (`Secure` con `web.secureCookies`, para HTTPS detrás dun
+proxy); POST só da mesma orixe; `Cache-Control: no-store`; 5 contrasinais
+incorrectos seguidos bloquean o usuario 5 min nesta web.
+
 | Método e ruta                | Autenticación | Uso                                   |
 |------------------------------|---------------|---------------------------------------|
-| `POST /api/v1/pair`          | usuario + OTP | `{user, otp, deviceID, deviceName}` → `{serverDeviceID, serverAddresses, token}` |
+| `POST /api/v1/pair`          | usuario + código | `{user, otp, deviceID, deviceName}` → `{serverDeviceID, serverAddresses, token}` |
 | `GET /api/v1/devices`        | Bearer token  | equipos do usuario (conectado, última conexión, cal é o actual) |
 | `DELETE /api/v1/devices/{id}`| Bearer token + `{otp}` | revoga un equipo do usuario    |
 
-- Un código OTP non se pode reutilizar en pairsrv; 5 fallos seguidos bloquean o usuario 5 min.
+- Un código non se pode reutilizar; 5 fallos seguidos bloquean o usuario 5 min.
 - Límite de equipos por usuario (`maxDevicesPerUser`).
 - Un equipo vinculado a un usuario non pode vinculalo outro.
 - O estado garda en `./.dev/pairsrv/state.json` (só o hash dos tokens).
@@ -96,10 +116,9 @@ código.
 
 ## Datos de proba
 
-[dev/sftpgo-demo.json](dev/sftpgo-demo.json) (contrasinais e segredos
+[dev/sftpgo-demo.json](dev/sftpgo-demo.json) (contrasinais
 públicos, só para desenvolvemento). `make proto ARGS=sftpgo-setup` créaos en
-SFTPGo, crea a regra de eventos e activa o TOTP de cada usuario como faría
-el no WebClient. Todos teñen o grupo primario `syncthing`:
+SFTPGo e crea a regra de eventos. Todos teñen o grupo primario `syncthing`:
 
 | Usuario | Directorio persoal | `/comun` (grupo `equipo`) | `/arquivo` (grupo) |
 |---------|--------------------|---------------------------|--------------------|
@@ -120,13 +139,13 @@ Un só binario ([cmd/cld](cmd/cld/main.go), [internal/client](internal/client)):
     ou no PATH (`-syncthing`). Con `-st-url` usa un Syncthing externo.
   - Aplica `syncthingOptions` de `cld.json` cada vez que Syncthing arranca.
   - Nesa web o usuario:
-  - vincula o equipo co seu usuario e o código OTP;
+  - vincula o equipo co seu usuario e o código de vinculación;
   - ve os recursos que sincroniza (estado, tamaño) e os que ofrece o
     servidor, escolle a carpeta local de cada un e acepta, ou deixa de
     sincronizar (os ficheiros locais quedan);
   - pausa 1 h / 8 h (retómase só), ou **detén** (para o proceso de
     Syncthing; lémbrase entre reinicios) e arranca;
-  - ve os seus equipos e revoga outros (cun código OTP novo).
+  - ve os seus equipos e revoga outros (cun código de vinculación novo).
 - `cld open`: o que executa o **acceso directo**. Le `ui.json` (porto e
   clave de control, `0600`, só do usuario), pídelle ao daemon unha URL de
   acceso dun só uso (60 s) e ábrea no navegador. O usuario non ten que saber
@@ -148,11 +167,11 @@ No contorno, os contedores `st-clientN` usan a imaxe
 Syncthing 2.1.7). A API de Syncthing vai en TCP interno (`-st-gui
 0.0.0.0:8384`, `ST_APIKEY`) para que `stproto` siga chegando a ela. Exemplo de desenvolvemento: [dev/cld.json](dev/cld.json).
 
-Probar a web en desenvolvemento: `make fresh`, `make ui C=1` e vincular co
-usuario `alice` e o código que dá `make otp U=alice` (válido uns 30-60 s).
-Tamén se pode dar de alta o segredo `totpSecret` de
-[dev/sftpgo-demo.json](dev/sftpgo-demo.json) nunha app autenticadora
-(entrada manual, tipo TOTP). O contrasinal só serve para entrar en SFTPGo.
+Probar a web en desenvolvemento: `make fresh`, `make web` (entrar como
+`alice` co contrasinal de [dev/sftpgo-demo.json](dev/sftpgo-demo.json)),
+`make ui C=1` e vincular co usuario `alice` e o código que mostra a web de
+pairsrv. `make otp U=alice` dá o mesmo código sen abrir o navegador (entra
+na web co contrasinal de proba).
 
 ## Instalador de Linux
 
@@ -187,7 +206,7 @@ contorno en marcha con SFTPGo preparado (`make demo` ou `make fresh`).
 make up
 make proto ARGS="init"
 make proto ARGS="sftpgo-setup"
-make proto ARGS="pair st-client1 alice"      # calcula o OTP con dev/sftpgo-demo.json
+make proto ARGS="pair st-client1 alice"      # le o código na web de pairsrv
 make proto ARGS="pending st-client1"
 make proto ARGS="accept st-client1 sftpgo-folder-comun"
 make proto ARGS="devices st-client1"

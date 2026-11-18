@@ -17,6 +17,9 @@ type State struct {
 }
 
 type UserState struct {
+	// Segredo (base32) do código de vinculación que o usuario ve na web de
+	// pairsrv. Créase a primeira vez que se mostra o código.
+	Secret string `json:"secret,omitempty"`
 	// Último contador TOTP aceptado: impide reutilizar un código.
 	LastOTPCounter int64     `json:"lastOtpCounter"`
 	Failures       int       `json:"failures"`

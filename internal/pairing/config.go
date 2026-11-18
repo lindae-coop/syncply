@@ -3,8 +3,6 @@ package pairing
 import (
 	"context"
 	"fmt"
-
-	"github.com/DanBaDo/cld/internal/totp"
 )
 
 // Options é a configuración propia do servizo.
@@ -47,13 +45,16 @@ type Folder struct {
 
 type User struct {
 	Name    string
-	TOTP    *TOTP    // nil: o usuario non ten TOTP e non pode emparellar equipos
 	Folders []string // IDs de Folder
 }
 
-type TOTP struct {
-	Secret []byte
-	Algo   totp.Algo
+func (s *Snapshot) folder(id string) *Folder {
+	for i := range s.Folders {
+		if s.Folders[i].ID == id {
+			return &s.Folders[i]
+		}
+	}
+	return nil
 }
 
 func (s *Snapshot) user(name string) *User {
@@ -83,9 +84,6 @@ func (s *Snapshot) Validate() error {
 			return fmt.Errorf("usuario baleiro ou duplicado %q", u.Name)
 		}
 		users[u.Name] = true
-		if u.TOTP != nil && !u.TOTP.Algo.Valid() {
-			return fmt.Errorf("usuario %q: algoritmo TOTP %q non admitido", u.Name, u.TOTP.Algo)
-		}
 		for _, f := range u.Folders {
 			if !folders[f] {
 				return fmt.Errorf("usuario %q: carpeta descoñecida %q", u.Name, f)

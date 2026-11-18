@@ -90,16 +90,6 @@ type env struct {
 	clock time.Time
 }
 
-func secret(t *testing.T, algo totp.Algo) *TOTP {
-	t.Helper()
-	s, _ := totp.GenerateSecret()
-	b, err := totp.DecodeSecret(s)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return &TOTP{Secret: b, Algo: algo}
-}
-
 func newEnv(t *testing.T) *env {
 	t.Helper()
 	snap := &Snapshot{
@@ -108,9 +98,9 @@ func newEnv(t *testing.T) *env {
 			{ID: "alice", Label: "Alice", Path: "/d/alice"},
 		},
 		Users: []User{
-			{Name: "alice", TOTP: secret(t, totp.SHA1), Folders: []string{"comun", "alice"}},
-			{Name: "bob", TOTP: secret(t, totp.SHA256), Folders: []string{"comun"}},
-			{Name: "carol", Folders: []string{"comun"}}, // sen TOTP
+			{Name: "alice", Folders: []string{"comun", "alice"}},
+			{Name: "bob", Folders: []string{"comun"}},
+			{Name: "carol", Folders: []string{"comun"}}, // nunca viu o seu código
 		},
 	}
 	e := &env{st: newFakeST(), snap: snap, clock: time.Unix(1_700_000_000, 0)}
@@ -124,11 +114,15 @@ func newEnv(t *testing.T) *env {
 	return e
 }
 
-// otp avanza o reloxo un paso e devolve un código novo para o usuario.
+// otp avanza o reloxo un paso e devolve o código que lle mostra a web ao
+// usuario.
 func (e *env) otp(user string) string {
 	e.clock = e.clock.Add(totp.Step)
-	u := e.snap.user(user).TOTP
-	return totp.Code(u.Algo, u.Secret, e.clock)
+	c, err := e.svc.PairingCode(context.Background(), user)
+	if err != nil {
+		panic(err)
+	}
+	return c.Code
 }
 
 func (e *env) pair(user, dev string) (*PairResponse, error) {
@@ -269,11 +263,47 @@ func TestReconcileRemovesUnknownDevices(t *testing.T) {
 	}
 }
 
-func TestUserWithoutTOTPCannotPair(t *testing.T) {
+// Sen ver nunca o código (sen segredo) non se pode emparellar.
+func TestUserWithoutSecretCannotPair(t *testing.T) {
 	e := newEnv(t)
 	_, err := e.svc.Pair(context.Background(), PairRequest{User: "carol", OTP: "123456", DeviceID: devA1, DeviceName: "x"})
 	if !errors.Is(err, ErrBadOTP) {
 		t.Fatal(err)
+	}
+}
+
+func TestPairingCode(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	if _, err := e.svc.PairingCode(ctx, "eve"); !errors.Is(err, ErrUnauthorized) {
+		t.Fatalf("usuario descoñecido: %v", err)
+	}
+	c1, err := e.svc.PairingCode(ctx, "alice")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c1.Counter != totp.Counter(e.clock) || !c1.Until.After(e.clock) || len(c1.Code) != totp.Digits {
+		t.Fatalf("código: %+v", c1)
+	}
+	// Mesmo segredo en cada consulta; distinto para cada usuario.
+	again, _ := e.svc.PairingCode(ctx, "alice")
+	bob, _ := e.svc.PairingCode(ctx, "bob")
+	if again.Code != c1.Code || bob.Code == c1.Code {
+		t.Fatalf("alice %s/%s, bob %s", c1.Code, again.Code, bob.Code)
+	}
+	if _, err := e.svc.Pair(ctx, PairRequest{User: "alice", OTP: c1.Code, DeviceID: devA1, DeviceName: "x"}); err != nil {
+		t.Fatal(err)
+	}
+	// Usado o do paso actual, a web mostra xa o seguinte, que se acepta.
+	c2, err := e.svc.PairingCode(ctx, "alice")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c2.Counter != c1.Counter+1 || c2.Code == c1.Code {
+		t.Fatalf("seguinte código: %+v", c2)
+	}
+	if _, err := e.svc.Pair(ctx, PairRequest{User: "alice", OTP: c2.Code, DeviceID: devA2, DeviceName: "y"}); err != nil {
+		t.Fatalf("código seguinte: %v", err)
 	}
 }
 

@@ -12,7 +12,7 @@ Engadir a SFTPGo capacidades de sincronización con clientes usando o núcleo de
 - SFTPGo incorpora o núcleo de Syncthing (idea orixinal: usar o seu código; sen GUI).
 - SFTPGo comparte mediante Syncthing as carpetas segundo os **permisos dos usuarios**.
 - **Decisión actual:** por agora só se ofrecen recursos nos que o usuario ten **permisos de escritura**.
-- Cada usuario ten un **OTP baseado en tempo (TOTP)** na súa conta.
+- Cada usuario ten un **OTP baseado en tempo (TOTP)** na súa conta. **Aclaración do usuario:** o código vese **na propia aplicación do servidor** (unha páxina co código e un contador), non nunha app autenticadora externa. Non ten nada que ver co 2FA de SFTPGo.
 
 ### Cliente
 - Os usuarios que accedan a SFTPGo atopan un **cliente para descargar** coas claves do servidor preinstaladas, e un contador/OTP.
@@ -44,7 +44,7 @@ Licenzas: Syncthing é MPL-2.0 e SFTPGo é AGPL-3.0; compatibles, pero o resulta
 Non fai falta un endpoint propio: cando o servidor comparte unha carpeta cun dispositivo, o cliente a ve como **carpeta pendente** (`GET /rest/cluster/pending/folders`) con ID e etiqueta. A app lista esas ofertas, o usuario elixe directorio local e acepta creando a carpeta co mesmo ID (`/rest/config/folders`). Require que o dispositivo do cliente xa estea engadido e conectado ao servidor (paso do OTP). A oferta non leva información de permisos.
 
 ### Emparellamento con OTP
-O cliente envía OTP + o seu Device ID; o servidor valida o OTP, autoriza ese dispositivo para as carpetas do usuario e devolve o seu propio Device ID. O OTP só vale para vincular; despois a identidade é o certificado do dispositivo.
+O usuario entra na web do servidor co seu usuario e contrasinal e ve alí o código (cambia cada 30 s). O cliente envía ese código + o seu Device ID; o servidor valida o OTP, autoriza ese dispositivo para as carpetas do usuario e devolve o seu propio Device ID. O OTP só vale para vincular; despois a identidade é o certificado do dispositivo.
 
 ### Varios equipos e revogación
 - Syncthing non sabe que dous Device IDs son do mesmo usuario: o rexistro `usuario → dispositivos` (Device ID, nome, data de alta, última conexión) vive no servidor. Aquí si fai falta un endpoint propio ("os meus equipos"), autenticado co token do emparellamento ou co certificado do dispositivo.
@@ -72,7 +72,7 @@ O cliente envía OTP + o seu Device ID; o servidor valida o OTP, autoriza ese di
 
 - Todo en **Podman rootless** + `podman-compose` + `make`; non instalar nada máis no equipo (nin Go nin Syncthing). Ver [README.md](README.md).
 - Versións fixadas: Syncthing **2.1.7** (`docker.io/syncthing/syncthing:2.1.7`), SFTPGo **2.7.6** (`docker.io/drakkan/sftpgo:v2.7.6-alpine`, BD SQLite, esquema v33), Go **1.27.4** (contedor `tools`).
-- **pairsrv le directamente a BD de SFTPGo** (usuarios, grupos, cartafoles, permisos e segredo TOTP), reproducindo a súa lóxica en `internal/sftpgo`. Decisión do usuario: o acoplamento non preocupa porque o obxectivo final é integrar o código en SFTPGo. Revisar `internal/sftpgo` ao cambiar de versión de SFTPGo.
+- **pairsrv le directamente a BD de SFTPGo** (usuarios, grupos, cartafoles e permisos), reproducindo a súa lóxica en `internal/sftpgo`. Decisión do usuario: o acoplamento non preocupa porque o obxectivo final é integrar o código en SFTPGo. Revisar `internal/sftpgo` ao cambiar de versión de SFTPGo.
 - Recursos ofrecidos: directorio persoal e cartafoles virtuais en disco local con **permiso de escritura completo** (ver README).
 - API de Syncthing só na rede interna dos contedores, sen portos publicados, con API key.
 
@@ -84,14 +84,12 @@ O cliente envía OTP + o seu Device ID; o servidor valida o OTP, autoriza ese di
 - **Revogación:** `DELETE /rest/config/devices/{id}` no servidor quítao tamén das carpetas; os clientes conectados eliminan o par introducido ao momento e o revogado queda sen conexión co servidor e cos pares. A súa config local conserva as entradas (non se pode evitar).
 - `/rest/system/connections` pode mostrar `connected: true` un instante en conexións que logo se rexeitan; non fiarse dunha soa mostra.
 - Latencia de sincronización observada ~14 s (`fsWatcherDelayS` = 10 s por defecto).
-- **pairsrv** (`cmd/pairsrv`, `internal/pairing`, `internal/sftpgo`, `internal/totp`) valida o fluxo OTP de punta a punta co TOTP real das contas de SFTPGo: emparellamento, ofertas só das carpetas permitidas, varios equipos por usuario, listaxe de equipos e revogación desde outro equipo do mesmo usuario. O equipo revogado queda sen conexións en ~4 s (antes pode aparecer aínda como conectado).
+- **pairsrv** (`cmd/pairsrv`, `internal/pairing`, `internal/sftpgo`, `internal/totp`) valida o fluxo de punta a punta co código de vinculación lido da web de pairsrv (como faría o usuario): emparellamento, ofertas só das carpetas permitidas, varios equipos por usuario, listaxe de equipos e revogación desde outro equipo do mesmo usuario. O equipo revogado queda sen conexións en ~4 s (antes pode aparecer aínda como conectado).
 
 ## Achados verificados (SFTPGo 2.7.6)
 
-- A API devolve os segredos como `Redacted` e non hai endpoint de admin para validar o OTP dun usuario; só `GET /api/v2/user/token` co contrasinal + `X-SFTPGO-OTP`.
-- O segredo TOTP está en `users.filters` → `totp_config.secret`: `Secretbox` co KMS local, `additional_data` = usuario, `key` aleatoria por segredo; `mode: 1` se se cifrou con clave mestra. Algoritmo segundo `mfa.totp[].algo` (sha1 por defecto), 6 díxitos, 30 s, ±1 paso.
-- O admin non pode activar o TOTP ao crear o usuario (ignora `totp_config`); actívao o usuario (`POST /api/v2/user/totp/save`). Un `PUT /users/{u}` do admin conserva o TOTP.
-- SFTPGo lembra os códigos usados (2 min) só en memoria do seu proceso: un código usado en pairsrv aínda vale para iniciar sesión en SFTPGo e viceversa (pairsrv rexeita os seus propios reusos).
+- `GET /api/v2/user/token` con Basic auth (+ `X-SFTPGO-OTP` se o usuario ten 2FA) serve para comprobar o contrasinal dun usuario desde pairsrv (401 se é incorrecto).
+- (Xa non se usa: antes pairsrv validaba co TOTP do 2FA de SFTPGo, descifrando `users.filters` → `totp_config.secret`, `Secretbox` do KMS local. Ver o historial de git se fai falta.)
 - Ficheiros subidos pola API de SFTPGo chegan aos clientes (~12 s); o que escriben os clientes aparece no disco de SFTPGo.
 - Desactivar un usuario en SFTPGo quítalle o acceso aos seus equipos no seguinte ciclo de reconciliación; reactivalo devólvello sen emparellar de novo.
 - **Xestor de eventos:** unha regra de provedor (`add`/`update`/`delete` sobre `user` e `group`) cunha acción HTTP avisa a pairsrv e o cambio aplícase en ~1 s. Os **cartafoles non xeran eventos de provedor** (`provider_objects` non inclúe `folder`): un cambio de `mapped_path` só chega coa reconciliación periódica. Non hai restricións para chamar a hosts internos.
@@ -106,6 +104,13 @@ O cliente envía OTP + o seu Device ID; o servidor valida o OTP, autoriza ese di
 4. Listar os endpoints REST de Syncthing necesarios.
 5. Decidir despois se se fusiona o núcleo en SFTPGo ou se mantén o proceso separado.
 
+## Web de pairsrv: código de vinculación (verificado con `make demo`)
+
+- Na raíz de pairsrv o usuario entra co usuario e contrasinal de SFTPGo (comprobados coa API de SFTPGo) e ve o **código de vinculación** cun contador (barra CSS + recarga automática, sen JS), a descarga do cliente, os recursos ofrecidos e os seus equipos (N de máximo).
+- O código é un TOTP (SHA1, 6 díxitos, 30 s, ±1 paso) cun **segredo por usuario xerado por pairsrv** e gardado no seu estado; créase a primeira vez que se mostra. Se o código actual xa se usou, a web mostra o do seguinte paso (xa aceptado), así que sempre mostra un código válido.
+- O mesmo código serve para vincular e para revogar. Os usuarios xa non necesitan activar o 2FA de SFTPGo; se o teñen, a web pídeo para entrar.
+- En desenvolvemento: `make web` (`127.0.0.1:8090`); `make otp U=alice` entra na web co contrasinal de proba e devolve o mesmo código.
+
 ## Cliente `cld` (prototipo)
 
 - Decidido: app de configuración como **web local** servida por `cld daemon` en `127.0.0.1`; acceso sen coñecer detalles mediante un **acceso directo** que executa `cld open` (URL dun só uso → cookie de sesión). Ver README.
@@ -117,11 +122,12 @@ O cliente envía OTP + o seu Device ID; o servidor valida o OTP, autoriza ese di
 - **Non usar `Referrer-Policy: no-referrer`** coa comprobación de `Origin`: o navegador envía `Origin: null` nos POST á mesma orixe e rexéitanse os formularios propios. Usar `same-origin`.
 - Pendente:
   - Instaladores de Windows (tarefa de inicio, menú Inicio) e macOS (LaunchAgent, app). Paquete arm64 (descargar e verificar o binario de Syncthing das súas publicacións). Icona na bandexa (require CGO en Linux/macOS).
-  - Páxina de descarga en SFTPGo que xere o `cld.json` de cada servidor.
+  - Xerar o `cld.json` de cada servidor ao descargar (hoxe pairsrv só serve os paquetes de `make dist` en `/descargas/`).
   - Cambiar a carpeta local dun recurso xa aceptado (hoxe: deixar de sincronizar e volver aceptar).
 
 ## Para o futuro: cambios en SFTPGo ao integrar (pedidos polo usuario)
 
 - **Eliminar do código de SFTPGo as funcionalidades que deixan de ter sentido con Syncthing.** Exemplo: as **cotas dos usuarios**, que non se aplican ao que escribe Syncthing. Revisar tamén outras do mesmo tipo (límites de transferencia, filtros de ficheiros, hooks por operación…) e decidir caso a caso.
 - Ocultar os ficheiros internos de Syncthing directamente no código de SFTPGo, sen depender dun grupo primario configurado a man.
-- **Indicadores visuais en SFTPGo** (WebAdmin e/ou WebClient) para cada recurso: se se ofrece ou non en Syncthing. Nos **non ofrecidos**, un tooltip ou similar co **motivo** (p. ex. sen permiso de escritura completo, almacenamento non local ou cifrado, permisos máis restritivos nunha subruta, usuario sen TOTP). Implica que `internal/sftpgo` devolva o motivo de exclusión de cada recurso, non só a lista dos ofrecidos.
+- Mover a web de pairsrv (código de vinculación con contador, descargas, equipos) ao WebClient de SFTPGo, usando a súa sesión en vez dun login propio.
+- **Indicadores visuais en SFTPGo** (WebAdmin e/ou WebClient) para cada recurso: se se ofrece ou non en Syncthing. Nos **non ofrecidos**, un tooltip ou similar co **motivo** (p. ex. sen permiso de escritura completo, almacenamento non local ou cifrado, permisos máis restritivos nunha subruta). Implica que `internal/sftpgo` devolva o motivo de exclusión de cada recurso, non só a lista dos ofrecidos.

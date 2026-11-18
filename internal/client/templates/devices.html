@@ -26,7 +26,7 @@
         <input type="hidden" name="id" value="{{.ID}}">
         <input type="hidden" name="back" value="/devices">
         <div>
-          <label for="otp-{{.ID}}">Código da túa app autenticadora</label>
+          <label for="otp-{{.ID}}">Código de vinculación (na páxina do servidor)</label>
           <input type="text" id="otp-{{.ID}}" name="otp" class="otp" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required>
         </div>
         <button class="danger">Revogar «{{.Name}}»</button>

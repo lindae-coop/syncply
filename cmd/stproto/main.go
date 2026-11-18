@@ -1,5 +1,5 @@
 // stproto: ferramenta do prototipo para validar o fluxo servidor/cliente:
-// emparellamento con TOTP vía pairsrv, carpetas pendentes, servidor como
+// emparellamento co código de vinculación vía pairsrv, carpetas pendentes, servidor como
 // introducer, propagación de pares e revogación.
 //
 // Execútase no contedor "tools" (ver compose.yaml): make proto ARGS="..."
@@ -84,14 +84,14 @@ func usage() {
 	fmt.Fprintln(os.Stderr, `uso: stproto <orde>
   init                         configura os nodos (sen descubrimento global nin relays)
   sftpgo-setup                 crea en SFTPGo os datos de dev/sftpgo-demo.json
-  otp <usuario>                código TOTP actual dun usuario de proba
-  pair <cliente> <usuario> [otp]  emparella vía pairsrv (sen otp: calcúlao
-                                 cos segredos de dev/sftpgo-demo.json)
+  otp <usuario>                código de vinculación actual dun usuario de proba
+  pair <cliente> <usuario> [otp]  emparella vía pairsrv (sen otp: lése na
+                                 web de pairsrv co contrasinal de proba)
   pending <cliente>            lista as carpetas ofrecidas ao cliente
   accept <cliente> <folderID>  o cliente acepta a carpeta ofrecida
   devices <cliente>            equipos do usuario, vistos desde ese cliente
   revoke <desde> <equipo|deviceID> <usuario>
-                               desde un equipo, revoga outro (pide OTP novo)
+                               desde un equipo, revoga outro (pide código novo)
   status                       estado de todos os nodos
   demo                         fluxo completo con verificacións`)
 	os.Exit(2)
@@ -289,7 +289,7 @@ func cmdDemo(ctx context.Context) error {
 	}
 
 	step("Emparellamentos rexeitados")
-	if err := expect(cmdPair(ctx, "st-client1", "alice", "000000"), 401, "OTP incorrecto"); err != nil {
+	if err := expect(cmdPair(ctx, "st-client1", "alice", "000000"), 401, "código incorrecto"); err != nil {
 		return err
 	}
 	if err := expect(cmdPair(ctx, "st-client1", "eve", ""), 401, "usuario inexistente"); err != nil {
@@ -396,7 +396,7 @@ func cmdDemo(ctx context.Context) error {
 		return err
 	}
 
-	step("Ficheiro subido por SFTPGo (API do WebClient, con OTP) chega aos clientes")
+	step("Ficheiro subido por SFTPGo (API do WebClient) chega aos clientes")
 	name := fmt.Sprintf("subido-%d.txt", time.Now().UnixNano())
 	if err := sftpgoUpload(ctx, "alice", "/comun/"+name, "subido por alice a SFTPGo\n"); err != nil {
 		return err
@@ -468,7 +468,7 @@ func cmdDemo(ctx context.Context) error {
 		return fmt.Errorf("esperábanse 2 equipos: %v %v", devs, err)
 	}
 
-	step("st-client1 revoga st-client3 (con OTP novo)")
+	step("st-client1 revoga st-client3 (con código de vinculación novo)")
 	if err := cmdRevoke(ctx, "st-client1", "st-client3", "alice"); err != nil {
 		return err
 	}

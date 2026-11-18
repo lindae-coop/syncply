@@ -1,5 +1,5 @@
 // Package pairing vincula equipos de usuario co servidor Syncthing mediante
-// TOTP e mantén a configuración do servidor de acordo co rexistro
+// un código de vinculación (TOTP) que o usuario ve na web de pairsrv, e mantén a configuración do servidor de acordo co rexistro
 // usuario → equipos e cos permisos sobre as carpetas.
 package pairing
 
@@ -29,7 +29,8 @@ const (
 )
 
 var (
-	ErrBadOTP       = errors.New("usuario ou código OTP incorrecto")
+	ErrBadOTP       = errors.New("usuario ou código de vinculación incorrecto")
+	ErrBadLogin     = errors.New("usuario ou contrasinal incorrecto")
 	ErrLocked       = errors.New("demasiados intentos; proba máis tarde")
 	ErrBadRequest   = errors.New("petición non válida")
 	ErrDeviceLimit  = errors.New("alcanzado o número máximo de equipos")
@@ -108,15 +109,15 @@ func (s *Service) snapshot(ctx context.Context) (*Snapshot, error) {
 
 // checkOTP valida o código, aplica bloqueo por intentos fallidos e rexeita
 // códigos xa usados. Debe chamarse co mutex collido; o estado gárdao quen chama.
-func (s *Service) checkOTP(u *User, us *UserState, code string) error {
+func (s *Service) checkOTP(us *UserState, code string) error {
 	now := s.now()
 	if now.Before(us.LockedUntil) {
 		return ErrLocked
 	}
 	var ctr int64
 	ok := false
-	if u.TOTP != nil {
-		ctr, ok = totp.Validate(u.TOTP.Algo, u.TOTP.Secret, code, now, otpSkew)
+	if secret, err := totp.DecodeSecret(us.Secret); us.Secret != "" && err == nil {
+		ctr, ok = totp.Validate(totp.SHA1, secret, code, now, otpSkew)
 	}
 	if !ok || ctr <= us.LastOTPCounter {
 		us.Failures++
@@ -168,7 +169,7 @@ func (s *Service) Pair(ctx context.Context, req PairRequest) (*PairResponse, err
 		return nil, ErrBadOTP // non revelar se o usuario existe
 	}
 	us := s.state.userState(u.Name)
-	err = s.checkOTP(u, us, req.OTP)
+	err = s.checkOTP(us, req.OTP)
 	if serr := s.state.save(s.statePath); serr != nil {
 		return nil, serr
 	}
@@ -269,7 +270,7 @@ func (s *Service) ListDevices(ctx context.Context, c *Caller) ([]DeviceInfo, err
 	return out, nil
 }
 
-// Revoke elimina un equipo do usuario. Esixe un código OTP novo.
+// Revoke elimina un equipo do usuario. Esixe un código de vinculación novo.
 func (s *Service) Revoke(ctx context.Context, c *Caller, deviceID, otp string) error {
 	deviceID = strings.ToUpper(strings.TrimSpace(deviceID))
 	s.mu.Lock()
@@ -284,7 +285,7 @@ func (s *Service) Revoke(ctx context.Context, c *Caller, deviceID, otp string) e
 		return ErrUnauthorized
 	}
 	us := s.state.userState(u.Name)
-	err = s.checkOTP(u, us, otp)
+	err = s.checkOTP(us, otp)
 	if serr := s.state.save(s.statePath); serr != nil {
 		return serr
 	}
@@ -300,6 +301,82 @@ func (s *Service) Revoke(ctx context.Context, c *Caller, deviceID, otp string) e
 		return err
 	}
 	return s.reconcileLocked(ctx, snap)
+}
+
+// Code é o código de vinculación que se lle mostra ao usuario.
+type Code struct {
+	Code    string
+	Counter int64
+	// Ata cando se mostra; despois toca o seguinte. O servidor aínda o acepta
+	// un paso máis (desfase de reloxo) se non se usou.
+	Until time.Time
+}
+
+// PairingCode devolve o código de vinculación que debe ver agora o usuario
+// (na web de pairsrv, despois de identificarse en SFTPGo). A primeira vez
+// créase o seu segredo. Se o código do paso actual xa se usou, devolve o do
+// seguinte, que xa se acepta, para que o que se mostra sempre valla.
+func (s *Service) PairingCode(ctx context.Context, user string) (*Code, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	snap, err := s.snapshot(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if snap.user(user) == nil {
+		return nil, ErrUnauthorized
+	}
+	us := s.state.userState(user)
+	if us.Secret == "" {
+		if us.Secret, err = totp.GenerateSecret(); err != nil {
+			return nil, err
+		}
+		if err := s.state.save(s.statePath); err != nil {
+			return nil, err
+		}
+	}
+	secret, err := totp.DecodeSecret(us.Secret)
+	if err != nil {
+		return nil, err
+	}
+	ctr := max(totp.Counter(s.now()), us.LastOTPCounter+1)
+	step := int64(totp.Step / time.Second)
+	return &Code{
+		Code:    totp.HOTP(totp.SHA1, secret, ctr, totp.Digits),
+		Counter: ctr,
+		Until:   time.Unix((ctr+1)*step, 0),
+	}, nil
+}
+
+// Account resume para a web o que ten o usuario: recursos que se lle
+// ofrecen e equipos vinculados.
+type Account struct {
+	Folders    []Folder
+	Devices    []DeviceInfo
+	MaxDevices int
+}
+
+func (s *Service) Account(ctx context.Context, user string) (*Account, error) {
+	s.mu.Lock()
+	snap, err := s.snapshot(ctx)
+	s.mu.Unlock()
+	if err != nil {
+		return nil, err
+	}
+	u := snap.user(user)
+	if u == nil {
+		return nil, ErrUnauthorized
+	}
+	a := &Account{MaxDevices: s.opts.MaxDevicesPerUser}
+	for _, id := range u.Folders {
+		if f := snap.folder(id); f != nil {
+			a.Folders = append(a.Folders, *f)
+		}
+	}
+	if a.Devices, err = s.ListDevices(ctx, &Caller{User: user}); err != nil {
+		return nil, err
+	}
+	return a, nil
 }
 
 func (s *Service) Reconcile(ctx context.Context) error {

@@ -1,9 +1,9 @@
-// Package sftpgo le usuarios, grupos, cartafoles e segredos TOTP
-// directamente da BD de SFTPGo (SQLite) e tradúceos aos recursos que se
-// sincronizan con Syncthing.
+// Package sftpgo le usuarios, grupos e cartafoles directamente da BD de
+// SFTPGo (SQLite) e tradúceos aos recursos que se sincronizan con Syncthing.
+// As credenciais dos usuarios compróbanse coa API de SFTPGo (ver auth.go).
 //
-// Reproduce detalles internos de SFTPGo 2.7.6 (esquema da BD v33, KMS local,
-// aplicación de grupos e permisos). Isto é deliberado: o obxectivo final é
+// Reproduce detalles internos de SFTPGo 2.7.6 (esquema da BD v33, aplicación
+// de grupos e permisos). Isto é deliberado: o obxectivo final é
 // integrar este código en SFTPGo, onde se usarían directamente os seus
 // paquetes. Revisar ao cambiar de versión de SFTPGo.
 package sftpgo
@@ -14,8 +14,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"net/url"
-	"os"
 	"regexp"
 	"slices"
 	"strings"
@@ -24,27 +24,26 @@ import (
 	_ "modernc.org/sqlite"
 
 	"github.com/DanBaDo/cld/internal/pairing"
-	"github.com/DanBaDo/cld/internal/totp"
 )
 
 // SchemaVersion é a versión do esquema da BD de SFTPGo coa que se probou.
 const SchemaVersion = 33
 
 type Config struct {
-	DB            string `json:"db"`            // ruta a sftpgo.db
-	TablePrefix   string `json:"tablePrefix"`   // data_provider.sql_tables_prefix
-	MasterKeyFile string `json:"masterKeyFile"` // kms.secrets.master_key_path
-	// Algoritmo de cada configuración TOTP de SFTPGo (mfa.totp[].name → algo).
-	// Por defecto {"Default": "sha1"}, como en SFTPGo.
-	TOTPAlgos map[string]totp.Algo `json:"totpAlgos"`
+	DB          string `json:"db"`          // ruta a sftpgo.db
+	TablePrefix string `json:"tablePrefix"` // data_provider.sql_tables_prefix
+	// URL base do servidor HTTP de SFTPGo (p. ex. http://sftpgo:8080), para
+	// comprobar o contrasinal dos usuarios.
+	APIURL string `json:"apiURL"`
 }
 
 type Directory struct {
-	cfg       Config
-	db        *sql.DB
-	masterKey string
-	now       func() time.Time
-	logf      func(format string, args ...any)
+	cfg    Config
+	db     *sql.DB
+	apiURL *url.URL
+	http   *http.Client
+	now    func() time.Time
+	logf   func(format string, args ...any)
 }
 
 var prefixRe = regexp.MustCompile(`^[A-Za-z0-9_]*$`)
@@ -56,16 +55,13 @@ func Open(cfg Config) (*Directory, error) {
 	if !prefixRe.MatchString(cfg.TablePrefix) {
 		return nil, fmt.Errorf("sftpgo: prefixo de táboas non válido %q", cfg.TablePrefix)
 	}
-	if len(cfg.TOTPAlgos) == 0 {
-		cfg.TOTPAlgos = map[string]totp.Algo{"Default": totp.SHA1}
-	}
-	d := &Directory{cfg: cfg, now: time.Now, logf: log.Printf}
-	if cfg.MasterKeyFile != "" {
-		b, err := os.ReadFile(cfg.MasterKeyFile)
-		if err != nil {
-			return nil, err
+	d := &Directory{cfg: cfg, now: time.Now, logf: log.Printf, http: &http.Client{Timeout: 15 * time.Second}}
+	if cfg.APIURL != "" {
+		u, err := url.Parse(cfg.APIURL)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			return nil, fmt.Errorf("sftpgo: apiURL non válida %q", cfg.APIURL)
 		}
-		d.masterKey = strings.TrimSpace(string(b))
+		d.apiURL = u
 	}
 	// Só lectura: SFTPGo é quen escribe. busy_timeout por se SFTPGo ten a BD
 	// bloqueada nese momento.
@@ -100,11 +96,6 @@ type dbUser struct {
 	id         int64
 	status     int
 	expiration int64 // ms; 0 = sen caducidade
-	totp       struct {
-		Enabled    bool   `json:"enabled"`
-		ConfigName string `json:"config_name"`
-		Secret     Secret `json:"secret"`
-	}
 }
 
 // Snapshot implementa pairing.Directory.
@@ -120,7 +111,7 @@ func (d *Directory) Snapshot(ctx context.Context) (*pairing.Snapshot, error) {
 		if u.status != 1 || (u.expiration > 0 && u.expiration < nowMs) {
 			continue
 		}
-		pu := pairing.User{Name: u.Username, TOTP: d.userTOTP(&u)}
+		pu := pairing.User{Name: u.Username}
 		for _, f := range resources(&u.rawUser) {
 			if prev, ok := folders[f.ID]; ok && prev.Path != f.Path {
 				d.logf("sftpgo: %s: ruta distinta para %s (%s / %s); ignórase", u.Username, f.ID, prev.Path, f.Path)
@@ -137,28 +128,6 @@ func (d *Directory) Snapshot(ctx context.Context) (*pairing.Snapshot, error) {
 	slices.SortFunc(snap.Folders, func(a, b pairing.Folder) int { return strings.Compare(a.ID, b.ID) })
 	d.warnNested(snap.Folders)
 	return snap, nil
-}
-
-func (d *Directory) userTOTP(u *dbUser) *pairing.TOTP {
-	if !u.totp.Enabled {
-		return nil
-	}
-	algo, ok := d.cfg.TOTPAlgos[u.totp.ConfigName]
-	if !ok {
-		d.logf("sftpgo: %s: configuración TOTP descoñecida %q", u.Username, u.totp.ConfigName)
-		return nil
-	}
-	plain, err := u.totp.Secret.Decrypt(d.masterKey)
-	if err != nil {
-		d.logf("sftpgo: %s: segredo TOTP: %v", u.Username, err)
-		return nil
-	}
-	secret, err := totp.DecodeSecret(plain)
-	if err != nil {
-		d.logf("sftpgo: %s: %v", u.Username, err)
-		return nil
-	}
-	return &pairing.TOTP{Secret: secret, Algo: algo}
 }
 
 // IDs das carpetas en Syncthing.
@@ -209,7 +178,7 @@ func (d *Directory) load(ctx context.Context) ([]dbUser, error) {
 	defer tx.Rollback()
 
 	rows, err := tx.QueryContext(ctx, `SELECT u.id, u.username, u.status, u.expiration_date, u.home_dir,
-		u.permissions, COALESCE(u.filters, ''), COALESCE(u.filesystem, ''), COALESCE(r.name, '')
+		u.permissions, COALESCE(u.filesystem, ''), COALESCE(r.name, '')
 		FROM `+d.table("users")+` u LEFT JOIN `+d.table("roles")+` r ON r.id = u.role_id
 		WHERE u.deleted_at = 0 ORDER BY u.username`)
 	if err != nil {
@@ -219,23 +188,15 @@ func (d *Directory) load(ctx context.Context) ([]dbUser, error) {
 	byID := map[int64]int{}
 	for rows.Next() {
 		var u dbUser
-		var perms, filters, fs string
+		var perms, fs string
 		if err := rows.Scan(&u.id, &u.Username, &u.status, &u.expiration, &u.HomeDir,
-			&perms, &filters, &fs, &u.Role); err != nil {
+			&perms, &fs, &u.Role); err != nil {
 			rows.Close()
 			return nil, err
 		}
 		if err := json.Unmarshal([]byte(perms), &u.Permissions); err != nil {
 			rows.Close()
 			return nil, fmt.Errorf("usuario %s: permisos: %w", u.Username, err)
-		}
-		if filters != "" {
-			var f struct {
-				TOTP json.RawMessage `json:"totp_config"`
-			}
-			if err := json.Unmarshal([]byte(filters), &f); err == nil && f.TOTP != nil {
-				_ = json.Unmarshal(f.TOTP, &u.totp)
-			}
 		}
 		u.Provider = provider(fs)
 		byID[u.id] = len(users)

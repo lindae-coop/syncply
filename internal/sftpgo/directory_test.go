@@ -7,8 +7,6 @@ import (
 	"slices"
 	"testing"
 	"time"
-
-	"github.com/DanBaDo/cld/internal/totp"
 )
 
 // Subconxunto do esquema v33 de SFTPGo (internal/dataprovider/sqlite.go)
@@ -32,7 +30,6 @@ INSERT INTO roles VALUES (1, 'oficina');
 INSERT INTO folders VALUES (1, 'comun', '/srv/comun', '{"provider":0}'), (2, 'nube', NULL, '{"provider":1}');
 INSERT INTO groups VALUES (1, 'equipo', '{"permissions":{"/comun":["*"],"/nube":["*"]},"filesystem":{"provider":0}}');
 INSERT INTO groups_folders_mapping VALUES (1, 1, 1, '/comun', 0), (2, 2, 1, '/nube', 0);
--- proba: TOTP real gardado por SFTPGo (ver kms_test.go)
 INSERT INTO users VALUES
  (1, 'proba', 1, 0, '/srv/proba', '{"/":["*"]}',
   '{"totp_config":{"enabled":true,"config_name":"Default","secret":{"status":"Secretbox","payload":"7NxO9jd6gfty19kPVgswtX3Oez3Q8SlOXVnKUmIKP49CVuHyPVTvj+cVFab+cJ7F0+DBkipD5xT9dJp1rHqbcM2WlKUHGwSA","key":"497de61470c09fdc7bc63bd2ff00b17b2b102aff244137c6295a47f0a2910d22","additional_data":"proba"},"protocols":["HTTP"]}}',
@@ -81,18 +78,11 @@ func TestDirectorySnapshot(t *testing.T) {
 		t.Fatalf("usuarios: %v", names)
 	}
 	lector, proba := snap.Users[0], snap.Users[1]
-	if lector.TOTP != nil || !slices.Equal(lector.Folders, []string{"sftpgo-folder-comun"}) {
+	if !slices.Equal(lector.Folders, []string{"sftpgo-folder-comun"}) {
 		t.Errorf("lector: %+v", lector)
 	}
 	if !slices.Equal(proba.Folders, []string{"sftpgo-home-proba", "sftpgo-folder-comun"}) {
 		t.Errorf("proba: carpetas %v", proba.Folders)
-	}
-	if proba.TOTP == nil || proba.TOTP.Algo != totp.SHA1 {
-		t.Fatalf("proba: TOTP %+v", proba.TOTP)
-	}
-	want, _ := totp.DecodeSecret("S3RZ2OZWS4PTKU2ZAOFSJ567FM6YUIEP")
-	if !slices.Equal(proba.TOTP.Secret, want) {
-		t.Error("proba: segredo TOTP incorrecto")
 	}
 	if len(snap.Folders) != 2 || snap.Folders[0].Path != "/srv/comun" || snap.Folders[1].Path != "/srv/proba" {
 		t.Errorf("carpetas: %+v", snap.Folders)

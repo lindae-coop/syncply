@@ -17,11 +17,11 @@
 {{else if not .Overview.Paired}}
 <section>
   <h2>Vincular este equipo</h2>
-  <p class="muted">Introduce o teu usuario e o código de 6 díxitos da túa app autenticadora (o mesmo que usas para entrar no servidor de ficheiros).</p>
+  <p class="muted">Introduce o teu usuario e o código de vinculación de 6 díxitos. Atópalo na páxina do servidor onde descargaches este programa, despois de entrar co teu usuario e contrasinal.</p>
   <form method="post" action="/pair">
     <label for="user">Usuario</label>
     <input type="text" id="user" name="user" autocomplete="username" required autofocus>
-    <label for="otp">Código</label>
+    <label for="otp">Código de vinculación</label>
     <input type="text" id="otp" name="otp" class="otp" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required>
     <label for="device">Nome deste equipo</label>
     <input type="text" id="device" name="device" value="{{.Overview.Hostname}}" maxlength="64" required>

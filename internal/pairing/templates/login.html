@@ -1,0 +1,22 @@
+{{define "login"}}{{template "head"}}
+</head>
+<body><main>
+<header><h1>Sincronización de ficheiros</h1></header>
+{{if .Error}}<div class="msg">{{.Error}}</div>{{end}}
+<section>
+  <h2>Entrar</h2>
+  <p class="muted">Usa o mesmo usuario e contrasinal que no servidor de ficheiros. Dentro verás o código para vincular os teus equipos e a descarga do cliente.</p>
+  <form method="post" action="/login">
+    <label for="user">Usuario</label>
+    <input type="text" id="user" name="user" value="{{.User}}" autocomplete="username" maxlength="256" required autofocus>
+    <label for="password">Contrasinal</label>
+    <input type="password" id="password" name="password" autocomplete="current-password" maxlength="256" required>
+    <details>
+      <summary>Tes activado o segundo factor no servidor de ficheiros?</summary>
+      <label for="otp">Código da túa app autenticadora</label>
+      <input type="text" id="otp" name="otp" class="otp" inputmode="numeric" maxlength="8" autocomplete="one-time-code">
+    </details>
+    <p><button class="primary">Entrar</button></p>
+  </form>
+</section>
+{{template "foot"}}{{end}}

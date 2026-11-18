@@ -1,6 +1,6 @@
 package main
 
-// Cliente de pairsrv: o que fará o cliente real (emparellar co OTP, gardar o
+// Cliente de pairsrv: o que fará o cliente real (emparellar co código, gardar o
 // token, listar e revogar equipos).
 
 import (
@@ -9,14 +9,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"net/http/cookiejar"
+	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/DanBaDo/cld/internal/pairing"
-	"github.com/DanBaDo/cld/internal/totp"
 )
 
 const pairsrvURL = "http://pairsrv:8080"
@@ -78,65 +81,56 @@ func waitPairsrv(ctx context.Context) error {
 	})
 }
 
-// --- OTP de desenvolvemento -------------------------------------------------
+// --- Código de vinculación -------------------------------------------------
 //
-// Fai de app autenticadora: calcula o código cos segredos de
-// dev/sftpgo-demo.json (os mesmos que se activan en SFTPGo).
-// pairsrv rexeita reutilizar un código (ou un anterior) e SFTPGo reutilizar o
-// mesmo código, así que se garda
-// o último contador usado por usuario e, se fai falta, agárdase ao seguinte
-// paso de 30 s.
+// Fai o que fai o usuario: entra na web de pairsrv co seu usuario e
+// contrasinal de SFTPGo e le o código que se mostra. A web sempre mostra un
+// código aínda non usado.
 
-var otpStatePath = filepath.Join(nodesMount, "demo-otp.json")
+var codeRe = regexp.MustCompile(`id="code">(\d{6})<`)
 
 func devOTP(ctx context.Context, user string) (string, error) {
 	d, err := loadDemo()
 	if err != nil {
 		return "", err
 	}
-	var secret []byte
-	if u := d.user(user); u != nil && u.TOTPSecret != "" {
-		if secret, err = totp.DecodeSecret(u.TOTPSecret); err != nil {
-			return "", err
-		}
-	}
-	if secret == nil {
+	u := d.user(user)
+	if u == nil {
 		// Usuario descoñecido: calquera código vale para probar o rexeitamento.
 		return "000000", nil
 	}
-
-	last := map[string]int64{}
-	if b, err := os.ReadFile(otpStatePath); err == nil {
-		_ = json.Unmarshal(b, &last)
+	jar, _ := cookiejar.New(nil)
+	hc := &http.Client{Jar: jar, Timeout: 30 * time.Second}
+	form := url.Values{"user": {u.Name}, "password": {u.Password}}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, pairsrvURL+"/login", strings.NewReader(form.Encode()))
+	if err != nil {
+		return "", err
 	}
-	for {
-		now := totp.Counter(time.Now())
-		want := max(now, last[user]+1)
-		if want <= now+1 { // o servidor admite ±1 paso
-			last[user] = want
-			b, _ := json.Marshal(last)
-			if err := os.WriteFile(otpStatePath, b, 0o600); err != nil {
-				return "", err
-			}
-			return totp.HOTP(totp.SHA1, secret, want, totp.Digits), nil
-		}
-		fmt.Printf("  ..  agardando un código OTP novo para %s\n", user)
-		select {
-		case <-ctx.Done():
-			return "", ctx.Err()
-		case <-time.After(time.Until(time.Unix((now+1)*int64(totp.Step/time.Second), 0))):
-		}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := hc.Do(req) // segue a redirección a /
+	if err != nil {
+		return "", err
 	}
+	defer resp.Body.Close()
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	m := codeRe.FindSubmatch(b)
+	if resp.StatusCode != http.StatusOK || m == nil {
+		return "", fmt.Errorf("web de pairsrv: sen código para %s (HTTP %d)", user, resp.StatusCode)
+	}
+	return string(m[1]), nil
 }
 
-// cmdOTP amosa un código para usar a man (p. ex. na web de cld). Márcase
-// como usado para que stproto non volva xerar o mesmo.
+// cmdOTP amosa o código de vinculación actual para usar a man (p. ex. na web
+// de cld).
 func cmdOTP(ctx context.Context, user string) error {
 	code, err := devOTP(ctx, user)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%s  (código de %s; válido uns 30-60 s)\n", code, user)
+	fmt.Printf("%s  (código de vinculación de %s; válido uns 30-60 s)\n", code, user)
 	return nil
 }
 
@@ -154,7 +148,7 @@ func loadToken(client string) (string, error) {
 
 // --- Ordes ------------------------------------------------------------------
 
-// cmdPair fai o que fará o instalador do cliente: envía usuario + OTP + o seu
+// cmdPair fai o que fará o instalador do cliente: envía usuario + código + o seu
 // Device ID a pairsrv e engade o servidor como introducer cos datos da resposta.
 func cmdPair(ctx context.Context, client, user, otp string) error {
 	cli := node(client)
@@ -218,7 +212,7 @@ func cmdDevices(ctx context.Context, client string) error {
 }
 
 // cmdRevoke: desde o equipo "from", o usuario revoga o equipo "target" cun
-// OTP novo.
+// código de vinculación novo.
 func cmdRevoke(ctx context.Context, from, target, user string) error {
 	tok, err := loadToken(from)
 	if err != nil {

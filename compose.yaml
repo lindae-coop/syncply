@@ -1,7 +1,8 @@
 # Contorno de desenvolvemento do prototipo (Podman rootless).
-# As APIs só son accesibles desde a rede interna "stnet". A única excepción
-# é a web dos clientes cld, publicada só en 127.0.0.1 do equipo (como no
-# cliente real) para abrila co navegador: make ui C=1.
+# As APIs só son accesibles desde a rede interna "stnet". As excepcións,
+# publicadas só en 127.0.0.1 do equipo para abrilas co navegador, son a web
+# dos clientes cld (make ui C=1) e a web de pairsrv onde os usuarios ven o
+# código de vinculación (make web, http://127.0.0.1:8090).
 name: cld
 
 x-syncthing: &syncthing
@@ -117,9 +118,11 @@ services:
       - gocache:/root/.cache/go-build
       - gomod:/go/pkg/mod
 
-  # Servizo de emparellamento: le usuarios e TOTP da BD de SFTPGo (só
-  # lectura) e configura st-server. :8080 é a API dos clientes; :8081, a
-  # interna para os avisos do xestor de eventos de SFTPGo. A reconciliación
+  # Servizo de emparellamento: le usuarios e permisos da BD de SFTPGo (só
+  # lectura), comproba os contrasinais coa API de SFTPGo e configura
+  # st-server. :8080 é a web dos usuarios (código de vinculación e descarga
+  # dos paquetes de ./dist) e a API dos clientes; :8081, a interna para os
+  # avisos do xestor de eventos de SFTPGo. A reconciliación
   # periódica vai a 5 min para que a demo comprobe que os avisos funcionan.
   pairsrv:
     <<: *go
@@ -129,9 +132,12 @@ services:
               "-state", "/state/state.json",
               "-listen", ":8080",
               "-hook-listen", ":8081",
+              "-downloads", "/dist",
               "-reconcile", "5m"]
+    ports: ["127.0.0.1:8090:8080"]
     volumes:
       - ./:/src:z
+      - ./dist:/dist:ro,z
       - ./.dev/pairsrv:/state:Z
       - ./.dev/sftpgo/lib:/sftpgo:ro,z
       - gocache:/root/.cache/go-build

@@ -1,5 +1,7 @@
-// pairsrv: servizo de emparellamento de equipos co servidor Syncthing
-// mediante o TOTP da conta de SFTPGo. Ver internal/pairing e internal/sftpgo.
+// pairsrv: servizo de emparellamento de equipos co servidor Syncthing. O
+// usuario entra na súa web co usuario e contrasinal de SFTPGo, ve alí un
+// código de vinculación (TOTP xerado por pairsrv) e introdúceo no cliente.
+// Ver internal/pairing e internal/sftpgo.
 package main
 
 import (
@@ -12,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -23,8 +26,9 @@ import (
 func main() {
 	cfgPath := flag.String("config", "dev/pairsrv.json", "ficheiro de configuración")
 	statePath := flag.String("state", ".dev/pairsrv/state.json", "ficheiro de estado")
-	listen := flag.String("listen", ":8080", "enderezo de escoita da API dos clientes")
+	listen := flag.String("listen", ":8080", "enderezo de escoita da web e da API dos clientes")
 	hookListen := flag.String("hook-listen", "", "enderezo da API interna para SFTPGo (token en PAIRSRV_HOOK_TOKEN); baleiro: desactivada")
+	downloads := flag.String("downloads", "", "directorio cos paquetes do cliente, servidos en /descargas/; baleiro: sen descargas")
 	reconcileEvery := flag.Duration("reconcile", time.Minute, "intervalo de reconciliación con Syncthing")
 	flag.Parse()
 
@@ -91,9 +95,18 @@ func main() {
 		}()
 	}
 
+	// A API dos clientes en /api/ e /healthz; o resto é a web dos usuarios.
+	api := svc.Handler()
+	mux := http.NewServeMux()
+	mux.Handle("/api/", api)
+	mux.Handle("/healthz", api)
+	mux.Handle("/", pairing.NewWeb(svc, dir, cfg.Web).Handler())
+	if *downloads != "" {
+		mux.Handle("GET /descargas/", http.StripPrefix("/descargas/", filesOnly(http.FileServer(http.Dir(*downloads)))))
+	}
 	srv := &http.Server{
 		Addr:              *listen,
-		Handler:           svc.Handler(),
+		Handler:           mux,
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      30 * time.Second,
@@ -112,7 +125,8 @@ func main() {
 
 type config struct {
 	pairing.Options
-	SFTPGo sftpgo.Config `json:"sftpgo"`
+	SFTPGo sftpgo.Config      `json:"sftpgo"`
+	Web    pairing.WebOptions `json:"web"`
 }
 
 func loadConfig(path string) (*config, error) {
@@ -140,6 +154,17 @@ func waitSFTPGo(ctx context.Context, dir *sftpgo.Directory) error {
 		case <-time.After(2 * time.Second):
 		}
 	}
+}
+
+// filesOnly non deixa listar directorios.
+func filesOnly(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "" || strings.HasSuffix(r.URL.Path, "/") {
+			http.NotFound(w, r)
+			return
+		}
+		h.ServeHTTP(w, r)
+	})
 }
 
 func env(k, def string) string {
