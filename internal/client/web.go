@@ -118,7 +118,10 @@ func (w *Web) guard(next http.Handler) http.Handler {
 		h := rw.Header()
 		h.Set("Content-Security-Policy", "default-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
 		h.Set("X-Content-Type-Options", "nosniff")
-		h.Set("Referrer-Policy", "no-referrer")
+		// Non "no-referrer": con esa política o navegador envía "Origin: null"
+		// mesmo nos POST á mesma orixe (especificación Fetch) e a
+		// comprobación de Origin rexeitaría os formularios propios.
+		h.Set("Referrer-Policy", "same-origin")
 		h.Set("Cache-Control", "no-store")
 		// A ruta de control vai protexida pola clave (só a coñece quen le
 		// ui.json) e chámase pola URL local, non pola pública.
@@ -127,11 +130,9 @@ func (w *Web) guard(next http.Handler) http.Handler {
 			return
 		}
 		if r.Method == http.MethodPost && r.URL.Path != controlPath {
-			if o := r.Header.Get("Origin"); o != "" && o != w.public.Scheme+"://"+w.public.Host {
-				http.Error(rw, "orixe non permitida", http.StatusForbidden)
-				return
-			}
-			if s := r.Header.Get("Sec-Fetch-Site"); s != "" && s != "same-origin" {
+			o, s := r.Header.Get("Origin"), r.Header.Get("Sec-Fetch-Site")
+			if (o != "" && o != w.public.Scheme+"://"+w.public.Host) || (s != "" && s != "same-origin") {
+				log.Printf("web: POST %s rexeitado: Origin=%q Sec-Fetch-Site=%q (esperado %s)", r.URL.Path, o, s, w.public.Scheme+"://"+w.public.Host)
 				http.Error(rw, "orixe non permitida", http.StatusForbidden)
 				return
 			}

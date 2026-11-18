@@ -163,10 +163,22 @@ func TestAccessControl(t *testing.T) {
 	if rec.Code != http.StatusMisdirectedRequest {
 		t.Errorf("host alleo: %d", rec.Code)
 	}
+	// O navegador só envía o Origin real se a política de referrer o permite.
+	if rp := do(h, http.MethodGet, "/", nil, c, nil).Header().Get("Referrer-Policy"); rp == "no-referrer" || rp == "" {
+		t.Errorf("Referrer-Policy %q fai que o navegador envíe Origin: null", rp)
+	}
+	// POST propio, como o envía un navegador.
+	browser := map[string]string{"Origin": public, "Sec-Fetch-Site": "same-origin"}
+	if rec := do(h, http.MethodPost, "/pair", browser, c, url.Values{"user": {""}}); rec.Code != http.StatusSeeOther {
+		t.Errorf("POST do navegador: %d", rec.Code)
+	}
 	// CSRF: POST desde outra orixe.
 	form := url.Values{"for": {"1h"}}
 	if rec := do(h, http.MethodPost, "/pause", map[string]string{"Origin": "https://malo.example"}, c, form); rec.Code != http.StatusForbidden {
 		t.Errorf("orixe allea: %d", rec.Code)
+	}
+	if rec := do(h, http.MethodPost, "/pause", map[string]string{"Origin": "null"}, c, form); rec.Code != http.StatusForbidden {
+		t.Errorf("orixe opaca: %d", rec.Code)
 	}
 	if rec := do(h, http.MethodPost, "/pause", map[string]string{"Sec-Fetch-Site": "cross-site"}, c, form); rec.Code != http.StatusForbidden {
 		t.Errorf("cross-site: %d", rec.Code)
