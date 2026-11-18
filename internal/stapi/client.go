@@ -210,6 +210,16 @@ type Connection struct {
 	Type      string `json:"type"`
 }
 
+type DeviceStats struct {
+	LastSeen time.Time `json:"lastSeen"`
+}
+
+func (c *Client) DeviceStats(ctx context.Context) (map[string]DeviceStats, error) {
+	out := map[string]DeviceStats{}
+	err := c.Do(ctx, http.MethodGet, "/rest/stats/device", nil, &out)
+	return out, err
+}
+
 func (c *Client) Connections(ctx context.Context) (map[string]Connection, error) {
 	var out struct {
 		Connections map[string]Connection `json:"connections"`

@@ -1,0 +1,13 @@
+{
+  "_comentario": "SÓ PARA DESENVOLVEMENTO: segredos TOTP públicos. En produción os usuarios e permisos virán de SFTPGo.",
+  "serverAddresses": ["tcp://st-server:22000"],
+  "maxDevicesPerUser": 3,
+  "folders": [
+    {"id": "comun", "label": "Común", "path": "/var/syncthing/data/comun"},
+    {"id": "alice-docs", "label": "Documentos de Alice", "path": "/var/syncthing/data/alice-docs"}
+  ],
+  "users": [
+    {"name": "alice", "totpSecret": "S3RZ2OZWS4PTKU2ZAOFSJ567FM6YUIEP", "folders": ["comun", "alice-docs"]},
+    {"name": "bob", "totpSecret": "DQGQ65D6J552JWSVQ5JGDPIZXXDLZ47D", "folders": ["comun"]}
+  ]
+}

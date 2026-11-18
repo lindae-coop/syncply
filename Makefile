@@ -1,38 +1,48 @@
-COMPOSE ?= podman-compose
-NODES   := st-server st-client1 st-client2
-ARGS    ?= status
+COMPOSE  ?= podman-compose
+NODES    := st-server st-client1 st-client2 st-client3
+SERVICES := $(NODES) pairsrv
+ARGS     ?= status
+RUN      := $(COMPOSE) run --rm tools
 
-.PHONY: help up down logs proto demo status clean
+.PHONY: help up down restart logs proto demo status test clean
 
 help:
-	@echo "make up       - arranca os nodos Syncthing (servidor + 2 clientes)"
-	@echo "make demo     - fluxo completo: compartir, emparellar, aceptar, introducer, revogar"
+	@echo "make up       - arranca os nodos Syncthing e pairsrv"
+	@echo "make demo     - parte de cero e valida o fluxo completo"
 	@echo "make status   - estado de dispositivos, carpetas e conexións"
+	@echo "make test     - tests unitarios"
 	@echo "make proto ARGS='...' - executa cmd/stproto con argumentos"
-	@echo "make logs     - logs dos nodos"
+	@echo "make restart  - reinicia pairsrv (recompila tras cambios)"
+	@echo "make logs     - logs dos servizos"
 	@echo "make down     - para os contedores"
 	@echo "make clean    - para e borra ./.dev (estado dos nodos)"
 
 up:
-	@mkdir -p $(addprefix .dev/,$(NODES))
-	$(COMPOSE) up -d $(NODES)
+	@mkdir -p $(addprefix .dev/,$(SERVICES))
+	$(COMPOSE) up -d $(SERVICES)
 
 down:
-	$(COMPOSE) down
+	-$(COMPOSE) down 2>/dev/null
+
+restart:
+	$(COMPOSE) restart pairsrv
 
 logs:
-	$(COMPOSE) logs -f $(NODES)
+	$(COMPOSE) logs -f $(SERVICES)
 
 proto:
-	$(COMPOSE) run --rm tools $(ARGS)
+	$(RUN) go run ./cmd/stproto $(ARGS)
 
 demo:
 	$(MAKE) clean
 	$(MAKE) up
-	$(COMPOSE) run --rm tools demo
+	$(RUN) go run ./cmd/stproto demo
 
 status:
-	$(COMPOSE) run --rm tools status
+	$(RUN) go run ./cmd/stproto status
+
+test:
+	$(RUN) sh -c 'go vet ./... && go test ./...'
 
 clean: down
 	rm -rf .dev

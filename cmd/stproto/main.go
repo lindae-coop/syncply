@@ -1,6 +1,6 @@
-// stproto: ferramenta do prototipo para validar con Syncthing o fluxo
-// servidor/cliente: carpetas pendentes, servidor como introducer,
-// propagación de pares e revogación.
+// stproto: ferramenta do prototipo para validar o fluxo servidor/cliente:
+// emparellamento con TOTP vía pairsrv, carpetas pendentes, servidor como
+// introducer, propagación de pares e revogación.
 //
 // Execútase no contedor "tools" (ver compose.yaml): make proto ARGS="..."
 package main
@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -24,7 +25,7 @@ const (
 	nodesMount = "/nodes"              // ./.dev montado no contedor tools
 )
 
-var allNodes = []string{server, "st-client1", "st-client2"}
+var allNodes = []string{server, "st-client1", "st-client2", "st-client3"}
 
 func node(name string) *stapi.Client {
 	return stapi.New(name, "http://"+name+":8384", os.Getenv("ST_APIKEY"))
@@ -34,7 +35,7 @@ func main() {
 	if len(os.Args) < 2 {
 		usage()
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
 	args := os.Args[2:]
@@ -42,21 +43,25 @@ func main() {
 	switch os.Args[1] {
 	case "init":
 		err = cmdInit(ctx)
-	case "share": // share <folderID> <label>
+	case "pair": // pair <cliente> <usuario> [otp]
 		need(args, 2)
-		err = cmdShare(ctx, args[0], args[1])
-	case "pair": // pair <cliente> <folderID>...
-		need(args, 2)
-		err = cmdPair(ctx, args[0], args[1:])
+		otp := ""
+		if len(args) > 2 {
+			otp = args[2]
+		}
+		err = cmdPair(ctx, args[0], args[1], otp)
 	case "pending": // pending <cliente>
 		need(args, 1)
 		err = cmdPending(ctx, args[0])
 	case "accept": // accept <cliente> <folderID>
 		need(args, 2)
 		err = cmdAccept(ctx, args[0], args[1])
-	case "revoke": // revoke <cliente>
+	case "devices": // devices <cliente>
 		need(args, 1)
-		err = cmdRevoke(ctx, args[0])
+		err = cmdDevices(ctx, args[0])
+	case "revoke": // revoke <desde> <equipo> <usuario>
+		need(args, 3)
+		err = cmdRevoke(ctx, args[0], args[1], args[2])
 	case "status":
 		err = cmdStatus(ctx)
 	case "demo":
@@ -73,11 +78,13 @@ func main() {
 func usage() {
 	fmt.Fprintln(os.Stderr, `uso: stproto <orde>
   init                         configura os nodos (sen descubrimento global nin relays)
-  share <folderID> <etiqueta>  crea unha carpeta no servidor
-  pair <cliente> <folderID>... simula o emparellamento (paso do OTP)
+  pair <cliente> <usuario> [otp]  emparella vía pairsrv (sen otp: calcúlao
+                                 cos segredos de dev/pairsrv.json)
   pending <cliente>            lista as carpetas ofrecidas ao cliente
   accept <cliente> <folderID>  o cliente acepta a carpeta ofrecida
-  revoke <cliente>             o servidor revoga o dispositivo
+  devices <cliente>            equipos do usuario, vistos desde ese cliente
+  revoke <desde> <equipo> <usuario>
+                               desde un equipo, revoga outro (pide OTP novo)
   status                       estado de todos os nodos
   demo                         fluxo completo con verificacións`)
 	os.Exit(2)
@@ -121,53 +128,6 @@ func cmdInit(ctx context.Context) error {
 	return nil
 }
 
-func cmdShare(ctx context.Context, folderID, label string) error {
-	err := node(server).EnsureFolder(ctx, folderID, stapi.Obj{
-		"label": label,
-		"path":  dataRoot + "/" + folderID,
-		"type":  "sendreceive",
-	})
-	if err == nil {
-		fmt.Printf("servidor: carpeta %q (%s) creada\n", folderID, label)
-	}
-	return err
-}
-
-// cmdPair simula o resultado do emparellamento con OTP: o servidor autoriza o
-// Device ID do cliente nas súas carpetas e o cliente engade o servidor como
-// introducer.
-func cmdPair(ctx context.Context, client string, folders []string) error {
-	srv, cli := node(server), node(client)
-	srvID, err := srv.MyID(ctx)
-	if err != nil {
-		return err
-	}
-	cliID, err := cli.MyID(ctx)
-	if err != nil {
-		return err
-	}
-	if err := srv.EnsureDevice(ctx, cliID, stapi.Obj{
-		"name":      client,
-		"addresses": []string{"dynamic"},
-	}); err != nil {
-		return err
-	}
-	for _, f := range folders {
-		if err := srv.ShareFolder(ctx, f, cliID); err != nil {
-			return err
-		}
-	}
-	if err := cli.EnsureDevice(ctx, srvID, stapi.Obj{
-		"name":       "servidor",
-		"addresses":  []string{"tcp://" + server + ":22000"},
-		"introducer": true,
-	}); err != nil {
-		return err
-	}
-	fmt.Printf("%s emparellado co servidor; carpetas autorizadas: %s\n", client, strings.Join(folders, ", "))
-	return nil
-}
-
 func cmdPending(ctx context.Context, client string) error {
 	p, err := node(client).PendingFolders(ctx)
 	if err != nil {
@@ -204,32 +164,20 @@ func cmdAccept(ctx context.Context, client, folderID string) error {
 	}
 	err = cli.EnsureFolder(ctx, folderID, stapi.Obj{
 		"label":   label,
-		"path":    dataRoot + "/" + label,
+		"path":    dataRoot + "/" + folderID,
 		"type":    "sendreceive",
 		"devices": devices,
 	})
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%s aceptou %q en %s/%s\n", client, folderID, dataRoot, label)
+	fmt.Printf("%s aceptou %q (%s) en %s/%s\n", client, folderID, label, dataRoot, folderID)
 	// Forzar que o introducer reenvíe a ClusterConfig (ver stapi.Reconnect).
 	for dev := range pf.OfferedBy {
 		if err := cli.Reconnect(ctx, dev); err != nil {
 			return err
 		}
 	}
-	return nil
-}
-
-func cmdRevoke(ctx context.Context, client string) error {
-	cliID, err := node(client).MyID(ctx)
-	if err != nil {
-		return err
-	}
-	if err := node(server).DeleteDevice(ctx, cliID); err != nil {
-		return err
-	}
-	fmt.Printf("servidor: %s revogado\n", client)
 	return nil
 }
 
@@ -298,13 +246,24 @@ func cmdStatus(ctx context.Context) error {
 	return nil
 }
 
-// cmdDemo executa o fluxo completo e verifica cada paso.
+// cmdDemo executa o fluxo completo contra pairsrv e verifica cada paso.
+// alice ten st-client1 e st-client3 (carpetas comun e alice-docs); bob ten
+// st-client2 (só comun).
 func cmdDemo(ctx context.Context) error {
-	const folder = "proba"
 	step := func(s string) { fmt.Printf("\n### %s\n", s) }
+	expect := func(err error, code int, what string) error {
+		if !isStatus(err, code) {
+			return fmt.Errorf("%s: esperaba HTTP %d, obtívose %v", what, code, err)
+		}
+		fmt.Printf("  OK  %s (HTTP %d)\n", what, code)
+		return nil
+	}
 
-	step("Inicializar nodos")
+	step("Inicializar nodos e agardar por pairsrv")
 	if err := cmdInit(ctx); err != nil {
+		return err
+	}
+	if err := waitPairsrv(ctx); err != nil {
 		return err
 	}
 	ids := map[string]string{}
@@ -312,77 +271,161 @@ func cmdDemo(ctx context.Context) error {
 		ids[n], _ = node(n).MyID(ctx)
 	}
 
-	step("Servidor crea a carpeta")
-	if err := cmdShare(ctx, folder, "Proba"); err != nil {
+	step("Emparellamentos rexeitados")
+	if err := expect(cmdPair(ctx, "st-client1", "alice", "000000"), 401, "OTP incorrecto"); err != nil {
+		return err
+	}
+	if err := expect(cmdPair(ctx, "st-client1", "eve", ""), 401, "usuario inexistente"); err != nil {
 		return err
 	}
 
-	for _, cl := range []string{"st-client1", "st-client2"} {
-		step("Emparellar e aceptar: " + cl)
-		if err := cmdPair(ctx, cl, []string{folder}); err != nil {
-			return err
-		}
-		if err := waitFor(ctx, cl+" recibe a oferta (pending folders)", func() (bool, error) {
-			p, err := node(cl).PendingFolders(ctx)
-			_, ok := p[folder]
-			return ok, err
-		}); err != nil {
-			return err
-		}
-		if err := cmdAccept(ctx, cl, folder); err != nil {
-			return err
-		}
+	clients := []struct {
+		name, user string
+		folders    []string
+	}{
+		{"st-client1", "alice", []string{"comun", "alice-docs"}},
+		{"st-client2", "bob", []string{"comun"}},
+		{"st-client3", "alice", []string{"comun", "alice-docs"}},
 	}
-
-	step("Introducer: os clientes deben coñecerse e conectar entre eles (P2P)")
-	for _, pair := range [][2]string{{"st-client1", "st-client2"}, {"st-client2", "st-client1"}} {
-		a, b := pair[0], pair[1]
-		if err := waitFor(ctx, a+" coñece a "+b+" introducido polo servidor", func() (bool, error) {
-			return introducedIn(ctx, a, ids[b], ids[server])
-		}); err != nil {
+	for _, c := range clients {
+		step(fmt.Sprintf("Emparellar %s (%s) e aceptar as carpetas ofrecidas", c.name, c.user))
+		if err := cmdPair(ctx, c.name, c.user, ""); err != nil {
 			return err
 		}
-		// Esíxense 3 comprobacións seguidas: unha conexión rexeitada pode
-		// aparecer un instante como "connected".
-		stable := 0
-		if err := waitFor(ctx, a+" conectado directamente a "+b, func() (bool, error) {
-			c, err := node(a).Connections(ctx)
-			if c[ids[b]].Connected {
-				stable++
-			} else {
-				stable = 0
+		var offered []string
+		if err := waitFor(ctx, c.name+" recibe as ofertas "+strings.Join(c.folders, ", "), func() (bool, error) {
+			p, err := node(c.name).PendingFolders(ctx)
+			offered = offered[:0]
+			for id := range p {
+				offered = append(offered, id)
 			}
-			return stable >= 3, err
+			for _, f := range c.folders {
+				if _, ok := p[f]; !ok {
+					return false, err
+				}
+			}
+			return true, err
+		}); err != nil {
+			return err
+		}
+		sort.Strings(offered)
+		want := slices.Clone(c.folders)
+		sort.Strings(want)
+		if !slices.Equal(offered, want) {
+			return fmt.Errorf("%s: ofertas %v, esperábanse só %v", c.name, offered, want)
+		}
+		for _, f := range c.folders {
+			if err := cmdAccept(ctx, c.name, f); err != nil {
+				return err
+			}
+		}
+		if c.name == "st-client1" {
+			if err := expect(cmdPair(ctx, "st-client1", "bob", ""), 409, "bob non pode vincular un equipo de alice"); err != nil {
+				return err
+			}
+		}
+	}
+
+	step("Permisos no servidor: alice-docs só cos equipos de alice")
+	f, err := node(server).Folder(ctx, "alice-docs")
+	if err != nil {
+		return err
+	}
+	var with []string
+	for _, d := range asList(f["devices"]) {
+		if id, _ := d["deviceID"].(string); id != ids[server] {
+			with = append(with, id)
+		}
+	}
+	sort.Strings(with)
+	want := []string{ids["st-client1"], ids["st-client3"]}
+	sort.Strings(want)
+	if !slices.Equal(with, want) {
+		return fmt.Errorf("alice-docs compartida con %v", with)
+	}
+	fmt.Println("  OK  alice-docs: st-client1, st-client3")
+
+	step("Introducer: os clientes coñécense e conectan entre eles (P2P)")
+	peers := []string{"st-client1", "st-client2", "st-client3"}
+	for _, a := range peers {
+		for _, b := range peers {
+			if a == b {
+				continue
+			}
+			if err := waitFor(ctx, a+" coñece a "+b+" introducido polo servidor", func() (bool, error) {
+				return introducedIn(ctx, a, ids[b], ids[server])
+			}); err != nil {
+				return err
+			}
+			// Esíxense 3 comprobacións seguidas: unha conexión rexeitada pode
+			// aparecer un instante como "connected".
+			stable := 0
+			if err := waitFor(ctx, a+" conectado directamente a "+b, func() (bool, error) {
+				c, err := node(a).Connections(ctx)
+				if c[ids[b]].Connected {
+					stable++
+				} else {
+					stable = 0
+				}
+				return stable >= 3, err
+			}); err != nil {
+				return err
+			}
+		}
+	}
+
+	step("Sincronización")
+	if err := syncCheck(ctx, "st-client1", "comun", "st-client2", "st-client3"); err != nil {
+		return err
+	}
+	if err := syncCheck(ctx, "st-client3", "alice-docs", "st-client1"); err != nil {
+		return err
+	}
+
+	step("Equipos de alice vistos desde st-client1")
+	if err := cmdDevices(ctx, "st-client1"); err != nil {
+		return err
+	}
+	if devs, err := listDevices(ctx, "st-client1"); err != nil || len(devs) != 2 {
+		return fmt.Errorf("esperábanse 2 equipos: %v %v", devs, err)
+	}
+
+	step("st-client1 revoga st-client3 (con OTP novo)")
+	if err := cmdRevoke(ctx, "st-client1", "st-client3", "alice"); err != nil {
+		return err
+	}
+	for _, n := range []string{"st-client1", "st-client2"} {
+		if err := waitFor(ctx, n+" esquece a st-client3 (baixa vía introducer)", func() (bool, error) {
+			ok, err := introducedIn(ctx, n, ids["st-client3"], ids[server])
+			return !ok, err
 		}); err != nil {
 			return err
 		}
 	}
-
-	step("Sincronización: ficheiro creado en st-client1 aparece en st-client2")
-	name := fmt.Sprintf("ola-%d.txt", time.Now().Unix())
-	src := filepath.Join(nodesMount, "st-client1/data/Proba", name)
-	if err := os.WriteFile(src, []byte("ola desde client1\n"), 0o644); err != nil {
-		return err
-	}
-	dst := filepath.Join(nodesMount, "st-client2/data/Proba", name)
-	if err := waitFor(ctx, "ficheiro en st-client2", func() (bool, error) {
-		_, err := os.Stat(dst)
-		if errors.Is(err, os.ErrNotExist) {
-			return false, nil
+	// Xusto despois da revogación as conexións poden aparecer aínda como
+	// activas un intre: esíxense 3 comprobacións seguidas sen ningunha.
+	stable := 0
+	if err := waitFor(ctx, "st-client3 queda sen conexión co servidor e cos pares", func() (bool, error) {
+		c, err := node("st-client3").Connections(ctx)
+		up := false
+		for _, cn := range c {
+			up = up || cn.Connected
 		}
-		return err == nil, err
+		if up {
+			stable = 0
+		} else {
+			stable++
+		}
+		return stable >= 3, err
 	}); err != nil {
 		return err
 	}
-
-	step("Revogar st-client1: st-client2 debe esquecelo (baixa vía introducer)")
-	if err := cmdRevoke(ctx, "st-client1"); err != nil {
-		return err
+	if devs, err := listDevices(ctx, "st-client1"); err != nil || len(devs) != 1 || !devs[0].Current {
+		return fmt.Errorf("tras revogar esperábase 1 equipo: %v %v", devs, err)
 	}
-	if err := waitFor(ctx, "st-client2 elimina a st-client1", func() (bool, error) {
-		ok, err := introducedIn(ctx, "st-client2", ids["st-client1"], ids[server])
-		return !ok, err
-	}); err != nil {
+	fmt.Println("  OK  alice só ten st-client1")
+	_, err = listDevices(ctx, "st-client3")
+	if err := expect(err, 401, "o token de st-client3 xa non vale"); err != nil {
 		return err
 	}
 
@@ -390,6 +433,28 @@ func cmdDemo(ctx context.Context) error {
 	return cmdStatus(ctx)
 }
 
+// syncCheck crea un ficheiro na carpeta de "from" e agarda que apareza nos
+// demais clientes.
+func syncCheck(ctx context.Context, from, folder string, to ...string) error {
+	name := fmt.Sprintf("ola-%s-%d.txt", from, time.Now().UnixNano())
+	src := filepath.Join(nodesMount, from, "data", folder, name)
+	if err := os.WriteFile(src, []byte("ola desde "+from+"\n"), 0o644); err != nil {
+		return err
+	}
+	for _, t := range to {
+		dst := filepath.Join(nodesMount, t, "data", folder, name)
+		if err := waitFor(ctx, fmt.Sprintf("%s: %s -> %s", folder, from, t), func() (bool, error) {
+			_, err := os.Stat(dst)
+			if errors.Is(err, os.ErrNotExist) {
+				return false, nil
+			}
+			return err == nil, err
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 // introducedIn indica se o nodo n ten o dispositivo dev introducido por by.
 func introducedIn(ctx context.Context, n, dev, by string) (bool, error) {
 	devs, err := node(n).Devices(ctx)

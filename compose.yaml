@@ -1,6 +1,6 @@
 # Contorno de desenvolvemento do prototipo (Podman rootless).
-# Non se publica ningún porto no host: a API REST de Syncthing só é
-# accesible desde a rede interna "stnet" (contedor "tools") e con API key.
+# Non se publica ningún porto no host: as APIs só son accesibles desde a
+# rede interna "stnet".
 name: cld
 
 x-syncthing: &syncthing
@@ -17,6 +17,15 @@ x-syncthing: &syncthing
   networks: [stnet]
   restart: unless-stopped
 
+x-go: &go
+  image: docker.io/library/golang:1.27.4-alpine
+  working_dir: /src
+  environment:
+    ST_APIKEY: ${ST_APIKEY:-cld-dev-apikey-NON-USAR-EN-PRODUCION}
+    CGO_ENABLED: "0"
+    GOFLAGS: "-buildvcs=false"
+  networks: [stnet]
+
 services:
   st-server:
     <<: *syncthing
@@ -24,6 +33,7 @@ services:
     volumes:
       - ./.dev/st-server:/var/syncthing:Z
 
+  # Clientes de proba (no demo: client1 e client3 son de alice, client2 de bob).
   st-client1:
     <<: *syncthing
     hostname: st-client1
@@ -36,21 +46,35 @@ services:
     volumes:
       - ./.dev/st-client2:/var/syncthing:Z
 
+  st-client3:
+    <<: *syncthing
+    hostname: st-client3
+    volumes:
+      - ./.dev/st-client3:/var/syncthing:Z
+
+  # Servizo de emparellamento (TOTP) do servidor.
+  pairsrv:
+    <<: *go
+    hostname: pairsrv
+    command: ["go", "run", "./cmd/pairsrv",
+              "-config", "dev/pairsrv.json",
+              "-state", "/state/state.json",
+              "-listen", ":8080"]
+    volumes:
+      - ./:/src:z
+      - ./.dev/pairsrv:/state:Z
+      - gocache:/root/.cache/go-build
+      - gomod:/go/pkg/mod
+    restart: unless-stopped
+
   # Ferramentas en Go (sen instalar Go no host). Uso: make proto ARGS="..."
   tools:
-    image: docker.io/library/golang:1.27.4-alpine
-    working_dir: /src
-    environment:
-      ST_APIKEY: ${ST_APIKEY:-cld-dev-apikey-NON-USAR-EN-PRODUCION}
-      CGO_ENABLED: "0"
-      GOFLAGS: "-buildvcs=false"
+    <<: *go
     volumes:
       - ./:/src:z
       - ./.dev:/nodes:z
       - gocache:/root/.cache/go-build
       - gomod:/go/pkg/mod
-    networks: [stnet]
-    entrypoint: ["go", "run", "./cmd/stproto"]
 
 networks:
   stnet: {}

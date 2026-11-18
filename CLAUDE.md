@@ -82,11 +82,12 @@ O cliente envía OTP + o seu Device ID; o servidor valida o OTP, autoriza ese di
 - **Revogación:** `DELETE /rest/config/devices/{id}` no servidor quítao tamén das carpetas; os clientes conectados eliminan o par introducido ao momento e o revogado queda sen conexión co servidor e cos pares. A súa config local conserva as entradas (non se pode evitar).
 - `/rest/system/connections` pode mostrar `connected: true` un instante en conexións que logo se rexeitan; non fiarse dunha soa mostra.
 - Latencia de sincronización observada ~14 s (`fsWatcherDelayS` = 10 s por defecto).
+- **pairsrv** (`cmd/pairsrv`, `internal/pairing`, `internal/totp`) valida o fluxo OTP de punta a punta: emparellamento, ofertas só das carpetas permitidas, varios equipos por usuario, listaxe de equipos e revogación desde outro equipo do mesmo usuario. O equipo revogado queda sen conexións en ~4 s (antes pode aparecer aínda como conectado).
 
 ## Próximos pasos propostos
 
-1. Prototipo mínimo: Syncthing separado con GUI en socket Unix; script que cree dispositivo e carpeta compartida por API; cliente de proba con servidor como introducer.
-2. Validar: fluxo OTP, aceptación de carpetas (pending folders), propagación de pares e baixas.
+1. ~~Prototipo mínimo~~ e ~~validar fluxo OTP, pending folders, propagación de pares e baixas~~ (feito; GUI aínda en TCP interno, non en socket Unix).
+2. Integrar con SFTPGo: usuarios, segredo TOTP e carpetas con permiso de escritura en lugar de `dev/pairsrv.json`.
 3. Deseñar o modelo de datos do servidor (usuarios, dispositivos, carpetas, permisos) e a súa tradución á configuración de Syncthing.
 4. Listar os endpoints REST de Syncthing necesarios.
 5. Decidir despois se se fusiona o núcleo en SFTPGo ou se mantén o proceso separado.
