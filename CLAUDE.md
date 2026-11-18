@@ -112,7 +112,7 @@ O cliente envía OTP + o seu Device ID; o servidor valida o OTP, autoriza ese di
 - Verificado a man contra o contorno: vincular co OTP desde a web, ver recursos, aceptar nunha carpeta escollida, deixar de sincronizar, pausar/retomar, listar equipos, rexeitamento CSRF.
 - Tras "deixar de sincronizar", a oferta tarda ~20 s en volver (reconexión co servidor).
 - Vinculación probada polo usuario nun navegador real.
-- `cld daemon` arranca e supervisa o seu Syncthing (verificado: Deter para o proceso e o estado mantense tras reiniciar; Arrancar volve conectar; ao pechar o daemon, Syncthing remata limpo; modo por defecto con API en socket Unix e API key xerada). Syncthing 2.1.7 crea dous procesos (pai e fillo) mesmo con `--no-restart`; paran os dous.
+- `cld daemon` arranca e supervisa o seu Syncthing (verificado: Deter para o proceso e o estado mantense tras reiniciar; Arrancar volve conectar; ao pechar o daemon, Syncthing remata limpo; modo por defecto con API en socket Unix e API key xerada). Syncthing 2.1.7 crea dous procesos (pai e fillo) mesmo con `--no-restart`; paran os dous. `make demo` pasa completo cos clientes executando `cld` co seu Syncthing (verificado polo usuario).
 - **Non usar `Referrer-Policy: no-referrer`** coa comprobación de `Origin`: o navegador envía `Origin: null` nos POST á mesma orixe e rexéitanse os formularios propios. Usar `same-origin`.
 - Pendente:
   - Instaladores por SO (servizo de usuario: systemd user / LaunchAgent / tarefa de inicio; acceso directo; Syncthing incluído; `cld.json` co servidor). Icona na bandexa (require CGO en Linux/macOS).
