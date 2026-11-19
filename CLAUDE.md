@@ -98,11 +98,19 @@ O usuario entra na web do servidor co seu usuario e contrasinal e ve alí o cód
 
 ## Próximos pasos propostos
 
-1. ~~Prototipo mínimo~~ e ~~validar fluxo OTP, pending folders, propagación de pares e baixas~~ (feito). Cliente: API de Syncthing en socket Unix (feito; en desenvolvemento segue en TCP interno). Servidor: pendente.
+1. ~~Prototipo mínimo~~ e ~~validar fluxo OTP, pending folders, propagación de pares e baixas~~ (feito). Cliente: API de Syncthing en socket Unix (feito; en desenvolvemento segue en TCP interno). Servidor: feito en `deploy/` (produción).
 2. ~~Integrar con SFTPGo~~ (feito lendo a BD), ~~avisos do xestor de eventos~~ e ~~ocultar os ficheiros de Syncthing~~ (grupo primario `syncthing`).
 3. Deseñar o modelo de datos do servidor (usuarios, dispositivos, carpetas, permisos) e a súa tradución á configuración de Syncthing.
 4. Listar os endpoints REST de Syncthing necesarios.
 5. Decidir despois se se fusiona o núcleo en SFTPGo ou se mantén o proceso separado.
+
+## Despregamento de produción (`deploy/`, verificado en local, sen probar nun servidor real)
+
+- `deploy/compose.yaml`: Caddy (HTTPS automático, dous dominios: pairsrv e SFTPGo) + SFTPGo + Syncthing (API só en socket Unix no seu volume, montado en pairsrv só lectura) + pairsrv compilado (`deploy/Containerfile.pairsrv`). Todos co UID/GID 1000. `./init.sh DOM_CLD DOM_SFTPGO` xera `.env` (segredos) e `pairsrv.json`; `make up`; `make setup-sftpgo`.
+- `pairsrv setup-sftpgo` (`internal/sftpgo/setup.go`) crea o grupo `syncthing` e a acción+regra `pairsrv-sync`; `stproto sftpgo-setup` usa o mesmo código. `serverSyncthingOptions` en `pairsrv.json` aplícase ao Syncthing do servidor en cada arranque.
+- Por defecto, sistema pechado (sen descubrimento global nin relays): P2P só en LAN; entre redes, a través do servidor. As `syncthingOptions` chegan aos clientes ao vincular ou con «Actualizar a conexión».
+- Achados: un volume novo compartido (`data`) pode quedar de root aínda que a imaxe de SFTPGo o teña de 1000 → SFTPGo non crea os directorios persoais; a entrada do contedor de Syncthing fai `chown 1000:1000` da raíz de datos. SFTPGo crea o directorio persoal ao entrar (SFTP/web), non co token da API REST. A imaxe de Syncthing non define healthcheck en formato OCI; desactívase igualmente.
+- Verificado con `*.localhost` e a CA interna de Caddy (cliente con `SSL_CERT_FILE`, sen `CLD_DEV`): vincular por HTTPS, aviso SFTPGo → pairsrv (202), sincronización nos dous sentidos (~16 s).
 
 ## Web de pairsrv: código de vinculación (verificado con `make demo`)
 

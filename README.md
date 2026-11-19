@@ -2,6 +2,9 @@
 
 Ver [CLAUDE.md](CLAUDE.md) para o contexto e as decisións do proxecto.
 
+**Servidor en produción:** ver [deploy/README.md](deploy/README.md)
+(Caddy + SFTPGo + Syncthing + pairsrv, `pairsrv setup-sftpgo`).
+
 ## Contorno de desenvolvemento
 
 Só fai falta **Podman** (rootless), **podman-compose** e **make**. Nin Go nin
@@ -282,7 +285,7 @@ entrantes nin o descubrimento local.
 ```sh
 make up
 make proto ARGS="init"
-make proto ARGS="sftpgo-setup"
+make proto ARGS="sftpgo-setup"               # o mesmo que `pairsrv setup-sftpgo` + datos de proba
 make proto ARGS="pair st-client1 alice"      # le o código na web de pairsrv
 make proto ARGS="pending st-client1"
 make proto ARGS="accept st-client1 sftpgo-folder-comun"

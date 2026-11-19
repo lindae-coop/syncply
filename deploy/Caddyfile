@@ -1,0 +1,13 @@
+# HTTPS automático (Let's Encrypt) para os dous dominios. Caddy conserva a
+# cabeceira Host, como necesita pairsrv. A API interna de pairsrv (:8081) non
+# se publica: só a usa SFTPGo desde a rede dos contedores.
+
+# Web dos usuarios (código de vinculación, descargas) e API dos clientes.
+{$CLD_DOMAIN} {
+	reverse_proxy pairsrv:8080
+}
+
+# WebAdmin e WebClient de SFTPGo.
+{$SFTPGO_DOMAIN} {
+	reverse_proxy sftpgo:8080
+}

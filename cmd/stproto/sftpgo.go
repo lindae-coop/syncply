@@ -15,6 +15,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/DanBaDo/cld/internal/sftpgo"
 )
 
 const (
@@ -28,21 +30,19 @@ type demoData struct {
 		Path string `json:"path"`
 	} `json:"folders"`
 	Groups []struct {
-		Name         string              `json:"name"`
-		Folders      map[string]string   `json:"folders"` // ruta virtual → cartafol
-		Permissions  map[string][]string `json:"permissions"`
-		FilePatterns []any               `json:"filePatterns"`
+		Name        string              `json:"name"`
+		Folders     map[string]string   `json:"folders"` // ruta virtual → cartafol
+		Permissions map[string][]string `json:"permissions"`
 	} `json:"groups"`
 	Users []demoUser `json:"users"`
 }
 
 type demoUser struct {
-	Name         string              `json:"name"`
-	Password     string              `json:"password"`
-	HomeDir      string              `json:"homeDir"`
-	Permissions  map[string][]string `json:"permissions"`
-	PrimaryGroup string              `json:"primaryGroup"`
-	Groups       []string            `json:"groups"` // secundarios
+	Name        string              `json:"name"`
+	Password    string              `json:"password"`
+	HomeDir     string              `json:"homeDir"`
+	Permissions map[string][]string `json:"permissions"`
+	Groups      []string            `json:"groups"` // secundarios; o primario é sempre syncthing
 }
 
 func loadDemo() (*demoData, error) {
@@ -123,8 +123,9 @@ func waitSFTPGo(ctx context.Context) error {
 	})
 }
 
-// cmdSFTPGoSetup crea en SFTPGo os cartafoles, grupos e usuarios de proba e
-// a regra de eventos. Os que xa existen non se tocan.
+// cmdSFTPGoSetup crea en SFTPGo o que necesita pairsrv (grupo syncthing e
+// regra de eventos, igual que `pairsrv setup-sftpgo`) e os cartafoles, grupos
+// e usuarios de proba. Os que xa existen non se tocan.
 func cmdSFTPGoSetup(ctx context.Context) error {
 	d, err := loadDemo()
 	if err != nil {
@@ -133,26 +134,25 @@ func cmdSFTPGoSetup(ctx context.Context) error {
 	if err := waitSFTPGo(ctx); err != nil {
 		return err
 	}
-	admin, err := adminAuth(ctx)
+	admin, err := sftpgo.NewAdmin(ctx, strings.TrimSuffix(sftpgoAPI, "/api/v2"),
+		os.Getenv("SFTPGO_ADMIN_USER"), os.Getenv("SFTPGO_ADMIN_PASSWORD"))
 	if err != nil {
 		return err
 	}
-	create := func(kind, name string, obj any) (bool, error) {
-		if err := sftpgoCall(ctx, http.MethodGet, "/"+kind+"/"+url.PathEscape(name), admin, nil, nil, nil); err == nil {
-			return false, nil
-		} else if !isStatus(err, 404) {
-			return false, err
+	logf := func(f string, a ...any) { fmt.Printf(f+"\n", a...) }
+	if err := admin.Setup(ctx, "http://pairsrv:8081/internal/v1/sync", os.Getenv("PAIRSRV_HOOK_TOKEN"), logf); err != nil {
+		return err
+	}
+	create := func(kind, name string, obj any) error {
+		ok, err := admin.Create(ctx, kind, name, obj)
+		if ok {
+			logf("sftpgo: creado %s %s", kind, name)
 		}
-		body, hdr := jsonBody(obj)
-		if err := sftpgoCall(ctx, http.MethodPost, "/"+kind, admin, hdr, body, nil); err != nil {
-			return false, err
-		}
-		fmt.Printf("sftpgo: creado %s %s\n", kind, name)
-		return true, nil
+		return err
 	}
 	local := map[string]any{"provider": 0}
 	for _, f := range d.Folders {
-		if _, err := create("folders", f.Name, map[string]any{"name": f.Name, "mapped_path": f.Path, "filesystem": local}); err != nil {
+		if err := create("folders", f.Name, map[string]any{"name": f.Name, "mapped_path": f.Path, "filesystem": local}); err != nil {
 			return err
 		}
 	}
@@ -161,49 +161,19 @@ func cmdSFTPGoSetup(ctx context.Context) error {
 		for vp, name := range g.Folders {
 			vfs = append(vfs, map[string]any{"name": name, "virtual_path": vp})
 		}
-		settings := map[string]any{"permissions": g.Permissions}
-		if len(g.FilePatterns) > 0 {
-			settings["filters"] = map[string]any{"file_patterns": g.FilePatterns}
-		}
-		if _, err := create("groups", g.Name, map[string]any{
-			"name": g.Name, "virtual_folders": vfs, "user_settings": settings,
+		if err := create("groups", g.Name, map[string]any{
+			"name": g.Name, "virtual_folders": vfs, "user_settings": map[string]any{"permissions": g.Permissions},
 		}); err != nil {
 			return err
 		}
 	}
-	// Aviso a pairsrv cando cambian usuarios ou grupos. Os cartafoles non
-	// xeran eventos de provedor: eses cambios chegan coa reconciliación periódica.
-	if _, err := create("eventactions", "pairsrv-sync", map[string]any{
-		"name": "pairsrv-sync", "type": 1,
-		"description": "Pide a pairsrv que aplique en Syncthing os cambios de usuarios e grupos",
-		"options": map[string]any{"http_config": map[string]any{
-			"endpoint": "http://pairsrv:8081/internal/v1/sync", "method": "POST", "timeout": 10,
-			"headers": []map[string]string{{"key": "Authorization", "value": "Bearer " + os.Getenv("PAIRSRV_HOOK_TOKEN")}},
-		}},
-	}); err != nil {
-		return err
-	}
-	if _, err := create("eventrules", "pairsrv-sync", map[string]any{
-		"name": "pairsrv-sync", "status": 1, "trigger": 2,
-		"conditions": map[string]any{
-			"provider_events": []string{"add", "update", "delete"},
-			"options":         map[string]any{"provider_objects": []string{"user", "group"}},
-		},
-		"actions": []map[string]any{{"name": "pairsrv-sync", "order": 1}},
-	}); err != nil {
-		return err
-	}
-
 	for i := range d.Users {
 		u := &d.Users[i]
-		var groups []map[string]any
-		if u.PrimaryGroup != "" {
-			groups = append(groups, map[string]any{"name": u.PrimaryGroup, "type": 1})
-		}
+		groups := []map[string]any{{"name": sftpgo.SyncthingGroup, "type": 1}} // primario
 		for _, g := range u.Groups {
 			groups = append(groups, map[string]any{"name": g, "type": 2}) // secundario
 		}
-		if _, err := create("users", u.Name, map[string]any{
+		if err := create("users", u.Name, map[string]any{
 			"username": u.Name, "status": 1, "password": u.Password, "home_dir": u.HomeDir,
 			"permissions": u.Permissions, "groups": groups, "filesystem": local,
 		}); err != nil {

@@ -1,5 +1,5 @@
 {
-  "_comentario": "SÓ PARA DESENVOLVEMENTO: contrasinais públicos. stproto crea isto en SFTPGo e usa os contrasinais para entrar na web de pairsrv e ver o código de vinculación.",
+  "_comentario": "SÓ PARA DESENVOLVEMENTO: contrasinais públicos. stproto crea isto en SFTPGo e usa os contrasinais para entrar na web de pairsrv e ver o código de vinculación. O grupo primario 'syncthing' (oculta os ficheiros de Syncthing) e a regra de eventos créanse co mesmo código que `pairsrv setup-sftpgo`.",
   "folders": [
     {
       "name": "comun",
@@ -11,23 +11,6 @@
     }
   ],
   "groups": [
-    {
-      "_comentario": "Grupo primario de todos os usuarios: oculta en SFTPGo os ficheiros internos de Syncthing (deny_policy 1 = ocultar). Os patróns de '/' só se aplican desde un grupo primario.",
-      "name": "syncthing",
-      "filePatterns": [
-        {
-          "path": "/",
-          "denied_patterns": [
-            ".stfolder",
-            ".stversions",
-            ".stignore",
-            "~syncthing~*",
-            ".syncthing.*.tmp"
-          ],
-          "deny_policy": 1
-        }
-      ]
-    },
     {
       "name": "equipo",
       "folders": {
@@ -55,7 +38,6 @@
           "*"
         ]
       },
-      "primaryGroup": "syncthing",
       "groups": [
         "equipo"
       ]
@@ -70,7 +52,6 @@
           "download"
         ]
       },
-      "primaryGroup": "syncthing",
       "groups": [
         "equipo"
       ]

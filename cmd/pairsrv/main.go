@@ -24,6 +24,12 @@ import (
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "setup-sftpgo" {
+		if err := setupSFTPGo(os.Args[2:]); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 	cfgPath := flag.String("config", "dev/pairsrv.json", "ficheiro de configuración")
 	statePath := flag.String("state", ".dev/pairsrv/state.json", "ficheiro de estado")
 	listen := flag.String("listen", ":8080", "enderezo de escoita da web e da API dos clientes")
@@ -54,6 +60,11 @@ func main() {
 	cancel()
 	if err != nil {
 		log.Fatal(err)
+	}
+	if len(cfg.ServerSyncthingOptions) > 0 {
+		if err := st.PatchOptions(ctx, cfg.ServerSyncthingOptions); err != nil {
+			log.Fatalf("serverSyncthingOptions: %v", err)
+		}
 	}
 	svc, err := pairing.NewService(ctx, cfg.Options, dir, st, *statePath)
 	if err != nil {
@@ -132,6 +143,9 @@ func main() {
 
 type config struct {
 	pairing.Options
+	// Opcións que se aplican ao Syncthing do servidor ao arrancar (PATCH
+	// /rest/config/options): descubrimento, relays, informes de uso...
+	ServerSyncthingOptions stapi.Obj `json:"serverSyncthingOptions,omitempty"`
 	SFTPGo sftpgo.Config      `json:"sftpgo"`
 	Web    pairing.WebOptions `json:"web"`
 }
@@ -179,4 +193,46 @@ func env(k, def string) string {
 		return v
 	}
 	return def
+}
+
+// setupSFTPGo crea en SFTPGo o grupo primario syncthing e a regra de eventos
+// que avisa a pairsrv. Credenciais de administrador en SFTPGO_ADMIN_USER e
+// SFTPGO_ADMIN_PASSWORD; o token do aviso, en PAIRSRV_HOOK_TOKEN.
+func setupSFTPGo(args []string) error {
+	fs := flag.NewFlagSet("setup-sftpgo", flag.ExitOnError)
+	cfgPath := fs.String("config", "dev/pairsrv.json", "ficheiro de configuración (usa sftpgo.apiURL)")
+	hookURL := fs.String("hook-url", "http://pairsrv:8081/internal/v1/sync", "URL coa que SFTPGo chega á API interna de pairsrv (-hook-listen)")
+	fs.Parse(args)
+	cfg, err := loadConfig(*cfgPath)
+	if err != nil {
+		return err
+	}
+	user, pass, token := os.Getenv("SFTPGO_ADMIN_USER"), os.Getenv("SFTPGO_ADMIN_PASSWORD"), os.Getenv("PAIRSRV_HOOK_TOKEN")
+	if user == "" || pass == "" {
+		return errors.New("faltan SFTPGO_ADMIN_USER e SFTPGO_ADMIN_PASSWORD")
+	}
+	if len(token) < 16 {
+		return errors.New("PAIRSRV_HOOK_TOKEN: fai falta un token de polo menos 16 caracteres")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	var admin *sftpgo.Admin
+	for { // SFTPGo pode estar arrancando
+		if admin, err = sftpgo.NewAdmin(ctx, cfg.SFTPGo.APIURL, user, pass); err == nil || sftpgo.IsStatus(err, http.StatusUnauthorized) {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			return err
+		case <-time.After(2 * time.Second):
+		}
+	}
+	if err != nil {
+		return err
+	}
+	if err := admin.Setup(ctx, *hookURL, token, log.Printf); err != nil {
+		return err
+	}
+	log.Printf("SFTPGo listo. Pon %q como grupo PRIMARIO de cada usuario que sincronice.", sftpgo.SyncthingGroup)
+	return nil
 }

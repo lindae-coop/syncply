@@ -1,0 +1,102 @@
+# Servidor cld para produción: SFTPGo + Syncthing + pairsrv detrás de Caddy
+# (HTTPS con Let's Encrypt). Ver deploy/README.md.
+#
+# Segredos e dominios en deploy/.env e configuración de pairsrv en
+# deploy/pairsrv.json: créaos `./init.sh`.
+#
+# Os tres servizos corren co UID/GID 1000, para que SFTPGo e Syncthing poidan
+# escribir os mesmos ficheiros e pairsrv usar o socket da API de Syncthing.
+name: cld-server
+
+services:
+  caddy:
+    image: docker.io/library/caddy:2.10.2-alpine
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    environment:
+      CLD_DOMAIN: ${CLD_DOMAIN:?falta CLD_DOMAIN en .env}
+      SFTPGO_DOMAIN: ${SFTPGO_DOMAIN:?falta SFTPGO_DOMAIN en .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro,z
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on: [pairsrv, sftpgo]
+    restart: unless-stopped
+
+  sftpgo:
+    image: docker.io/drakkan/sftpgo:v2.7.6-alpine
+    ports:
+      - "${SFTP_PORT:-2022}:2022"
+    environment:
+      SFTPGO_DATA_PROVIDER__CREATE_DEFAULT_ADMIN: "true"
+      SFTPGO_DEFAULT_ADMIN_USERNAME: ${SFTPGO_ADMIN_USER:?falta SFTPGO_ADMIN_USER en .env}
+      SFTPGO_DEFAULT_ADMIN_PASSWORD: ${SFTPGO_ADMIN_PASSWORD:?falta SFTPGO_ADMIN_PASSWORD en .env}
+      # Subidas atómicas (a un temporal e renomear): Syncthing non ve
+      # ficheiros a medio subir.
+      SFTPGO_COMMON__UPLOAD_MODE: "1"
+    volumes:
+      - sftpgo-lib:/var/lib/sftpgo
+      - data:/srv/sftpgo/data
+    restart: unless-stopped
+
+  # Syncthing do servidor: a API só nun socket Unix dentro do seu volume (sen
+  # porto TCP), con API key. Os usuarios gárdanse en /srv/sftpgo/data, a
+  # mesma ruta que en SFTPGo, para que as rutas valan tal cal.
+  syncthing:
+    image: docker.io/syncthing/syncthing:2.1.7
+    hostname: cld-server
+    ports:
+      - "22000:22000/tcp"
+      - "22000:22000/udp"
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      STGUIADDRESS: unix:///var/syncthing/gui.sock
+      STGUIAPIKEY: ${ST_APIKEY:?falta ST_APIKEY en .env}
+      STNOUPGRADE: "1"
+      STNODEFAULTFOLDER: "1"
+    # O contedor arranca como root e a entrada da imaxe baixa ao UID 1000.
+    # Antes, o directorio de datos pásase a 1000 (só a raíz, non recursivo):
+    # un volume novo pode quedar de root e entón SFTPGo non pode crear os
+    # directorios dos usuarios.
+    entrypoint: ["/bin/sh", "-c", "chown 1000:1000 /srv/sftpgo/data && exec /bin/entrypoint.sh /bin/syncthing"]
+    healthcheck:
+      disable: true # o da imaxe consulta o porto 8384, que aquí non existe
+    volumes:
+      - syncthing:/var/syncthing
+      - data:/srv/sftpgo/data
+    depends_on: [sftpgo] # crea primeiro o volume data co dono de SFTPGo
+    restart: unless-stopped
+
+  pairsrv:
+    build:
+      context: ..
+      dockerfile: deploy/Containerfile.pairsrv
+    image: localhost/cld-pairsrv:latest
+    command: ["-config", "/etc/pairsrv.json",
+              "-state", "/state/state.json",
+              "-listen", ":8080",
+              "-hook-listen", ":8081",
+              "-downloads", "/descargas",
+              "-reconcile", "5m"]
+    environment:
+      ST_URL: unix:///st/gui.sock
+      ST_APIKEY: ${ST_APIKEY}
+      PAIRSRV_HOOK_TOKEN: ${PAIRSRV_HOOK_TOKEN:?falta PAIRSRV_HOOK_TOKEN en .env}
+    volumes:
+      - ./pairsrv.json:/etc/pairsrv.json:ro,z
+      - ../dist:/descargas:ro,z
+      - pairsrv-state:/state
+      - sftpgo-lib:/sftpgo:ro
+      - syncthing:/st:ro
+    depends_on: [sftpgo, syncthing]
+    restart: unless-stopped
+
+volumes:
+  caddy-data: {}
+  caddy-config: {}
+  sftpgo-lib: {}
+  data: {}
+  syncthing: {}
+  pairsrv-state: {}

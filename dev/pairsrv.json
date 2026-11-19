@@ -1,11 +1,22 @@
 {
-  "serverAddresses": ["tcp://st-server:22000"],
+  "serverAddresses": [
+    "tcp://st-server:22000"
+  ],
   "maxDevicesPerUser": 3,
   "syncthingOptions": {
     "globalAnnounceEnabled": false,
     "localAnnounceEnabled": true,
     "relaysEnabled": false,
     "natEnabled": false
+  },
+  "serverSyncthingOptions": {
+    "globalAnnounceEnabled": false,
+    "localAnnounceEnabled": true,
+    "relaysEnabled": false,
+    "natEnabled": false,
+    "urAccepted": -1,
+    "crashReportingEnabled": false,
+    "autoUpgradeIntervalH": 0
   },
   "sftpgo": {
     "db": "/sftpgo/sftpgo.db",
@@ -14,7 +25,10 @@
   "web": {
     "publicURL": "http://pairsrv:8080",
     "downloads": [
-      {"label": "Linux (x86-64)", "url": "/descargas/cld-linux-amd64.tar.gz"}
+      {
+        "label": "Linux (x86-64)",
+        "url": "/descargas/cld-linux-amd64.tar.gz"
+      }
     ]
   }
 }
