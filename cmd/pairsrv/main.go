@@ -11,6 +11,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"maps"
 	"net/http"
 	"os"
 	"os/signal"
@@ -60,6 +61,21 @@ func main() {
 	cancel()
 	if err != nil {
 		log.Fatal(err)
+	}
+	if cfg.P2P != nil {
+		// Descubrimento e relay propios: as súas URL (co Device ID de cada
+		// un) engádense ás opcións dos clientes.
+		wctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+		p2p, err := cfg.P2P.ClientOptions(wctx)
+		cancel()
+		if err != nil {
+			log.Fatal(err)
+		}
+		if cfg.SyncthingOptions == nil {
+			cfg.SyncthingOptions = map[string]any{}
+		}
+		maps.Copy(cfg.SyncthingOptions, p2p)
+		log.Printf("P2P: descubrimento %v, escoita %v", p2p["globalAnnounceServers"], p2p["listenAddresses"])
 	}
 	if len(cfg.ServerSyncthingOptions) > 0 {
 		if err := st.PatchOptions(ctx, cfg.ServerSyncthingOptions); err != nil {
@@ -146,6 +162,8 @@ type config struct {
 	// Opcións que se aplican ao Syncthing do servidor ao arrancar (PATCH
 	// /rest/config/options): descubrimento, relays, informes de uso...
 	ServerSyncthingOptions stapi.Obj `json:"serverSyncthingOptions,omitempty"`
+	// Servidores propios de descubrimento e relay para o P2P dos clientes.
+	P2P *pairing.P2POptions `json:"p2p,omitempty"`
 	SFTPGo sftpgo.Config      `json:"sftpgo"`
 	Web    pairing.WebOptions `json:"web"`
 }

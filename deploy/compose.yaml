@@ -1,5 +1,6 @@
 # Servidor cld para produción: SFTPGo + Syncthing + pairsrv detrás de Caddy
-# (HTTPS con Let's Encrypt). Ver deploy/README.md.
+# (HTTPS con Let's Encrypt), e descubrimento e relay propios para o P2P dos
+# clientes. Ver deploy/README.md.
 #
 # Segredos e dominios en deploy/.env e configuración de pairsrv en
 # deploy/pairsrv.json: créaos `./init.sh`.
@@ -69,6 +70,29 @@ services:
     depends_on: [sftpgo] # crea primeiro o volume data co dono de SFTPGo
     restart: unless-stopped
 
+  # Descubrimento global propio para o P2P: os clientes anuncian aquí os
+  # seus enderezos e buscan os dos pares. Co seu propio certificado (os
+  # clientes fíxano polo Device ID, que pairsrv calcula e lles envía).
+  discosrv:
+    image: docker.io/syncthing/discosrv:2.1.7
+    ports:
+      - "8443:8443/tcp"
+    volumes:
+      - discosrv:/var/stdiscosrv
+    restart: unless-stopped
+
+  # Relay propio, para pares que non poden conectar directamente (NAT). Só
+  # para quen ten o token (os clientes recíbeno de pairsrv); co token non se
+  # une ao pool público. Sen servizo de estado.
+  relaysrv:
+    image: docker.io/syncthing/relaysrv:2.1.7
+    command: ["-token", "${RELAY_TOKEN:?falta RELAY_TOKEN en .env}", "-status-srv", "", "-keys", "/var/strelaysrv"]
+    ports:
+      - "22067:22067/tcp"
+    volumes:
+      - relaysrv:/var/strelaysrv
+    restart: unless-stopped
+
   pairsrv:
     build:
       context: ..
@@ -90,7 +114,9 @@ services:
       - pairsrv-state:/state
       - sftpgo-lib:/sftpgo:ro
       - syncthing:/st:ro
-    depends_on: [sftpgo, syncthing]
+      - discosrv:/discosrv:ro
+      - relaysrv:/relaysrv:ro
+    depends_on: [sftpgo, syncthing, discosrv, relaysrv]
     restart: unless-stopped
 
 volumes:
@@ -100,3 +126,5 @@ volumes:
   data: {}
   syncthing: {}
   pairsrv-state: {}
+  discosrv: {}
+  relaysrv: {}

@@ -9,6 +9,8 @@ automático con Let's Encrypt). Funciona con `podman-compose` ou con
 | caddy     | 80, 443/tcp                   | `https://DOMINIO_CLD` → pairsrv; `https://DOMINIO_SFTPGO` → SFTPGo |
 | syncthing | 22000/tcp e 22000/udp         | conexións dos clientes (`tcp://` e `quic://DOMINIO_CLD:22000`) |
 | sftpgo    | 2022/tcp                      | SFTP                                                |
+| discosrv  | 8443/tcp                      | descubrimento global propio (P2P)                   |
+| relaysrv  | 22067/tcp                     | relay propio, só con token (P2P)                    |
 | pairsrv   | —                             | só a través de Caddy; `:8081` (avisos de SFTPGo) só na rede interna |
 
 A API de Syncthing está só nun **socket Unix** dentro do seu volume, con API
@@ -20,7 +22,8 @@ key. Os tres servizos usan o UID/GID 1000.
 - Dous nomes DNS apuntando a el (p. ex. `nube.example.org` e
   `sftp.example.org`) **antes de arrancar**: Caddy pide os certificados ao
   arrancar.
-- Portos abertos no cortalumes: 80/tcp, 443/tcp, 22000/tcp, 22000/udp, 2022/tcp.
+- Portos abertos no cortalumes: 80/tcp, 443/tcp, 22000/tcp, 22000/udp,
+  2022/tcp, 8443/tcp, 22067/tcp.
 - Con **Podman rootless**:
   - portos baixos: `sudo sysctl net.ipv4.ip_unprivileged_port_start=80`
     (e gardalo en `/etc/sysctl.d/`);
@@ -60,22 +63,31 @@ SFTPGo, descarga o cliente, copia o texto de vinculación e introduce o código.
 
 ## Descubrimento e P2P
 
-Por defecto (`pairsrv.json` de `init.sh`) é un **sistema pechado**: sen
-descubrimento global nin relays. Os clientes conectan sempre co servidor, e
-entre eles **só se están na mesma rede local**. Fóra dela, os cambios
-pasan polo servidor.
+O propio servidor fai de **servidor de descubrimento** (`stdiscosrv`) e de
+**relay** (`strelaysrv`); non se usa a infraestrutura pública de Syncthing.
 
-Para P2P por internet, en `syncthingOptions`:
+- Os clientes anuncian os seus enderezos no noso descubrimento e buscan alí
+  os dos pares (os pares introducidos teñen enderezo `dynamic`). Conectan
+  directamente se poden (tamén coa axuda de UPnP/NAT-PMP); se non, a través
+  do noso relay.
+- Cada servizo xera o seu certificado no primeiro arranque. pairsrv le os
+  certificados (volumes `discosrv` e `relaysrv`), calcula os Device ID e
+  envía aos clientes as URL fixadas (`?id=…`), xunto co **token do relay**
+  (`RELAY_TOKEN` en `.env`; sen el o relay rexeita a conexión e non se une
+  ao pool público).
+- O servidor Syncthing non os usa: os clientes conéctanse a el polo seu
+  enderezo fixo.
+- Configuración: `p2p` en `pairsrv.json`. Sen esa sección, sistema pechado:
+  P2P só na mesma LAN (descubrimento local) e, entre redes, a través do
+  servidor.
 
-- **infraestrutura pública de Syncthing**: `"globalAnnounceEnabled": true`,
-  `"relaysEnabled": true`, `"natEnabled": true`. Os servidores da Syncthing
-  Foundation verán os Device ID e os enderezos IP dos equipos;
-- ou servidores propios (`stdiscosrv`, `strelaysrv`) con `globalAnnounceServers`
-  e `relaysEnabled` (pendente de preparar aquí).
+O descubrimento é aberto (calquera pode anunciarse nel, como o público), pero
+só dá os enderezos de quen coñeza o Device ID.
 
 Os clientes reciben estas opcións **ao vincular**: un cambio posterior chega
 aos equipos xa vinculados cando o usuario fai «Actualizar a conexión» (ou
-volve vincular). Reiniciar pairsrv: `make up`.
+volve vincular). Se se perde o volume `discosrv` ou `relaysrv`, cambia o seu
+Device ID e pasa o mesmo.
 
 ## Copias de seguridade
 
@@ -85,6 +97,7 @@ volve vincular). Reiniciar pairsrv: `make up`.
 | `sftpgo-lib`    | BD de SFTPGo (usuarios, grupos, permisos)                |
 | `syncthing`     | **identidade do servidor** (certificado = Device ID) e índices |
 | `pairsrv-state` | equipos vinculados, tokens e segredos dos códigos        |
+| `discosrv`, `relaysrv` | certificados (Device ID fixados nos clientes)     |
 
 Se se perde o volume `syncthing`, o servidor ten outro Device ID e os
 clientes rexéitano: todos terían que volver vincular. Garda tamén `.env` e
@@ -104,5 +117,7 @@ directamente).
 Esta pila verificouse en local con dominios `*.localhost` (CA interna de
 Caddy): arranque, API de Syncthing no socket, `setup-sftpgo`, aviso de
 SFTPGo → pairsrv, vinculación dun cliente do paquete de Linux por HTTPS
-(sen `CLD_DEV`) e sincronización nos dous sentidos. **Falta probala nun
+(sen `CLD_DEV`) e sincronización nos dous sentidos. P2P: dous clientes sen
+descubrimento local nin conexión directa posible atopáronse no noso
+descubrimento e conectaron entre eles polo noso relay. **Falta probala nun
 servidor real con Let's Encrypt.**

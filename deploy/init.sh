@@ -18,6 +18,15 @@ cld=$1 sftp=$2
 
 rnd() { head -c 32 /dev/urandom | base64 | tr '+/' '-_' | tr -d '=\n'; }
 
+# O token do relay vai en .env (para strelaysrv) e en pairsrv.json (para os
+# clientes): se .env xa existe, úsase o seu.
+relay_token=$( (grep -s '^RELAY_TOKEN=' .env || true) | cut -d= -f2-)
+if [ -e .env ] && [ -z "$relay_token" ]; then
+	echo ".env xa existe e non ten RELAY_TOKEN: engádeo (p. ex. RELAY_TOKEN=$(rnd))" >&2
+	exit 1
+fi
+[ -n "$relay_token" ] || relay_token=$(rnd)
+
 if [ -e .env ]; then
 	echo ".env xa existe: non se toca"
 else
@@ -30,6 +39,7 @@ SFTPGO_ADMIN_USER=admin
 SFTPGO_ADMIN_PASSWORD=$(rnd)
 ST_APIKEY=$(rnd)
 PAIRSRV_HOOK_TOKEN=$(rnd)
+RELAY_TOKEN=$relay_token
 ENV
 	umask 022
 	echo "creado .env (o contrasinal de admin de SFTPGo está aí)"
@@ -43,10 +53,11 @@ else
   "serverAddresses": ["tcp://$cld:22000", "quic://$cld:22000"],
   "maxDevicesPerUser": 5,
   "syncthingOptions": {
-    "globalAnnounceEnabled": false,
-    "localAnnounceEnabled": true,
-    "relaysEnabled": false,
-    "natEnabled": false
+    "localAnnounceEnabled": true
+  },
+  "p2p": {
+    "discovery": {"url": "https://$cld:8443/", "certFile": "/discosrv/cert.pem"},
+    "relay": {"url": "relay://$cld:22067/", "certFile": "/relaysrv/cert.pem", "token": "$relay_token"}
   },
   "serverSyncthingOptions": {
     "globalAnnounceEnabled": false,
