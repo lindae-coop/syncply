@@ -7,12 +7,11 @@ ARGS     ?= status
 C        ?= 1
 RUN      := $(COMPOSE) run --rm tools
 
-.PHONY: help up down restart logs proto demo fresh ui web otp dist installtest status test clean
+.PHONY: help up down restart logs proto demo fresh ui web otp blob dist installtest status test clean
 
-# Paquete de Linux. CLD_CONFIG é o cld.json que leva (no futuro, xerado por
-# SFTPGo para cada servidor).
+# Paquete de Linux: cliente xenérico, o mesmo para todos os servidores (o
+# servidor indícao o texto de vinculación).
 VERSION    ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
-CLD_CONFIG ?= dev/cld.json
 SYNCTHING_IMAGE := docker.io/syncthing/syncthing:2.1.7
 DIST       := dist/cld-linux-amd64
 
@@ -23,6 +22,7 @@ help:
 	@echo "make ui C=1   - abre no navegador a web do cliente 1 (como o acceso directo)"
 	@echo "make web      - abre a web de pairsrv (entrar como usuario de SFTPGo e ver o código de vinculación)"
 	@echo "make otp U=alice - código de vinculación actual dun usuario de proba (o mesmo que mostra a web)"
+	@echo "make blob U=alice - texto de vinculación dun usuario de proba (o mesmo que mostra a web)"
 	@echo "make dist     - paquete de Linux (dist/cld-linux-amd64.tar.gz) co instalador"
 	@echo "make installtest - proba o paquete nun Debian con systemd (require make up e SFTPGo preparado)"
 	@echo "make status   - estado de dispositivos, carpetas e conexións"
@@ -74,11 +74,14 @@ U ?= alice
 otp:
 	@$(RUN) go run ./cmd/stproto otp $(U) 2>/dev/null | tail -1
 
+blob:
+	@$(RUN) go run ./cmd/stproto blob $(U) 2>/dev/null | tail -1
+
 dist:
 	@mkdir -p $(DIST)
 	$(RUN) sh -c 'GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w -X main.version=$(VERSION)" -o $(DIST)/cld ./cmd/cld'
 	podman run --rm --entrypoint cat $(SYNCTHING_IMAGE) /bin/syncthing > $(DIST)/syncthing
-	cp $(CLD_CONFIG) $(DIST)/cld.json
+	rm -f $(DIST)/cld.json
 	cp packaging/linux/install.sh packaging/linux/LICENZAS.txt $(DIST)/
 	chmod 755 $(DIST)/cld $(DIST)/syncthing $(DIST)/install.sh
 	tar -C dist -czf $(DIST).tar.gz cld-linux-amd64

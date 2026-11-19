@@ -82,7 +82,6 @@ func uiPath(dir string) string { return filepath.Join(dir, "ui.json") }
 func daemon(args []string) error {
 	fs := flag.NewFlagSet("daemon", flag.ExitOnError)
 	dir := fs.String("dir", defaultDir(), "directorio de estado do cliente")
-	cfgPath := fs.String("config", "", "configuración do instalador (por defecto <dir>/cld.json)")
 	listen := fs.String("listen", "127.0.0.1:0", "enderezo da web (porto 0: un libre)")
 	publicURL := fs.String("public-url", "", "URL coa que o navegador chega á web (por defecto http://<listen>)")
 	stURL := fs.String("st-url", "", "API dun Syncthing externo (se se indica, cld non arranca o seu)")
@@ -92,9 +91,6 @@ func daemon(args []string) error {
 	foldersBase := fs.String("folders-base", "", "onde se suxire crear as carpetas (por defecto ~/cld)")
 	fs.Parse(args)
 
-	if *cfgPath == "" {
-		*cfgPath = filepath.Join(*dir, "cld.json")
-	}
 	if *foldersBase == "" {
 		home, _ := os.UserHomeDir()
 		*foldersBase = filepath.Join(home, "cld")
@@ -102,14 +98,10 @@ func daemon(args []string) error {
 	if err := os.MkdirAll(*dir, 0o700); err != nil {
 		return err
 	}
-	cfg, err := client.LoadConfig(*cfgPath)
-	if err != nil {
-		return err
-	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	app, err := client.NewApp(cfg, nil, filepath.Join(*dir, "state.json"), *foldersBase)
+	app, err := client.NewApp(nil, filepath.Join(*dir, "state.json"), *foldersBase)
 	if err != nil {
 		return err
 	}

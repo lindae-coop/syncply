@@ -38,5 +38,19 @@
   {{end}}
   {{end}}
 </section>
+
+<section id="relink">
+  <h2>Conexión co servidor</h2>
+  <p>Servidor <strong>{{.ServerHost}}</strong> · usuario <strong>{{.Overview.User}}</strong> · este equipo: {{.Overview.DeviceName}}</p>
+  <details>
+    <summary>Actualizar a conexión</summary>
+    <p class="muted">Só fai falta se o administrador cambiou o enderezo do servidor. Copia o texto de vinculación da páxina do servidor; despois pedirémosche o código de vinculación. Os recursos e as carpetas non cambian.</p>
+    <form method="post" action="/pair/check">
+      <label for="linktext">Texto de vinculación</label>
+      <textarea id="linktext" name="linktext" class="linktext" rows="3" spellcheck="false" autocomplete="off" placeholder="cld1:…" required></textarea>
+      <p><button class="primary">Continuar</button></p>
+    </form>
+  </details>
+</section>
 {{end}}
 {{template "foot"}}

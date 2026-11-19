@@ -28,20 +28,29 @@ until podman exec "$name" test -S /run/user/1000/bus 2>/dev/null; do
 done
 
 echo "### Instalar como usuario"
+# O contorno usa pairsrv por http (http://pairsrv:8080): só se acepta en
+# desenvolvemento. Drop-in do servizo con CLD_DEV=1 (consérvase ao reiniciar).
+as_ana "$name" sh -c 'mkdir -p ~/.config/systemd/user/cld.service.d &&
+	printf "[Service]\nEnvironment=CLD_DEV=1\n" >~/.config/systemd/user/cld.service.d/dev.conf'
 as_ana "$name" sh -c 'tar xzf /tmp/cld.tar.gz && cld-linux-amd64/install.sh --no-open' | sed 's/^/  /'
 [ "$(as_ana "$name" systemctl --user is-active cld.service)" = active ] || fail "servizo inactivo"
 ok "servizo de usuario cld activo"
 as_ana "$name" test -S /home/ana/.config/cld/syncthing/gui.sock || fail "sen socket da API"
 ok "API de Syncthing no socket Unix"
 
-echo "### Vincular como alice desde a web e sincronizar /comun"
+echo "### Vincular como alice desde a web (texto + código) e sincronizar /comun"
+blob=$(make -s blob U=alice)
+case "$blob" in cld1:*) ;; *) fail "sen texto de vinculación: $blob" ;; esac
 otp=$(make -s otp U=alice | cut -d' ' -f1)
-as_ana "$name" env OTP="$otp" bash -c '
+as_ana "$name" env BLOB="$blob" OTP="$otp" bash -c '
 set -eu
 U=$(~/.local/share/cld/bin/cld open -print); B=${U%%/login*}
 H=(-H "Origin: $B" -H "Sec-Fetch-Site: same-origin")
 curl -sf -c /tmp/j -o /dev/null "$U"
-r=$(curl -s -b /tmp/j -o /dev/null -w "%{redirect_url}" "${H[@]}" --data-urlencode user=alice \
+curl -s -b /tmp/j "${H[@]}" --data-urlencode linktext="$BLOB" "$B/pair/check" | grep -q "Vas vincular.*pairsrv:8080.*alice" \
+	|| { echo "ERRO: sen confirmación do servidor e usuario"; exit 1; }
+echo "  OK  confirmación: pairsrv:8080 como alice"
+r=$(curl -s -b /tmp/j -o /dev/null -w "%{redirect_url}" "${H[@]}" --data-urlencode linktext="$BLOB" \
 	--data-urlencode otp="$OTP" --data-urlencode device=portátil-de-ana "$B/pair")
 case "$r" in *ok=*) echo "  OK  vinculado" ;; *) echo "ERRO ao vincular: $r"; exit 1 ;; esac
 for i in $(seq 1 30); do curl -s -b /tmp/j "$B/" | grep -q "sftpgo-folder-comun" && break; sleep 2; done

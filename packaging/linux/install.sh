@@ -62,7 +62,7 @@ case "${1:-}" in
 esac
 
 [ "$(id -u)" -ne 0 ] || die "executa o instalador co teu usuario, non como root."
-for f in cld syncthing cld.json; do
+for f in cld syncthing; do
 	[ -f "$here/$f" ] || die "falta $f no paquete."
 done
 
@@ -72,13 +72,9 @@ chmod 700 "$cfgdir"
 cp "$here/cld" "$here/syncthing" "$bindir/"
 chmod 755 "$bindir/cld" "$bindir/syncthing"
 
-# A configuración do paquete (servidor) manda; gárdase copia da anterior.
-if [ -f "$cfgdir/cld.json" ] && ! cmp -s "$here/cld.json" "$cfgdir/cld.json"; then
-	cp "$cfgdir/cld.json" "$cfgdir/cld.json.anterior"
-	msg "Configuración anterior gardada en $cfgdir/cld.json.anterior"
-fi
-cp "$here/cld.json" "$cfgdir/cld.json"
-chmod 600 "$cfgdir/cld.json"
+# O cliente é xenérico: o servidor indícao o texto de vinculación. As
+# versións anteriores levaban cld.json, que xa non se usa.
+rm -f "$cfgdir/cld.json" "$cfgdir/cld.json.anterior"
 
 "$bindir/cld" shortcut >/dev/null
 
@@ -129,7 +125,8 @@ until "$bindir/cld" open -print >/dev/null 2>&1; do
 done
 
 msg "cld $("$bindir/cld" version | cut -d' ' -f2) instalado."
-msg "Abre «cld» desde o menú de aplicacións para configurar a sincronización."
+msg "Abre «cld» desde o menú de aplicacións e pega o texto de vinculación"
+msg "que atoparás na páxina do servidor, xunto ao código de vinculación."
 if [ $open_ui -eq 1 ] && [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; then
 	"$bindir/cld" open || true
 fi

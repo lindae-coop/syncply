@@ -143,6 +143,8 @@ type PairResponse struct {
 	ServerDeviceID  string   `json:"serverDeviceID"`
 	ServerAddresses []string `json:"serverAddresses"`
 	Token           string   `json:"token"`
+	// Opcións de Syncthing para o cliente (ver Options.SyncthingOptions).
+	SyncthingOptions map[string]any `json:"syncthingOptions,omitempty"`
 }
 
 // Pair vincula un equipo. Se o equipo xa era do mesmo usuario, renóvase o
@@ -201,8 +203,12 @@ func (s *Service) Pair(ctx context.Context, req PairRequest) (*PairResponse, err
 	if err := s.reconcileLocked(ctx, snap); err != nil {
 		return nil, fmt.Errorf("aplicando configuración en Syncthing: %w", err)
 	}
-	return &PairResponse{ServerDeviceID: s.serverID, ServerAddresses: s.opts.ServerAddresses, Token: token}, nil
+	return &PairResponse{ServerDeviceID: s.serverID, ServerAddresses: s.opts.ServerAddresses, Token: token,
+		SyncthingOptions: s.opts.SyncthingOptions}, nil
 }
+
+// ServerID é o Device ID do Syncthing do servidor.
+func (s *Service) ServerID() string { return s.serverID }
 
 // Caller identifica o equipo autenticado polo seu token.
 type Caller struct {

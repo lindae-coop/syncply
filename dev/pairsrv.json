@@ -1,12 +1,18 @@
 {
   "serverAddresses": ["tcp://st-server:22000"],
   "maxDevicesPerUser": 3,
+  "syncthingOptions": {
+    "globalAnnounceEnabled": false,
+    "localAnnounceEnabled": true,
+    "relaysEnabled": false,
+    "natEnabled": false
+  },
   "sftpgo": {
     "db": "/sftpgo/sftpgo.db",
     "apiURL": "http://sftpgo:8080"
   },
   "web": {
-    "secureCookies": false,
+    "publicURL": "http://pairsrv:8080",
     "downloads": [
       {"label": "Linux (x86-64)", "url": "/descargas/cld-linux-amd64.tar.gz"}
     ]

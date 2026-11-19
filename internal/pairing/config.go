@@ -10,6 +10,10 @@ type Options struct {
 	// Enderezos do servidor Syncthing que se lles dan aos clientes.
 	ServerAddresses   []string `json:"serverAddresses"`
 	MaxDevicesPerUser int      `json:"maxDevicesPerUser"`
+	// Opcións de Syncthing que o cliente aplica cada vez que arranca (PATCH
+	// /rest/config/options) por riba dos seus valores seguros por defecto:
+	// descubrimento, relays... Envíanse na resposta do emparellamento.
+	SyncthingOptions map[string]any `json:"syncthingOptions,omitempty"`
 }
 
 func (o *Options) validate() error {

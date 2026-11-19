@@ -37,6 +37,9 @@ p { margin: .4rem 0; }
 label { display: block; font-size: .9em; color: var(--muted); margin: .5rem 0 .2rem; }
 input[type=text] { width: 100%; padding: .5rem .6rem; border: 1px solid var(--line); border-radius: 6px;
   background: var(--bg); color: var(--fg); font: inherit; }
+textarea.linktext { display: block; width: 100%; padding: .5rem .6rem; resize: vertical; border: 1px solid var(--line);
+  border-radius: 6px; background: var(--bg); color: var(--fg); word-break: break-all;
+  font: .85rem/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 input.otp { width: 9ch; letter-spacing: .15em; font-variant-numeric: tabular-nums; }
 button { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--fg);
   padding: .45rem .9rem; border-radius: 6px; cursor: pointer; }
@@ -52,6 +55,7 @@ form.inline { display: inline; }
 .msg { padding: .6rem .8rem; border-radius: 8px; margin-bottom: 1rem; border: 1px solid; }
 .msg.okmsg { border-color: var(--ok); color: var(--ok); }
 .msg.errmsg { border-color: var(--bad); color: var(--bad); }
+
 details summary { cursor: pointer; color: var(--muted); font-size: .9em; }
 details[open] summary { margin-bottom: .4rem; }
 </style>

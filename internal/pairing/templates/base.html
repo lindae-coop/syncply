@@ -44,6 +44,15 @@ a { color: var(--accent); }
 .bar > div { height: 100%; background: var(--accent); transform-origin: left; animation: drain linear forwards; }
 @keyframes drain { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 @media (prefers-reduced-motion: reduce) { .bar > div { animation: none; } }
+ol.steps { margin: .3rem 0; padding-left: 1.3rem; }
+ol.steps > li { margin: 0 0 1rem; }
+ol.steps > li:last-child { margin-bottom: 0; }
+ol.steps .muted { display: block; font-size: .9em; margin-top: .3rem; }
+textarea.linktext { display: block; width: 100%; margin: .4rem 0; padding: .5rem .6rem; resize: vertical;
+  border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg);
+  font: .85rem/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; word-break: break-all; }
+.row { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
+.ok { color: var(--ok); }
 .dot { display: inline-block; width: .6em; height: .6em; border-radius: 50%; margin-right: .35em;
   vertical-align: .05em; background: var(--line); }
 .dot.ok { background: var(--ok); }

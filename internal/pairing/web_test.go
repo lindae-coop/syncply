@@ -20,16 +20,37 @@ func (f fakeAuth) CheckPassword(_ context.Context, user, pass, _ string) error {
 	return ErrBadLogin
 }
 
-var codeRe = regexp.MustCompile(`id="code">(\d{6})<`)
+var (
+	codeRe = regexp.MustCompile(`id="code">(\d{6})<`)
+	linkRe = regexp.MustCompile(`id="linktext"[^>]*>(cld1:[A-Za-z0-9_-]+)<`)
+)
 
 func newWebEnv(t *testing.T) (*env, http.Handler) {
 	t.Helper()
 	e := newEnv(t)
-	w := NewWeb(e.svc, fakeAuth{"alice": "segredo", "eve": "x"}, WebOptions{
+	t.Setenv("CLD_DEV", "1") // http://srv
+	w, err := NewWeb(e.svc, fakeAuth{"alice": "segredo", "eve": "x"}, WebOptions{
+		PublicURL: "http://srv",
 		Downloads: []Download{{Label: "Linux", URL: "/descargas/cld.tar.gz"}},
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	w.now = func() time.Time { return e.clock }
 	return e, w.Handler()
+}
+
+func TestWebRequiresHTTPS(t *testing.T) {
+	e := newEnv(t)
+	t.Setenv("CLD_DEV", "")
+	for _, u := range []string{"", "http://nube.example.org", "nube.example.org"} {
+		if _, err := NewWeb(e.svc, fakeAuth{}, WebOptions{PublicURL: u}); err == nil {
+			t.Errorf("publicURL %q aceptada fóra de desenvolvemento", u)
+		}
+	}
+	if _, err := NewWeb(e.svc, fakeAuth{}, WebOptions{PublicURL: "https://nube.example.org/"}); err != nil {
+		t.Error(err)
+	}
 }
 
 func login(t *testing.T, h http.Handler, user, pass string, hdr map[string]string) *httptest.ResponseRecorder {
@@ -84,6 +105,18 @@ func TestWebShowsPairingCode(t *testing.T) {
 		if !strings.Contains(page.Body.String(), want) {
 			t.Errorf("falta %q na páxina", want)
 		}
+	}
+	// O texto de vinculación leva o servidor, o usuario e o Device ID.
+	lm := linkRe.FindStringSubmatch(page.Body.String())
+	if lm == nil {
+		t.Fatalf("sen texto de vinculación:\n%s", page.Body)
+	}
+	ld, err := ParseLinkText(lm[1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ld.URL != "http://srv" || ld.User != "alice" || ld.Server != e.svc.ServerID() {
+		t.Errorf("texto de vinculación: %+v", ld)
 	}
 	// O código mostrado vale para vincular.
 	if _, err := e.svc.Pair(context.Background(), PairRequest{User: "alice", OTP: m[1], DeviceID: devA1, DeviceName: "x"}); err != nil {

@@ -48,6 +48,9 @@ func main() {
 	case "otp": // otp <usuario>
 		need(args, 1)
 		err = cmdOTP(ctx, args[0])
+	case "blob": // blob <usuario>
+		need(args, 1)
+		err = cmdBlob(ctx, args[0])
 	case "pair": // pair <cliente> <usuario> [otp]
 		need(args, 2)
 		otp := ""
@@ -85,6 +88,7 @@ func usage() {
   init                         configura os nodos (sen descubrimento global nin relays)
   sftpgo-setup                 crea en SFTPGo os datos de dev/sftpgo-demo.json
   otp <usuario>                código de vinculación actual dun usuario de proba
+  blob <usuario>               texto de vinculación dun usuario de proba
   pair <cliente> <usuario> [otp]  emparella vía pairsrv (sen otp: lése na
                                  web de pairsrv co contrasinal de proba)
   pending <cliente>            lista as carpetas ofrecidas ao cliente

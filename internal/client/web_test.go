@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -19,21 +20,44 @@ const (
 	public = "http://127.0.0.1:8411"
 )
 
-// fakeSyncthing responde ao mínimo que usa App.
-func fakeSyncthing(t *testing.T) *httptest.Server {
+// fakeST é un Syncthing falso: responde ao mínimo que usa App e garda as
+// escrituras (PUT/PATCH) por "MÉTODO ruta".
+type fakeST struct {
+	*httptest.Server
+	mu     sync.Mutex
+	writes map[string]map[string]any
+}
+
+func (f *fakeST) write(key string) map[string]any {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.writes[key]
+}
+
+func fakeSyncthing(t *testing.T) *fakeST {
 	t.Helper()
 	routes := map[string]any{
-		"/rest/system/status":      map[string]any{"myID": "CLIENTE-AAAAAAA-AAAAAAA-AAAAAAA-AAAAAAA-AAAAAAA-AAAAAAA-AAAAAAA"},
-		"/rest/config/devices":     []any{map[string]any{"deviceID": srvID, "paused": false}},
-		"/rest/system/connections": map[string]any{"connections": map[string]any{srvID: map[string]any{"connected": true}}},
-		"/rest/config/folders":     []any{map[string]any{"id": "f1", "label": "Común <b>", "path": "/home/u/cld/Común"}},
-		"/rest/db/status":          map[string]any{"state": "syncing", "needFiles": 3, "needBytes": 1536, "globalFiles": 10, "globalBytes": 5 << 20},
+		"/rest/system/status":          map[string]any{"myID": "CLIENTE-AAAAAAA-AAAAAAA-AAAAAAA-AAAAAAA-AAAAAAA-AAAAAAA-AAAAAAA"},
+		"/rest/config/devices":         []any{map[string]any{"deviceID": srvID, "paused": false}},
+		"/rest/config/defaults/device": map[string]any{"addresses": []any{"dynamic"}},
+		"/rest/system/connections":     map[string]any{"connections": map[string]any{srvID: map[string]any{"connected": true}}},
+		"/rest/config/folders":         []any{map[string]any{"id": "f1", "label": "Común <b>", "path": "/home/u/cld/Común"}},
+		"/rest/db/status":              map[string]any{"state": "syncing", "needFiles": 3, "needBytes": 1536, "globalFiles": 10, "globalBytes": 5 << 20},
 		"/rest/cluster/pending/folders": map[string]any{
 			"f2": map[string]any{"offeredBy": map[string]any{srvID: map[string]any{"label": "Documentos"}}},
 			"f3": map[string]any{"offeredBy": map[string]any{"OUTRO": map[string]any{"label": "Alleo"}}},
 		},
 	}
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	f := &fakeST{writes: map[string]map[string]any{}}
+	f.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPut || r.Method == http.MethodPatch {
+			var body map[string]any
+			json.NewDecoder(r.Body).Decode(&body)
+			f.mu.Lock()
+			f.writes[r.Method+" "+r.URL.Path] = body
+			f.mu.Unlock()
+			return
+		}
 		v, ok := routes[r.URL.Path]
 		if !ok {
 			http.NotFound(w, r)
@@ -41,12 +65,30 @@ func fakeSyncthing(t *testing.T) *httptest.Server {
 		}
 		json.NewEncoder(w).Encode(v)
 	}))
+	return f
 }
 
-// fakePairsrv devolve un equipo para /devices.
-func fakePairsrv(t *testing.T) *httptest.Server {
-	t.Helper()
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+const goodOTP = "123456"
+
+// pairsrvHandler é un pairsrv falso: emparella a alice co código goodOTP e
+// devolve dous equipos en /devices.
+func pairsrvHandler(serverID string) http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	})
+	mux.HandleFunc("POST /api/v1/pair", func(w http.ResponseWriter, r *http.Request) {
+		var req pairing.PairRequest
+		json.NewDecoder(r.Body).Decode(&req)
+		if req.User != "alice" || req.OTP != goodOTP {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"error": "usuario ou código de vinculación incorrecto"})
+			return
+		}
+		json.NewEncoder(w).Encode(pairing.PairResponse{ServerDeviceID: serverID, ServerAddresses: []string{"tcp://srv:22000"},
+			Token: "tok", SyncthingOptions: map[string]any{"relaysEnabled": true}})
+	})
+	mux.HandleFunc("GET /api/v1/devices", func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer tok" {
 			w.WriteHeader(http.StatusUnauthorized)
 			json.NewEncoder(w).Encode(map[string]string{"error": "non autorizado"})
@@ -56,27 +98,40 @@ func fakePairsrv(t *testing.T) *httptest.Server {
 			{ID: "A", Name: "portátil", Current: true, AddedAt: time.Now()},
 			{ID: "B", Name: "sobremesa <i>", LastSeen: time.Now()},
 		})
-	}))
+	})
+	return mux
 }
 
-func newTestWeb(t *testing.T, paired bool) (*Web, http.Handler) {
+type testEnv struct {
+	web *Web
+	h   http.Handler
+	st  *fakeST
+	ps  *httptest.Server
+}
+
+func newEnv(t *testing.T, paired bool) *testEnv {
 	t.Helper()
-	st, ps := fakeSyncthing(t), fakePairsrv(t)
+	t.Setenv("CLD_DEV", "1") // pairsrv falso por http
+	st, ps := fakeSyncthing(t), httptest.NewServer(pairsrvHandler(srvID))
 	t.Cleanup(st.Close)
 	t.Cleanup(ps.Close)
-	app, err := NewApp(&Config{PairsrvURL: ps.URL}, stapi.New("st", st.URL, "k"),
-		filepath.Join(t.TempDir(), "state.json"), "/home/u/cld")
+	app, err := NewApp(stapi.New("st", st.URL, "k"), filepath.Join(t.TempDir(), "state.json"), "/home/u/cld")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if paired {
-		app.state = State{User: "alice", Token: "tok", ServerDeviceID: srvID, DeviceName: "portátil"}
+		app.state = State{PairsrvURL: ps.URL, User: "alice", Token: "tok", ServerDeviceID: srvID, DeviceName: "portátil"}
 	}
 	w, err := NewWeb(app, public, "control")
 	if err != nil {
 		t.Fatal(err)
 	}
-	return w, w.Handler()
+	return &testEnv{web: w, h: w.Handler(), st: st, ps: ps}
+}
+
+func newTestWeb(t *testing.T, paired bool) (*Web, http.Handler) {
+	e := newEnv(t, paired)
+	return e.web, e.h
 }
 
 func do(h http.Handler, method, target string, hdr map[string]string, cookie *http.Cookie, form url.Values) *httptest.ResponseRecorder {
@@ -169,7 +224,7 @@ func TestAccessControl(t *testing.T) {
 	}
 	// POST propio, como o envía un navegador.
 	browser := map[string]string{"Origin": public, "Sec-Fetch-Site": "same-origin"}
-	if rec := do(h, http.MethodPost, "/pair", browser, c, url.Values{"user": {""}}); rec.Code != http.StatusSeeOther {
+	if rec := do(h, http.MethodPost, "/pair/check", browser, c, url.Values{"linktext": {""}}); rec.Code != http.StatusSeeOther {
 		t.Errorf("POST do navegador: %d", rec.Code)
 	}
 	// CSRF: POST desde outra orixe.
@@ -213,12 +268,139 @@ func TestUnpairedShowsPairing(t *testing.T) {
 	_, h := newTestWeb(t, false)
 	c := login(t, h)
 	body := do(h, http.MethodGet, "/", nil, c, nil).Body.String()
-	if !strings.Contains(body, "Vincular este equipo") || strings.Contains(body, "Os meus equipos") {
+	if !strings.Contains(body, "texto de vinculación") || !strings.Contains(body, `action="/pair/check"`) || strings.Contains(body, "Os meus equipos") {
 		t.Error("sen vincular debería amosarse só o formulario de vinculación")
 	}
-	rec := do(h, http.MethodPost, "/pair", nil, c, url.Values{"user": {""}})
-	if loc := rec.Header().Get("Location"); rec.Code != http.StatusSeeOther || !strings.Contains(loc, "err=") {
-		t.Errorf("formulario baleiro: %d %s", rec.Code, loc)
+	for _, text := range []string{"", "123456", "cld1:estragado"} {
+		rec := do(h, http.MethodPost, "/pair/check", nil, c, url.Values{"linktext": {text}})
+		if loc := rec.Header().Get("Location"); rec.Code != http.StatusSeeOther || !strings.Contains(loc, "err=") {
+			t.Errorf("texto %q: %d %s", text, rec.Code, loc)
+		}
+	}
+}
+
+func TestPairWithLinkText(t *testing.T) {
+	e := newEnv(t, false)
+	c := login(t, e.h)
+	link := pairing.LinkData{URL: e.ps.URL, User: "alice", Server: srvID}.Encode()
+
+	// Paso 1: confirmación co servidor e o usuario.
+	rec := do(e.h, http.MethodPost, "/pair/check", nil, c, url.Values{"linktext": {"  " + link + "\n"}})
+	body := rec.Body.String()
+	host := strings.TrimPrefix(e.ps.URL, "http://")
+	for _, want := range []string{"Vas vincular", host, "<strong>alice</strong>", link, `action="/pair"`, "non vai cifrada"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("confirmación: falta %q", want)
+		}
+	}
+	if strings.Contains(body, "non se pode contactar") {
+		t.Error("o servidor responde")
+	}
+
+	// Código incorrecto: volve á confirmación co erro.
+	rec = do(e.h, http.MethodPost, "/pair", nil, c, url.Values{"linktext": {link}, "otp": {"000000"}, "device": {"portátil"}})
+	if body := rec.Body.String(); rec.Code != http.StatusOK || !strings.Contains(body, "Usuario ou código") || !strings.Contains(body, "Vas vincular") {
+		t.Fatalf("código incorrecto: %d\n%s", rec.Code, body)
+	}
+	if e.web.app.snapshotState().paired() {
+		t.Fatal("vinculado cun código incorrecto")
+	}
+
+	rec = do(e.h, http.MethodPost, "/pair", nil, c, url.Values{"linktext": {link}, "otp": {goodOTP}, "device": {"portátil"}})
+	if loc := rec.Header().Get("Location"); !strings.Contains(loc, "ok=") {
+		t.Fatalf("vincular: %d %s", rec.Code, loc)
+	}
+	s := e.web.app.snapshotState()
+	if !s.paired() || s.PairsrvURL != e.ps.URL || s.User != "alice" || s.Token != "tok" || s.ServerDeviceID != srvID {
+		t.Fatalf("estado: %+v", s)
+	}
+	if d := e.st.write("PUT /rest/config/devices/" + srvID); d == nil || d["introducer"] != true {
+		t.Errorf("servidor como introducer: %v", d)
+	}
+	// Opcións: as seguras por defecto e, por riba, as do servidor.
+	o := e.st.write("PATCH /rest/config/options")
+	if o["relaysEnabled"] != true || o["globalAnnounceEnabled"] != false || o["urAccepted"] != float64(-1) {
+		t.Errorf("opcións aplicadas: %v", o)
+	}
+	// Xa vinculado, a API do servidor gardado funciona.
+	if body := do(e.h, http.MethodGet, "/devices", nil, c, nil).Body.String(); !strings.Contains(body, "Tes 2 equipos") {
+		t.Error("equipos tras vincular")
+	}
+}
+
+func TestPairRejectsOtherServer(t *testing.T) {
+	e := newEnv(t, false)
+	other := "OUTROSR-AAAAAAA-AAAAAAA-AAAAAAA-AAAAAAA-AAAAAAA-AAAAAAA-AAAAAAA"
+	link := pairing.LinkData{URL: e.ps.URL, User: "alice", Server: other}.Encode()
+	err := e.web.app.Pair(t.Context(), link, goodOTP, "portátil")
+	if err == nil || !strings.Contains(err.Error(), other) {
+		t.Fatalf("esperaba rexeitamento: %v", err)
+	}
+	if e.web.app.snapshotState().paired() || e.st.write("PUT /rest/config/devices/"+srvID) != nil {
+		t.Error("non debería gardar nin engadir o servidor")
+	}
+}
+
+// Fóra de desenvolvemento só se acepta https, cun certificado válido para
+// as CA do sistema.
+func TestPairsrvHTTPS(t *testing.T) {
+	e := newEnv(t, false)
+	t.Setenv("CLD_DEV", "")
+	ts := httptest.NewTLSServer(pairsrvHandler(srvID))
+	defer ts.Close()
+	httpLink := pairing.LinkData{URL: e.ps.URL, User: "alice", Server: srvID}.Encode()
+	if _, err := e.web.app.CheckLink(t.Context(), httpLink); err == nil || !strings.Contains(err.Error(), "https") {
+		t.Errorf("http fóra de desenvolvemento: %v", err)
+	}
+	link := pairing.LinkData{URL: ts.URL, User: "alice", Server: srvID}.Encode()
+	// Certificado dunha CA que o sistema non coñece: non responde.
+	if c, err := e.web.app.CheckLink(t.Context(), link); err != nil || c.ReachErr == "" || c.Insecure {
+		t.Errorf("certificado descoñecido: %+v %v", c, err)
+	}
+	// Coa CA instalada (como faría o sistema), vincula.
+	old := pairsrvHTTP
+	pairsrvHTTP = ts.Client()
+	defer func() { pairsrvHTTP = old }()
+	if err := e.web.app.Pair(t.Context(), link, goodOTP, "portátil"); err != nil {
+		t.Fatalf("vincular por https: %v", err)
+	}
+	if s := e.web.app.snapshotState(); s.PairsrvURL != ts.URL {
+		t.Errorf("URL gardada: %q", s.PairsrvURL)
+	}
+}
+
+// Estando vinculado pódese actualizar o enderezo do servidor (mesmo
+// servidor e usuario).
+func TestRelink(t *testing.T) {
+	e := newEnv(t, true)
+	app := e.web.app
+	ps2 := httptest.NewServer(pairsrvHandler(srvID))
+	defer ps2.Close()
+	link := func(u, user, server string) string {
+		return pairing.LinkData{URL: u, User: user, Server: server}.Encode()
+	}
+	if _, err := app.CheckLink(t.Context(), link(ps2.URL, "bob", srvID)); err == nil || !strings.Contains(err.Error(), "vinculado como «alice»") {
+		t.Errorf("texto doutro usuario: %v", err)
+	}
+	other := "OUTROSR-AAAAAAA-AAAAAAA-AAAAAAA-AAAAAAA-AAAAAAA-AAAAAAA-AAAAAAA"
+	if _, err := app.CheckLink(t.Context(), link(ps2.URL, "alice", other)); err == nil || !strings.Contains(err.Error(), "doutro servidor") {
+		t.Errorf("texto doutro servidor: %v", err)
+	}
+	c := login(t, e.h)
+	body := do(e.h, http.MethodPost, "/pair/check", nil, c, url.Values{"linktext": {link(ps2.URL, "alice", srvID)}}).Body.String()
+	if !strings.Contains(body, "Vas actualizar a conexión") || !strings.Contains(body, `value="portátil"`) {
+		t.Errorf("confirmación de actualizar:\n%s", body)
+	}
+	rec := do(e.h, http.MethodPost, "/pair", nil, c, url.Values{"linktext": {link(ps2.URL, "alice", srvID)}, "otp": {goodOTP}, "device": {"portátil"}})
+	if loc := rec.Header().Get("Location"); !strings.HasPrefix(loc, "/devices?ok=") {
+		t.Fatalf("actualizar: %d %s", rec.Code, loc)
+	}
+	if s := app.snapshotState(); s.PairsrvURL != ps2.URL {
+		t.Errorf("URL gardada: %q", s.PairsrvURL)
+	}
+	// Ao actualizar non se quita a pausa do servidor.
+	if d := e.st.write("PUT /rest/config/devices/" + srvID); d == nil || d["paused"] != nil {
+		t.Errorf("dispositivo servidor: %v", d)
 	}
 }
 

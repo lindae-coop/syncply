@@ -30,6 +30,9 @@ x-go: &go
     <<: *sftpgo-env
     PAIRSRV_HOOK_TOKEN: ${PAIRSRV_HOOK_TOKEN:-cld-dev-hook-NON-USAR-EN-PRODUCION}
     ST_APIKEY: ${ST_APIKEY:-cld-dev-apikey-NON-USAR-EN-PRODUCION}
+    # Desenvolvemento: pairsrv e cld permiten http (en produción, só https
+    # detrás dun proxy) e as cookies de pairsrv van sen Secure.
+    CLD_DEV: "1"
     CGO_ENABLED: "0"
     GOFLAGS: "-buildvcs=false"
   networks: [stnet]
@@ -76,7 +79,7 @@ services:
   st-client1:
     <<: *client
     hostname: st-client1
-    command: ["go", "run", "./cmd/cld", "daemon", "-dir", "/cfg", "-config", "dev/cld.json",
+    command: ["go", "run", "./cmd/cld", "daemon", "-dir", "/cfg",
               "-listen", "0.0.0.0:8400", "-public-url", "http://127.0.0.1:8411",
               "-st-home", "/var/syncthing/config", "-st-gui", "0.0.0.0:8384",
               "-folders-base", "/var/syncthing/data"]
@@ -91,7 +94,7 @@ services:
   st-client2:
     <<: *client
     hostname: st-client2
-    command: ["go", "run", "./cmd/cld", "daemon", "-dir", "/cfg", "-config", "dev/cld.json",
+    command: ["go", "run", "./cmd/cld", "daemon", "-dir", "/cfg",
               "-listen", "0.0.0.0:8400", "-public-url", "http://127.0.0.1:8412",
               "-st-home", "/var/syncthing/config", "-st-gui", "0.0.0.0:8384",
               "-folders-base", "/var/syncthing/data"]
@@ -106,7 +109,7 @@ services:
   st-client3:
     <<: *client
     hostname: st-client3
-    command: ["go", "run", "./cmd/cld", "daemon", "-dir", "/cfg", "-config", "dev/cld.json",
+    command: ["go", "run", "./cmd/cld", "daemon", "-dir", "/cfg",
               "-listen", "0.0.0.0:8400", "-public-url", "http://127.0.0.1:8413",
               "-st-home", "/var/syncthing/config", "-st-gui", "0.0.0.0:8384",
               "-folders-base", "/var/syncthing/data"]
@@ -120,7 +123,9 @@ services:
 
   # Servizo de emparellamento: le usuarios e permisos da BD de SFTPGo (só
   # lectura), comproba os contrasinais coa API de SFTPGo e configura
-  # st-server. :8080 é a web dos usuarios (código de vinculación e descarga
+  # st-server. web.publicURL (dev/pairsrv.json) é http://pairsrv:8080, a URL
+  # coa que chegan os clientes desde a rede do contorno, aínda que a web se
+  # abra en 127.0.0.1:8090. :8080 é a web dos usuarios (código de vinculación e descarga
   # dos paquetes de ./dist) e a API dos clientes; :8081, a interna para os
   # avisos do xestor de eventos de SFTPGo. A reconciliación
   # periódica vai a 5 min para que a demo comprobe que os avisos funcionan.

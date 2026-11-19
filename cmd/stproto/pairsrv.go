@@ -87,40 +87,76 @@ func waitPairsrv(ctx context.Context) error {
 // contrasinal de SFTPGo e le o código que se mostra. A web sempre mostra un
 // código aínda non usado.
 
-var codeRe = regexp.MustCompile(`id="code">(\d{6})<`)
+var (
+	codeRe = regexp.MustCompile(`id="code">(\d{6})<`)
+	linkRe = regexp.MustCompile(`id="linktext"[^>]*>(cld1:[A-Za-z0-9_-]+)<`)
+)
 
-func devOTP(ctx context.Context, user string) (string, error) {
+// devPage entra na web de pairsrv co contrasinal de proba do usuario e
+// devolve a páxina (nil se o usuario non está nos datos de proba).
+func devPage(ctx context.Context, user string) ([]byte, error) {
 	d, err := loadDemo()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	u := d.user(user)
 	if u == nil {
-		// Usuario descoñecido: calquera código vale para probar o rexeitamento.
-		return "000000", nil
+		return nil, nil
 	}
 	jar, _ := cookiejar.New(nil)
 	hc := &http.Client{Jar: jar, Timeout: 30 * time.Second}
 	form := url.Values{"user": {u.Name}, "password": {u.Password}}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, pairsrvURL+"/login", strings.NewReader(form.Encode()))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp, err := hc.Do(req) // segue a redirección a /
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer resp.Body.Close()
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("web de pairsrv: HTTP %d para %s", resp.StatusCode, user)
+	}
+	return b, nil
+}
+
+func devOTP(ctx context.Context, user string) (string, error) {
+	b, err := devPage(ctx, user)
+	if err != nil {
 		return "", err
 	}
+	if b == nil {
+		// Usuario descoñecido: calquera código vale para probar o rexeitamento.
+		return "000000", nil
+	}
 	m := codeRe.FindSubmatch(b)
-	if resp.StatusCode != http.StatusOK || m == nil {
-		return "", fmt.Errorf("web de pairsrv: sen código para %s (HTTP %d)", user, resp.StatusCode)
+	if m == nil {
+		return "", fmt.Errorf("web de pairsrv: sen código para %s", user)
 	}
 	return string(m[1]), nil
+}
+
+// cmdBlob amosa o texto de vinculación dun usuario, como o copiaría da web.
+func cmdBlob(ctx context.Context, user string) error {
+	b, err := devPage(ctx, user)
+	if err != nil {
+		return err
+	}
+	var m [][]byte
+	if b != nil {
+		m = linkRe.FindSubmatch(b)
+	}
+	if m == nil {
+		return fmt.Errorf("web de pairsrv: sen texto de vinculación para %s", user)
+	}
+	fmt.Println(string(m[1]))
+	return nil
 }
 
 // cmdOTP amosa o código de vinculación actual para usar a man (p. ex. na web

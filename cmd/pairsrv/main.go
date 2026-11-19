@@ -100,7 +100,14 @@ func main() {
 	mux := http.NewServeMux()
 	mux.Handle("/api/", api)
 	mux.Handle("/healthz", api)
-	mux.Handle("/", pairing.NewWeb(svc, dir, cfg.Web).Handler())
+	web, err := pairing.NewWeb(svc, dir, cfg.Web)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if pairing.DevMode() {
+		log.Printf("aviso: modo de desenvolvemento (CLD_DEV=1): permítese http e as cookies van sen Secure")
+	}
+	mux.Handle("/", web.Handler())
 	if *downloads != "" {
 		mux.Handle("GET /descargas/", http.StripPrefix("/descargas/", filesOnly(http.FileServer(http.Dir(*downloads)))))
 	}

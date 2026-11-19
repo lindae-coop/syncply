@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
+	"maps"
 	"net"
 	"net/http"
 	"os"
@@ -21,36 +23,24 @@ import (
 	"github.com/DanBaDo/cld/internal/stapi"
 )
 
-// Config vén co instalador (o que o usuario descarga de SFTPGo xa leva o
-// enderezo do servidor e, idealmente, o seu Device ID).
-type Config struct {
-	PairsrvURL string `json:"pairsrvURL"`
-	// Se se indica, o emparellamento só se acepta se o servidor responde con
-	// este Device ID (a "clave do servidor preinstalada").
-	ServerDeviceID string `json:"serverDeviceID,omitempty"`
-	// Opcións de Syncthing aplicadas cada vez que arranca (PATCH
-	// /rest/config/options): descubrimento, relays, informes de uso...
-	SyncthingOptions map[string]any `json:"syncthingOptions,omitempty"`
-}
-
-func LoadConfig(path string) (*Config, error) {
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	var c Config
-	if err := json.Unmarshal(b, &c); err != nil {
-		return nil, fmt.Errorf("%s: %w", path, err)
-	}
-	if c.PairsrvURL == "" {
-		return nil, fmt.Errorf("%s: falta pairsrvURL", path)
-	}
-	c.PairsrvURL = strings.TrimRight(c.PairsrvURL, "/")
-	return &c, nil
+// DefaultSyncthingOptions aplícanse sempre ao Syncthing do cliente, tamén
+// antes de vincular (o cliente é xenérico: non leva configuración de ningún
+// servidor). Despois de vincular, pairsrv pode cambialas (syncthingOptions na
+// resposta do emparellamento).
+var DefaultSyncthingOptions = map[string]any{
+	"globalAnnounceEnabled": false, // sen descubrimento global
+	"localAnnounceEnabled":  true,  // pares na mesma rede
+	"relaysEnabled":         false,
+	"natEnabled":            false,
+	"urAccepted":            -1, // sen informes de uso
+	"crashReportingEnabled": false,
+	"autoUpgradeIntervalH":  0, // a versión de Syncthing vai co cliente
 }
 
 // State é o que garda o cliente tras emparellar.
 type State struct {
+	// Do texto de vinculación: URL de pairsrv.
+	PairsrvURL     string    `json:"pairsrvURL,omitempty"`
 	User           string    `json:"user,omitempty"`
 	Token          string    `json:"token,omitempty"`
 	ServerDeviceID string    `json:"serverDeviceID,omitempty"`
@@ -59,16 +49,16 @@ type State struct {
 	Stopped        bool      `json:"stopped,omitempty"` // Syncthing detido polo usuario
 	// API key do Syncthing que arranca o daemon (xérase a primeira vez).
 	SyncthingAPIKey string `json:"syncthingAPIKey,omitempty"`
+	// Opcións de Syncthing recibidas de pairsrv ao vincular.
+	SyncthingOptions map[string]any `json:"syncthingOptions,omitempty"`
 }
 
-func (s *State) paired() bool { return s.Token != "" && s.ServerDeviceID != "" }
+func (s State) paired() bool { return s.Token != "" && s.ServerDeviceID != "" && s.PairsrvURL != "" }
 
 type App struct {
-	cfg         *Config
 	st          *stapi.Client
 	statePath   string
 	foldersBase string // onde se suxire crear as carpetas locais
-	http        *http.Client
 	now         func() time.Time
 
 	sup *Supervisor // nil se Syncthing é externo (non o arranca cld)
@@ -100,12 +90,12 @@ func (a *App) SyncthingAPIKey() (string, error) {
 // Stopped indica se o usuario detivo a sincronización.
 func (a *App) Stopped() bool { return a.snapshotState().Stopped }
 
-// ApplyOptions aplica cld.json → syncthingOptions.
+// ApplyOptions aplica as opcións de Syncthing: as seguras por defecto e,
+// por riba, as recibidas do servidor ao vincular.
 func (a *App) ApplyOptions(ctx context.Context) error {
-	if len(a.cfg.SyncthingOptions) == 0 {
-		return nil
-	}
-	return a.st.PatchOptions(ctx, a.cfg.SyncthingOptions)
+	opts := maps.Clone(DefaultSyncthingOptions)
+	maps.Copy(opts, a.snapshotState().SyncthingOptions)
+	return a.st.PatchOptions(ctx, opts)
 }
 
 // running comproba que Syncthing estea en marcha antes dunha acción.
@@ -141,9 +131,8 @@ func (a *App) Start(ctx context.Context) error {
 	return a.saveLocked()
 }
 
-func NewApp(cfg *Config, st *stapi.Client, statePath, foldersBase string) (*App, error) {
-	a := &App{cfg: cfg, st: st, statePath: statePath, foldersBase: foldersBase,
-		http: &http.Client{Timeout: 30 * time.Second}, now: time.Now}
+func NewApp(st *stapi.Client, statePath, foldersBase string) (*App, error) {
+	a := &App{st: st, statePath: statePath, foldersBase: foldersBase, now: time.Now}
 	b, err := os.ReadFile(statePath)
 	switch {
 	case errors.Is(err, os.ErrNotExist):
@@ -187,14 +176,24 @@ func userErr(format string, args ...any) error { return &UserError{fmt.Sprintf(f
 
 // --- pairsrv -----------------------------------------------------------------
 
+// pairsrvHTTP é o cliente HTTP para pairsrv. O certificado valídase coas
+// CA do sistema (pairsrv vai detrás dun proxy con HTTPS); só en
+// desenvolvemento (CLD_DEV=1) se permite http.
+var pairsrvHTTP = &http.Client{Timeout: 30 * time.Second}
+
+// pairsrv chama á API de pairsrv co servidor gardado ao vincular.
 func (a *App) pairsrv(ctx context.Context, method, path, token string, in, out any) error {
+	return callPairsrv(ctx, pairsrvHTTP, a.snapshotState().PairsrvURL, method, path, token, in, out)
+}
+
+func callPairsrv(ctx context.Context, hc *http.Client, base, method, path, token string, in, out any) error {
 	var body bytes.Buffer
 	if in != nil {
 		if err := json.NewEncoder(&body).Encode(in); err != nil {
 			return err
 		}
 	}
-	req, err := http.NewRequestWithContext(ctx, method, a.cfg.PairsrvURL+path, &body)
+	req, err := http.NewRequestWithContext(ctx, method, base+path, &body)
 	if err != nil {
 		return err
 	}
@@ -204,7 +203,7 @@ func (a *App) pairsrv(ctx context.Context, method, path, token string, in, out a
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
-	resp, err := a.http.Do(req)
+	resp, err := hc.Do(req)
 	if err != nil {
 		return userErr("Non se pode contactar co servidor: %v", err)
 	}
@@ -236,12 +235,69 @@ func upperFirst(s string) string {
 	return strings.ToUpper(string(r[:1])) + string(r[1:])
 }
 
-// Pair vincula este equipo coa conta do usuario: envía usuario, OTP e o
-// Device ID local a pairsrv e engade o servidor como introducer.
-func (a *App) Pair(ctx context.Context, user, otp, deviceName string) error {
-	user, otp, deviceName = strings.TrimSpace(user), strings.TrimSpace(otp), strings.TrimSpace(deviceName)
-	if user == "" || otp == "" || deviceName == "" {
-		return userErr("Enche o usuario, o código e o nome do equipo.")
+// LinkCheck é o resultado de comprobar un texto de vinculación pegado, para
+// pedirlle confirmación ao usuario antes de enviar o código.
+type LinkCheck struct {
+	Text     string // o texto tal cal, para o seguinte paso
+	Host     string
+	User     string
+	Relink   bool   // xa vinculado: actualízase a conexión co servidor
+	Insecure bool   // pairsrv por http (só en desenvolvemento)
+	ReachErr string // baleiro se o servidor responde
+}
+
+// checkRelink: estando vinculado, só se acepta un texto do mesmo servidor e
+// usuario (para actualizar o enderezo ou o certificado de pairsrv).
+func (a *App) checkRelink(d *pairing.LinkData) (bool, error) {
+	s := a.snapshotState()
+	if !s.paired() {
+		return false, nil
+	}
+	if d.Server != s.ServerDeviceID {
+		return true, userErr("Este texto de vinculación é doutro servidor. Este equipo xa está vinculado; para cambiar de servidor hai que reinstalar o cliente.")
+	}
+	if d.User != s.User {
+		return true, userErr("Este equipo está vinculado como «%s» e o texto de vinculación é de «%s».", s.User, d.User)
+	}
+	return true, nil
+}
+
+// CheckLink valida o texto de vinculación e comproba que o servidor responde.
+func (a *App) CheckLink(ctx context.Context, text string) (*LinkCheck, error) {
+	d, err := pairing.ParseLinkText(text)
+	if err != nil {
+		return nil, userErr("%s.", upperFirst(err.Error()))
+	}
+	relink, err := a.checkRelink(d)
+	if err != nil {
+		return nil, err
+	}
+	c := &LinkCheck{Text: d.Encode(), Host: d.Host(), User: d.User, Relink: relink,
+		Insecure: strings.HasPrefix(d.URL, "http:")}
+	hctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if err := callPairsrv(hctx, pairsrvHTTP, d.URL, http.MethodGet, "/healthz", "", nil, nil); err != nil {
+		c.ReachErr = err.Error()
+	}
+	return c, nil
+}
+
+// Pair vincula este equipo coa conta do usuario: co servidor e o usuario do
+// texto de vinculación, envía o código e o Device ID local a pairsrv e
+// engade o servidor como introducer. Se xa está vinculado, actualiza a
+// conexión co servidor (enderezo, certificado e token).
+func (a *App) Pair(ctx context.Context, linkText, otp, deviceName string) error {
+	otp, deviceName = strings.TrimSpace(otp), strings.TrimSpace(deviceName)
+	d, err := pairing.ParseLinkText(linkText)
+	if err != nil {
+		return userErr("%s.", upperFirst(err.Error()))
+	}
+	if otp == "" || deviceName == "" {
+		return userErr("Enche o código de vinculación e o nome do equipo.")
+	}
+	relink, err := a.checkRelink(d)
+	if err != nil {
+		return err
 	}
 	if err := a.running(); err != nil {
 		return err
@@ -251,27 +307,36 @@ func (a *App) Pair(ctx context.Context, user, otp, deviceName string) error {
 		return err
 	}
 	var resp pairing.PairResponse
-	if err := a.pairsrv(ctx, http.MethodPost, "/api/v1/pair", "", pairing.PairRequest{
-		User: user, OTP: otp, DeviceID: myID, DeviceName: deviceName,
-	}, &resp); err != nil {
+	err = callPairsrv(ctx, pairsrvHTTP, d.URL, http.MethodPost, "/api/v1/pair", "", pairing.PairRequest{
+		User: d.User, OTP: otp, DeviceID: myID, DeviceName: deviceName,
+	}, &resp)
+	if err != nil {
 		return err
 	}
-	if a.cfg.ServerDeviceID != "" && resp.ServerDeviceID != a.cfg.ServerDeviceID {
-		return fmt.Errorf("o servidor respondeu co Device ID %s e esperábase %s", resp.ServerDeviceID, a.cfg.ServerDeviceID)
+	if resp.ServerDeviceID != d.Server {
+		return fmt.Errorf("o servidor respondeu co Device ID %s e o texto de vinculación indica %s", resp.ServerDeviceID, d.Server)
 	}
-	if err := a.st.EnsureDevice(ctx, resp.ServerDeviceID, stapi.Obj{
-		"name":       "Servidor",
-		"addresses":  resp.ServerAddresses,
-		"introducer": true,
-		"paused":     false,
-	}); err != nil {
+	dev := stapi.Obj{"name": "Servidor", "addresses": resp.ServerAddresses, "introducer": true}
+	if !relink {
+		dev["paused"] = false // ao actualizar, respectar a pausa do usuario
+	}
+	if err := a.st.EnsureDevice(ctx, resp.ServerDeviceID, dev); err != nil {
 		return err
 	}
 	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.state.User, a.state.Token, a.state.DeviceName = user, resp.Token, deviceName
+	a.state.PairsrvURL = d.URL
+	a.state.User, a.state.Token, a.state.DeviceName = d.User, resp.Token, deviceName
 	a.state.ServerDeviceID = resp.ServerDeviceID
-	return a.saveLocked()
+	a.state.SyncthingOptions = resp.SyncthingOptions
+	err = a.saveLocked()
+	a.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	if err := a.ApplyOptions(ctx); err != nil {
+		log.Printf("aplicando opcións de syncthing do servidor: %v", err)
+	}
+	return nil
 }
 
 func (a *App) Devices(ctx context.Context) ([]pairing.DeviceInfo, error) {

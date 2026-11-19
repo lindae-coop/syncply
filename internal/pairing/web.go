@@ -6,6 +6,7 @@ import (
 	"embed"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"html/template"
 	"log"
 	"net/http"
@@ -25,12 +26,31 @@ type PasswordChecker interface {
 
 // WebOptions configura a web na que o usuario ve o seu código de vinculación.
 type WebOptions struct {
-	// Marca a cookie de sesión como Secure. Debe estar activado cando a web
-	// se serve por HTTPS (p. ex. detrás dun proxy inverso).
-	SecureCookies bool `json:"secureCookies"`
 	// Ligazóns de descarga do cliente.
 	Downloads []Download `json:"downloads"`
+	// URL base coa que os clientes chegan a pairsrv (a do proxy); vai no
+	// texto de vinculación. Obrigatoria; https agás en desenvolvemento.
+	PublicURL string `json:"publicURL"`
 }
+
+func (o *WebOptions) validate() error {
+	if o.PublicURL == "" {
+		return errors.New("web.publicURL: falta (p. ex. https://nube.example.org)")
+	}
+	if err := CheckPublicURL(o.PublicURL); err != nil {
+		return fmt.Errorf("web.publicURL %q: %w", o.PublicURL, err)
+	}
+	o.PublicURL = strings.TrimRight(o.PublicURL, "/")
+	return nil
+}
+
+// linkText xera o texto de vinculación do usuario.
+func (w *Web) linkText(user string) string {
+	return LinkData{URL: w.opts.PublicURL, User: user, Server: w.svc.ServerID()}.Encode()
+}
+
+// secureCookies: a web vai por HTTPS (detrás do proxy) agás en desenvolvemento.
+func secureCookies() bool { return !DevMode() }
 
 type Download struct {
 	Label string `json:"label"`
@@ -49,6 +69,9 @@ const (
 //go:embed templates/*.html
 var templatesFS embed.FS
 
+//go:embed static/copy.js
+var copyJS []byte
+
 var webTmpl = template.Must(template.New("").Funcs(template.FuncMap{
 	"date": func(t time.Time) string {
 		if t.IsZero() {
@@ -59,13 +82,15 @@ var webTmpl = template.Must(template.New("").Funcs(template.FuncMap{
 }).ParseFS(templatesFS, "templates/*.html"))
 
 // Web é a páxina do servidor na que o usuario, identificado co seu usuario e
-// contrasinal de SFTPGo, ve o código de vinculación (cambia cada 30 s), os
-// recursos que se lle ofrecen, os seus equipos e a descarga do cliente.
+// contrasinal de SFTPGo, ve o código de vinculación (cambia cada 30 s), o
+// texto de vinculación, os recursos que se lle ofrecen, os seus equipos e a
+// descarga do cliente.
 //
-// Seguridade: sesión en memoria con cookie HttpOnly e SameSite=Strict;
-// comprobación de Origin/Sec-Fetch-Site nos POST; CSP sen JavaScript;
-// Cache-Control: no-store (a páxina leva o código); bloqueo temporal tras
-// varios contrasinais incorrectos para o mesmo usuario.
+// Seguridade: sesión en memoria con cookie HttpOnly, SameSite=Strict e
+// Secure (agás en desenvolvemento); comprobación de Origin/Sec-Fetch-Site
+// nos POST; CSP que só permite o script propio do botón Copiar (a páxina
+// funciona sen el); Cache-Control: no-store (a páxina leva o código);
+// bloqueo temporal tras varios contrasinais incorrectos para o mesmo usuario.
 type Web struct {
 	svc  *Service
 	auth PasswordChecker
@@ -87,9 +112,12 @@ type loginFails struct {
 	lockedUntil time.Time
 }
 
-func NewWeb(svc *Service, auth PasswordChecker, opts WebOptions) *Web {
+func NewWeb(svc *Service, auth PasswordChecker, opts WebOptions) (*Web, error) {
+	if err := opts.validate(); err != nil {
+		return nil, err
+	}
 	return &Web{svc: svc, auth: auth, opts: opts, now: time.Now,
-		sessions: map[string]*session{}, fails: map[string]*loginFails{}}
+		sessions: map[string]*session{}, fails: map[string]*loginFails{}}, nil
 }
 
 func (w *Web) Handler() http.Handler {
@@ -97,13 +125,17 @@ func (w *Web) Handler() http.Handler {
 	mux.HandleFunc("GET /{$}", w.handleIndex)
 	mux.HandleFunc("POST /login", w.handleLogin)
 	mux.HandleFunc("POST /logout", w.handleLogout)
+	mux.HandleFunc("GET /static/copy.js", func(rw http.ResponseWriter, _ *http.Request) {
+		rw.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+		rw.Write(copyJS)
+	})
 	return w.guard(mux)
 }
 
 func (w *Web) guard(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		h := rw.Header()
-		h.Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
+		h.Set("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("X-Frame-Options", "DENY")
 		// Non "no-referrer": o navegador enviaría "Origin: null" nos POST.
@@ -142,6 +174,7 @@ type pageData struct {
 	CodeShare int // porcentaxe de tempo restante (0-100)
 	Account   *Account
 	Downloads []Download
+	LinkText  string // texto de vinculación para pegar no cliente
 }
 
 func (w *Web) handleIndex(rw http.ResponseWriter, r *http.Request) {
@@ -175,6 +208,7 @@ func (w *Web) handleIndex(rw http.ResponseWriter, r *http.Request) {
 		CodeShare: min(100, int(100*left/totp.Step)),
 		Account:   acc,
 		Downloads: w.opts.Downloads,
+		LinkText:  w.linkText(user),
 	})
 }
 
@@ -214,7 +248,7 @@ func (w *Web) handleLogin(rw http.ResponseWriter, r *http.Request) {
 	w.sessions[tok] = &session{user: user, expires: w.now().Add(sessionIdle)}
 	w.mu.Unlock()
 	http.SetCookie(rw, &http.Cookie{Name: sessionCookie, Value: tok, Path: "/",
-		HttpOnly: true, Secure: w.opts.SecureCookies, SameSite: http.SameSiteStrictMode})
+		HttpOnly: true, Secure: secureCookies(), SameSite: http.SameSiteStrictMode})
 	log.Printf("web: sesión iniciada por %q", user)
 	http.Redirect(rw, r, "/", http.StatusSeeOther)
 }
@@ -253,7 +287,7 @@ func (w *Web) dropSession(rw http.ResponseWriter, r *http.Request) {
 		w.mu.Unlock()
 	}
 	http.SetCookie(rw, &http.Cookie{Name: sessionCookie, Value: "", Path: "/", MaxAge: -1,
-		HttpOnly: true, Secure: w.opts.SecureCookies, SameSite: http.SameSiteStrictMode})
+		HttpOnly: true, Secure: secureCookies(), SameSite: http.SameSiteStrictMode})
 }
 
 func (w *Web) locked(user string) bool {

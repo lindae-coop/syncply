@@ -13,7 +13,7 @@ const maxBody = 16 << 10
 
 // Handler expón a API do servizo:
 //
-//	POST   /api/v1/pair           {user, otp, deviceID, deviceName} → {serverDeviceID, serverAddresses, token}
+//	POST   /api/v1/pair           {user, otp, deviceID, deviceName} → {serverDeviceID, serverAddresses, token, syncthingOptions}
 //	GET    /api/v1/devices        (Bearer token) → equipos do usuario
 //	DELETE /api/v1/devices/{id}   (Bearer token) {otp} → revoga un equipo
 func (s *Service) Handler() http.Handler {

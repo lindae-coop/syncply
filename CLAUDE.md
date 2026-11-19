@@ -106,10 +106,10 @@ O usuario entra na web do servidor co seu usuario e contrasinal e ve alí o cód
 
 ## Web de pairsrv: código de vinculación (verificado con `make demo`)
 
-- Na raíz de pairsrv o usuario entra co usuario e contrasinal de SFTPGo (comprobados coa API de SFTPGo) e ve o **código de vinculación** cun contador (barra CSS + recarga automática, sen JS), a descarga do cliente, os recursos ofrecidos e os seus equipos (N de máximo).
+- Na raíz de pairsrv o usuario entra co usuario e contrasinal de SFTPGo (comprobados coa API de SFTPGo) e ve o **código de vinculación** cun contador (barra CSS + recarga automática), o texto de vinculación, a descarga do cliente, os recursos ofrecidos e os seus equipos (N de máximo).
 - O código é un TOTP (SHA1, 6 díxitos, 30 s, ±1 paso) cun **segredo por usuario xerado por pairsrv** e gardado no seu estado; créase a primeira vez que se mostra. Se o código actual xa se usou, a web mostra o do seguinte paso (xa aceptado), así que sempre mostra un código válido.
 - O mesmo código serve para vincular e para revogar. Os usuarios xa non necesitan activar o 2FA de SFTPGo; se o teñen, a web pídeo para entrar.
-- En desenvolvemento: `make web` (`127.0.0.1:8090`); `make otp U=alice` entra na web co contrasinal de proba e devolve o mesmo código.
+- En desenvolvemento: `make web` (`127.0.0.1:8090`); `make otp U=alice` e `make blob U=alice` entran na web co contrasinal de proba e devolven o mesmo código e texto.
 
 ## Cliente `cld` (prototipo)
 
@@ -122,33 +122,18 @@ O usuario entra na web do servidor co seu usuario e contrasinal e ve alí o cód
 - **Non usar `Referrer-Policy: no-referrer`** coa comprobación de `Origin`: o navegador envía `Origin: null` nos POST á mesma orixe e rexéitanse os formularios propios. Usar `same-origin`.
 - Pendente:
   - Instaladores de Windows (tarefa de inicio, menú Inicio) e macOS (LaunchAgent, app). Paquete arm64 (descargar e verificar o binario de Syncthing das súas publicacións). Icona na bandexa (require CGO en Linux/macOS).
-  - Implementar o **cliente xenérico con datos de vinculación pegados** (ver sección seguinte). Substitúe a idea de xerar o `cld.json` de cada servidor ao descargar.
   - Cambiar a carpeta local dun recurso xa aceptado (hoxe: deixar de sincronizar e volver aceptar).
 
-## Decidido: cliente xenérico + datos de vinculación + OTP (pendente de implementar)
+## Cliente xenérico + texto de vinculación + OTP (implementado e verificado)
 
-Motivo: un instalador con configuración por servidor dentro rompe a sinatura Authenticode en Windows (cada operador tería que reconstruír e asinar). Descartados: ficheiro `cld.json` ao lado do `.exe` (pérdese se se executa desde o zip) e etiquetar o binario asinado (`certificate_tag` de Omaha), que xa non fai falta.
+Motivo: un instalador con configuración por servidor dentro rompe a sinatura Authenticode en Windows (cada operador tería que reconstruír e asinar). Descartados: ficheiro `cld.json` ao lado do `.exe` (pérdese se se executa desde o zip) e etiquetar o binario asinado (`certificate_tag` de Omaha).
 
-Fluxo:
-- Na web de pairsrv o usuario ve: instrucións, ligazón de descarga do **cliente, sempre o mesmo binario** para todos os servidores, un cadro co **texto de vinculación** (base64) cun botón **Copiar**, e o **OTP** co contador.
-- Na web local de `cld`, antes de vincular: **dúas casiñas**, unha para pegar o texto de vinculación e outra para o OTP.
-- O texto de vinculación **non leva segredos**; o OTP é o que impide que ese texto por si só sirva para emparellar outros clientes.
-
-Formato do texto: `cld1:` + base64url de JSON, curto e versionado:
-`{"v":1,"url":"https://…","user":"alice","server":"<Device ID de Syncthing do servidor>","tls":"<sha256 do certificado HTTPS, opcional>"}`
-- `server`: o cliente rexeita o emparellamento se pairsrv responde con outro Device ID (substitúe o `serverDeviceID` de `cld.json`).
-- `tls`: se está, o cliente fixa o certificado de pairsrv (permite autoasinados).
-- **`syncthingOptions` non van no texto**: pairsrv devólveas na resposta do emparellamento (e o cliente aplícaas en cada arranque, como agora).
-
-Requisitos da implementación:
-1. **Valores seguros por defecto compilados en `cld`** antes de vincular (sen descubrimento global, sen relays, sen informes de uso nin de erros, sen autoactualización): o cliente xa non ten configuración de servidor ao arrancar.
-2. **Confirmación** tras pegar: "Vas vincular con <host> como <usuario>" antes de enviar o OTP.
-3. **Validación** do texto pegado (prefixo `cld1:`, base64, JSON, campos) con erro claro; opcionalmente comprobar que o servidor responde.
-
-Cambios previstos:
-- pairsrv: xerar o texto na web; botón Copiar (require un script propio mínimo e axustar a CSP, hoxe sen JS; alternativa sen JS: `textarea` de só lectura); `PairResponse` engade `syncthingOptions` (configuración de pairsrv).
-- cld: desaparece `Config`/`cld.json` do instalador; `pairsrvURL`, `user`, `serverDeviceID` (e `tls`) gárdanse no estado tras vincular; web local coas dúas casiñas e a confirmación.
-- Empaquetado e contorno: `make dist` sen `CLD_CONFIG`; adaptar `install.sh`, `make demo`, `make installtest`, `dev/cld.json`; engadir `make blob U=alice` (como `make otp`). Actualizar README.
+- Formato (`internal/pairing/linktext.go`): `cld1:` + base64url de `{"v":1,"url","user","server"}`. Sen segredos; o OTP é o que autoriza.
+- pairsrv: a web mostra o texto (pasos: descarga, texto + Copiar, código); `web.publicURL` obrigatoria; `syncthingOptions` na configuración de pairsrv e na `PairResponse`. Botón Copiar: `/static/copy.js`, CSP `script-src 'self'`; sen JS, o `textarea` de só lectura.
+- cld: sen `Config`/`cld.json` nin `-config`. Valores seguros compilados (`client.DefaultSyncthingOptions`) aplicados sempre e, por riba, os de pairsrv gardados no estado. Web en dous pasos: pegar texto (`POST /pair/check`: validación + comprobación de `/healthz`) → confirmación «Vas vincular con <host> como <usuario>» + OTP + nome (`POST /pair`; se falla, volve á confirmación). Rexeita se pairsrv responde con outro Device ID. "Actualizar a conexión" en "Os meus equipos" (texto novo + OTP, só mesmo servidor e usuario) para cambios de enderezo.
+- **HTTPS (decidido): pairsrv vai detrás dun proxy; os clientes validan coas CA do sistema, sen fixar certificado** (o pin era sobreenxeñería e rompía coas renovacións do proxy). `web.publicURL` ten que ser `https://`; pairsrv non arranca e o cliente rexeita o texto se é `http://`, agás con **`CLD_DEV=1`** (modo de desenvolvemento: tamén cookies sen `Secure`). En compose está en todos os contedores; en `make installtest`, como drop-in do servizo de usuario.
+- Verificado: `make test`, `make demo` e `make installtest` (vincula co texto de `make blob U=alice` + `make otp`).
+- Instalacións anteriores: aparecen sen vincular (o estado non ten `pairsrvURL`); volver vincular renova o token. `install.sh` borra o `cld.json` vello.
 
 Para máis adiante (non agora): identificador aleatorio que caduque dentro do texto (evitaría que quen coñeza o usuario poida bloquear o seu emparellamento con OTP falsos, risco que xa existe hoxe); ligazón `cld://…` desde a web que encha a primeira casiña.
 

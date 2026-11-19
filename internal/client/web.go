@@ -86,10 +86,8 @@ func (w *Web) Handler() http.Handler {
 	mux.HandleFunc("GET /login", w.handleLogin)
 	mux.HandleFunc("GET /{$}", w.page(w.handleIndex))
 	mux.HandleFunc("GET /devices", w.page(w.handleDevices))
-	mux.HandleFunc("POST /pair", w.action(func(r *http.Request) (string, error) {
-		return "Equipo vinculado. Escolle que recursos queres sincronizar.",
-			w.app.Pair(r.Context(), r.FormValue("user"), r.FormValue("otp"), r.FormValue("device"))
-	}))
+	mux.HandleFunc("POST /pair/check", w.form(w.handleCheckLink))
+	mux.HandleFunc("POST /pair", w.form(w.handlePair))
 	mux.HandleFunc("POST /accept", w.action(func(r *http.Request) (string, error) {
 		return "Recurso engadido.", w.app.Accept(r.Context(), r.FormValue("id"), r.FormValue("path"))
 	}))
@@ -200,8 +198,10 @@ func (w *Web) authed(r *http.Request) bool {
 type pageData struct {
 	Flash, Error string
 	*Overview
-	Devices   any
-	DeviceErr string
+	Confirm    *LinkCheck // vinculación: texto comprobado, falta confirmar e o código
+	Devices    any
+	DeviceErr  string
+	ServerHost string
 }
 
 func (w *Web) page(h func(*http.Request, *pageData) (string, error)) http.HandlerFunc {
@@ -249,6 +249,76 @@ func (w *Web) action(h func(*http.Request) (string, error)) http.HandlerFunc {
 	}
 }
 
+// form envolve os POST que responden cunha páxina (non cunha redirección).
+func (w *Web) form(h func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
+	return func(rw http.ResponseWriter, r *http.Request) {
+		if !w.authed(r) {
+			w.render(rw, http.StatusUnauthorized, "noaccess.html", nil)
+			return
+		}
+		r.Body = http.MaxBytesReader(rw, r.Body, 16<<10)
+		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+		defer cancel()
+		h(rw, r.WithContext(ctx))
+	}
+}
+
+func redirectMsg(rw http.ResponseWriter, r *http.Request, key, msg string) {
+	http.Redirect(rw, r, "/?"+url.Values{key: {msg}}.Encode(), http.StatusSeeOther)
+}
+
+func errMsg(path string, err error) string {
+	var ue *UserError
+	if errors.As(err, &ue) {
+		return ue.Msg
+	}
+	log.Printf("web %s: %v", path, err)
+	return "Produciuse un erro: " + err.Error()
+}
+
+// Paso 1 da vinculación: o usuario pegou o texto de vinculación. Se é
+// válido, pídeselle confirmación (servidor e usuario) e o código.
+func (w *Web) handleCheckLink(rw http.ResponseWriter, r *http.Request) {
+	c, err := w.app.CheckLink(r.Context(), r.FormValue("linktext"))
+	if err != nil {
+		redirectMsg(rw, r, "err", errMsg(r.URL.Path, err))
+		return
+	}
+	w.renderConfirm(rw, r, c, "")
+}
+
+// Paso 2: confirmado o servidor, vincular co código. Se falla (p. ex. código
+// incorrecto), vólvese á confirmación sen ter que pegar de novo o texto.
+func (w *Web) handlePair(rw http.ResponseWriter, r *http.Request) {
+	text := r.FormValue("linktext")
+	relink := w.app.snapshotState().paired()
+	err := w.app.Pair(r.Context(), text, r.FormValue("otp"), r.FormValue("device"))
+	switch {
+	case err == nil && relink:
+		http.Redirect(rw, r, "/devices?"+url.Values{"ok": {"Conexión co servidor actualizada."}}.Encode(), http.StatusSeeOther)
+		return
+	case err == nil:
+		redirectMsg(rw, r, "ok", "Equipo vinculado. Escolle que recursos queres sincronizar.")
+		return
+	}
+	msg := errMsg(r.URL.Path, err)
+	c, cerr := w.app.CheckLink(r.Context(), text)
+	if cerr != nil {
+		redirectMsg(rw, r, "err", msg)
+		return
+	}
+	w.renderConfirm(rw, r, c, msg)
+}
+
+func (w *Web) renderConfirm(rw http.ResponseWriter, r *http.Request, c *LinkCheck, errMsg string) {
+	ov, err := w.app.Overview(r.Context())
+	if err != nil || ov.Stopped || ov.Starting {
+		http.Redirect(rw, r, "/", http.StatusSeeOther)
+		return
+	}
+	w.render(rw, http.StatusOK, "index.html", &pageData{Overview: ov, Confirm: c, Error: errMsg})
+}
+
 func (w *Web) handleIndex(r *http.Request, d *pageData) (string, error) {
 	ov, err := w.app.Overview(r.Context())
 	if ov == nil {
@@ -259,19 +329,30 @@ func (w *Web) handleIndex(r *http.Request, d *pageData) (string, error) {
 }
 
 func (w *Web) handleDevices(r *http.Request, d *pageData) (string, error) {
-	ov, err := w.app.Overview(r.Context())
-	if err != nil {
-		return "devices.html", err
-	}
-	d.Overview = ov
-	if ov.Paired {
+	if w.app.snapshotState().paired() {
 		devs, err := w.app.Devices(r.Context())
 		if err != nil {
 			d.DeviceErr = err.Error()
 		}
 		d.Devices = devs
 	}
+	ov, err := w.app.Overview(r.Context())
+	if err != nil {
+		return "devices.html", err
+	}
+	d.Overview = ov
+	if ov.Paired {
+		d.ServerHost = hostport(w.app.snapshotState().PairsrvURL)
+	}
 	return "devices.html", nil
+}
+
+func hostport(u string) string {
+	p, err := url.Parse(u)
+	if err != nil {
+		return u
+	}
+	return p.Host
 }
 
 func (w *Web) render(rw http.ResponseWriter, code int, name string, data any) {

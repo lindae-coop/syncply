@@ -14,18 +14,36 @@
 <section>
   <div class="muted"><span class="dot warn"></span>Iniciando a sincronización… <a href="/">Actualizar</a></div>
 </section>
+{{else if .Confirm}}
+<section>
+  <h2>{{if .Confirm.Relink}}Actualizar a conexión co servidor{{else}}Vincular este equipo{{end}}</h2>
+  {{if .Confirm.Relink}}
+  <p>Vas actualizar a conexión deste equipo co servidor <strong>{{.Confirm.Host}}</strong> como o usuario <strong>{{.Confirm.User}}</strong>. Os recursos e as carpetas non cambian.</p>
+  {{else}}
+  <p>Vas vincular este equipo co servidor <strong>{{.Confirm.Host}}</strong> como o usuario <strong>{{.Confirm.User}}</strong>.</p>
+  {{end}}
+  {{if .Confirm.ReachErr}}<p class="warn">Agora mesmo non se pode contactar co servidor: {{.Confirm.ReachErr}}. Comproba a conexión; podes tentalo igualmente.</p>{{end}}
+  {{if .Confirm.Insecure}}<p class="warn">Modo de desenvolvemento: a conexión con este servidor non vai cifrada (http).</p>{{end}}
+  <p class="muted">Se non é o teu servidor ou o teu usuario, cancela e copia de novo o texto desde a páxina do servidor.</p>
+  <form method="post" action="/pair">
+    <input type="hidden" name="linktext" value="{{.Confirm.Text}}">
+    <label for="otp">Código de vinculación</label>
+    <input type="text" id="otp" name="otp" class="otp" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required autofocus>
+    <p class="muted">Os 6 díxitos que amosa a páxina do servidor xunto ao texto de vinculación. Cambian cada 30 segundos.</p>
+    <label for="device">Nome deste equipo</label>
+    <input type="text" id="device" name="device" value="{{or .Overview.DeviceName .Overview.Hostname}}" maxlength="64" required>
+    <p class="row"><button class="primary">{{if .Confirm.Relink}}Actualizar{{else}}Vincular{{end}}</button> <a href="{{if .Confirm.Relink}}/devices{{else}}/{{end}}">Cancelar</a></p>
+  </form>
+</section>
 {{else if not .Overview.Paired}}
 <section>
   <h2>Vincular este equipo</h2>
-  <p class="muted">Introduce o teu usuario e o código de vinculación de 6 díxitos. Atópalo na páxina do servidor onde descargaches este programa, despois de entrar co teu usuario e contrasinal.</p>
-  <form method="post" action="/pair">
-    <label for="user">Usuario</label>
-    <input type="text" id="user" name="user" autocomplete="username" required autofocus>
-    <label for="otp">Código de vinculación</label>
-    <input type="text" id="otp" name="otp" class="otp" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required>
-    <label for="device">Nome deste equipo</label>
-    <input type="text" id="device" name="device" value="{{.Overview.Hostname}}" maxlength="64" required>
-    <p><button class="primary">Vincular</button></p>
+  <p class="muted">Entra na páxina do servidor onde descargaches este programa co teu usuario e contrasinal. Alí atoparás o <strong>texto de vinculación</strong> (empeza por «cld1:») e o <strong>código de vinculación</strong>.</p>
+  <form method="post" action="/pair/check">
+    <label for="linktext">1. Pega aquí o texto de vinculación</label>
+    <textarea id="linktext" name="linktext" class="linktext" rows="3" spellcheck="false" autocomplete="off" placeholder="cld1:…" required autofocus></textarea>
+    <p class="muted">2. No seguinte paso confirmarás o servidor e introducirás o código de vinculación.</p>
+    <p><button class="primary">Continuar</button></p>
   </form>
 </section>
 {{else}}
