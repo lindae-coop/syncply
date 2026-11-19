@@ -122,8 +122,37 @@ O usuario entra na web do servidor co seu usuario e contrasinal e ve alí o cód
 - **Non usar `Referrer-Policy: no-referrer`** coa comprobación de `Origin`: o navegador envía `Origin: null` nos POST á mesma orixe e rexéitanse os formularios propios. Usar `same-origin`.
 - Pendente:
   - Instaladores de Windows (tarefa de inicio, menú Inicio) e macOS (LaunchAgent, app). Paquete arm64 (descargar e verificar o binario de Syncthing das súas publicacións). Icona na bandexa (require CGO en Linux/macOS).
-  - Xerar o `cld.json` de cada servidor ao descargar (hoxe pairsrv só serve os paquetes de `make dist` en `/descargas/`).
+  - Implementar o **cliente xenérico con datos de vinculación pegados** (ver sección seguinte). Substitúe a idea de xerar o `cld.json` de cada servidor ao descargar.
   - Cambiar a carpeta local dun recurso xa aceptado (hoxe: deixar de sincronizar e volver aceptar).
+
+## Decidido: cliente xenérico + datos de vinculación + OTP (pendente de implementar)
+
+Motivo: un instalador con configuración por servidor dentro rompe a sinatura Authenticode en Windows (cada operador tería que reconstruír e asinar). Descartados: ficheiro `cld.json` ao lado do `.exe` (pérdese se se executa desde o zip) e etiquetar o binario asinado (`certificate_tag` de Omaha), que xa non fai falta.
+
+Fluxo:
+- Na web de pairsrv o usuario ve: instrucións, ligazón de descarga do **cliente, sempre o mesmo binario** para todos os servidores, un cadro co **texto de vinculación** (base64) cun botón **Copiar**, e o **OTP** co contador.
+- Na web local de `cld`, antes de vincular: **dúas casiñas**, unha para pegar o texto de vinculación e outra para o OTP.
+- O texto de vinculación **non leva segredos**; o OTP é o que impide que ese texto por si só sirva para emparellar outros clientes.
+
+Formato do texto: `cld1:` + base64url de JSON, curto e versionado:
+`{"v":1,"url":"https://…","user":"alice","server":"<Device ID de Syncthing do servidor>","tls":"<sha256 do certificado HTTPS, opcional>"}`
+- `server`: o cliente rexeita o emparellamento se pairsrv responde con outro Device ID (substitúe o `serverDeviceID` de `cld.json`).
+- `tls`: se está, o cliente fixa o certificado de pairsrv (permite autoasinados).
+- **`syncthingOptions` non van no texto**: pairsrv devólveas na resposta do emparellamento (e o cliente aplícaas en cada arranque, como agora).
+
+Requisitos da implementación:
+1. **Valores seguros por defecto compilados en `cld`** antes de vincular (sen descubrimento global, sen relays, sen informes de uso nin de erros, sen autoactualización): o cliente xa non ten configuración de servidor ao arrancar.
+2. **Confirmación** tras pegar: "Vas vincular con <host> como <usuario>" antes de enviar o OTP.
+3. **Validación** do texto pegado (prefixo `cld1:`, base64, JSON, campos) con erro claro; opcionalmente comprobar que o servidor responde.
+
+Cambios previstos:
+- pairsrv: xerar o texto na web; botón Copiar (require un script propio mínimo e axustar a CSP, hoxe sen JS; alternativa sen JS: `textarea` de só lectura); `PairResponse` engade `syncthingOptions` (configuración de pairsrv).
+- cld: desaparece `Config`/`cld.json` do instalador; `pairsrvURL`, `user`, `serverDeviceID` (e `tls`) gárdanse no estado tras vincular; web local coas dúas casiñas e a confirmación.
+- Empaquetado e contorno: `make dist` sen `CLD_CONFIG`; adaptar `install.sh`, `make demo`, `make installtest`, `dev/cld.json`; engadir `make blob U=alice` (como `make otp`). Actualizar README.
+
+Para máis adiante (non agora): identificador aleatorio que caduque dentro do texto (evitaría que quen coñeza o usuario poida bloquear o seu emparellamento con OTP falsos, risco que xa existe hoxe); ligazón `cld://…` desde a web que encha a primeira casiña.
+
+Windows (avaliado, sen probar): `cld.exe` autoinstalable (`cld install`, Syncthing embebido con `go:embed`, `GOOS=windows` sen CGO) asinado con `osslsigncode` desde Linux; alternativas NSIS (`makensis`) ou MSI con `wixl`. Arranque sen admin con `HKCU\…\Run` ou acceso directo no cartafol de Inicio (unha tarefa programada ao iniciar sesión adoita pedir elevación). MSIX descartado. Certificado de asinamento: decisión do usuario.
 
 ## Para o futuro: cambios en SFTPGo ao integrar (pedidos polo usuario)
 
