@@ -5,16 +5,21 @@
 //	cld open      abre a web no navegador xa autenticada (o que executa o
 //	              acceso directo)
 //	cld shortcut  crea o acceso directo no menú de aplicacións (Linux)
+//	cld install   instálase para o usuario (Windows; sen argumentos, o dobre
+//	              clic instala ou, se xa está instalado, abre a web)
+//	cld uninstall desinstala (Windows)
 package main
 
 import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -35,11 +40,18 @@ import (
 var version = "dev"
 
 func main() {
-	if len(os.Args) < 2 {
-		usage()
-	}
 	var err error
-	switch os.Args[1] {
+	cmd := ""
+	if len(os.Args) > 1 {
+		cmd = os.Args[1]
+	}
+	switch cmd {
+	case "":
+		err = defaultAction()
+	case "install":
+		err = install(os.Args[2:])
+	case "uninstall":
+		err = uninstall(os.Args[2:])
 	case "daemon":
 		err = daemon(os.Args[2:])
 	case "open":
@@ -51,24 +63,30 @@ func main() {
 	default:
 		usage()
 	}
+	if errors.Is(err, errAlreadyRunning) {
+		fmt.Fprintln(os.Stderr, "cld:", err)
+		os.Exit(0)
+	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "cld:", err)
+		reportError(err)
 		os.Exit(1)
 	}
 }
 
+var errAlreadyRunning = errors.New("o servizo xa está en marcha")
+
+func hashString(s string) string {
+	h := sha256.Sum256([]byte(s))
+	return fmt.Sprintf("%x", h[:8])
+}
+
 func usage() {
-	fmt.Fprintln(os.Stderr, "uso: cld daemon|open|shortcut|version [opcións]  (-h para axuda)")
+	fmt.Fprintln(os.Stderr, "uso: cld daemon|open|shortcut|install|uninstall|version [opcións]  (-h para axuda)")
 	os.Exit(2)
 }
 
-func defaultDir() string {
-	d, err := os.UserConfigDir()
-	if err != nil {
-		d = "."
-	}
-	return filepath.Join(d, "cld")
-}
+func defaultDir() string { return defaultStateDir() }
 
 // uiInfo é o que o daemon deixa para `cld open`: só lexible polo usuario.
 type uiInfo struct {
@@ -89,6 +107,7 @@ func daemon(args []string) error {
 	stHome := fs.String("st-home", "", "directorio de Syncthing (por defecto <dir>/syncthing)")
 	stGUI := fs.String("st-gui", "", "enderezo da API de Syncthing (por defecto, socket Unix en <st-home>; en Windows, porto libre en 127.0.0.1)")
 	foldersBase := fs.String("folders-base", "", "onde se suxire crear as carpetas (por defecto ~/cld)")
+	logFile := fs.String("log", "", "ficheiro de rexistro (por defecto stderr; en Windows <dir>\\cld.log)")
 	fs.Parse(args)
 
 	if *foldersBase == "" {
@@ -97,6 +116,24 @@ func daemon(args []string) error {
 	}
 	if err := os.MkdirAll(*dir, 0o700); err != nil {
 		return err
+	}
+	release, err := singleInstance(*dir)
+	if err != nil {
+		return err
+	}
+	defer release()
+	if *logFile == "" {
+		*logFile = defaultLogFile(*dir)
+	}
+	var logOut io.Writer = os.Stderr
+	if *logFile != "" {
+		f, err := openLog(*logFile)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		logOut = f
+		log.SetOutput(f)
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -117,7 +154,7 @@ func daemon(args []string) error {
 			return err
 		}
 	} else {
-		supDone, err = superviseSyncthing(ctx, app, *dir, *stBin, *stHome, *stGUI)
+		supDone, err = superviseSyncthing(ctx, app, *dir, *stBin, *stHome, *stGUI, logOut)
 		if err != nil {
 			return err
 		}
@@ -134,6 +171,10 @@ func daemon(args []string) error {
 	web, err := client.NewWeb(app, info.URL, info.ControlKey)
 	if err != nil {
 		return err
+	}
+	web.OnShutdown = func() {
+		log.Printf("cld: peche pedido polo canal de control")
+		stop()
 	}
 	b, _ := json.Marshal(info)
 	if err := os.WriteFile(uiPath(*dir), b, 0o600); err != nil {
@@ -174,7 +215,7 @@ func daemon(args []string) error {
 }
 
 // superviseSyncthing prepara e lanza o Syncthing propio do cliente.
-func superviseSyncthing(ctx context.Context, app *client.App, dir, bin, home, gui string) (chan struct{}, error) {
+func superviseSyncthing(ctx context.Context, app *client.App, dir, bin, home, gui string, logOut io.Writer) (chan struct{}, error) {
 	if bin == "" {
 		var err error
 		if bin, err = findSyncthing(); err != nil {
@@ -220,7 +261,7 @@ func superviseSyncthing(ctx context.Context, app *client.App, dir, bin, home, gu
 	app.SetSyncthingClient(st)
 
 	sup := &client.Supervisor{
-		Bin: bin, Home: home, GUIAddress: gui, APIKey: key,
+		Bin: bin, Home: home, GUIAddress: gui, APIKey: key, Log: logOut,
 		Shutdown: st.Shutdown,
 		OnStart: func(ctx context.Context) {
 			wctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
@@ -290,8 +331,38 @@ func open(args []string) error {
 	dir := fs.String("dir", defaultDir(), "directorio de estado do cliente")
 	print := fs.Bool("print", false, "só amosar a URL, sen abrir o navegador")
 	fs.Parse(args)
+	if err := ensureDaemon(*dir); err != nil {
+		return err
+	}
+	return openUI(*dir, *print)
+}
 
-	b, err := os.ReadFile(uiPath(*dir))
+func openUI(dir string, print bool) error {
+	u, err := loginURL(dir)
+	if err != nil {
+		return err
+	}
+	if print {
+		fmt.Println(u)
+		return nil
+	}
+	return openBrowser(u)
+}
+
+func loginURL(dir string) (string, error) {
+	var out struct {
+		URL string `json:"url"`
+	}
+	if err := controlCall(dir, "login-url", &out); err != nil {
+		return "", err
+	}
+	return out.URL, nil
+}
+
+// controlCall fala co daemon pola súa canle de control (porto e clave en
+// ui.json, só lexible polo usuario).
+func controlCall(dir, action string, out any) error {
+	b, err := os.ReadFile(uiPath(dir))
 	if err != nil {
 		return fmt.Errorf("o servizo cld non está en marcha (%w)", err)
 	}
@@ -299,7 +370,7 @@ func open(args []string) error {
 	if err := json.Unmarshal(b, &info); err != nil {
 		return err
 	}
-	req, err := http.NewRequest(http.MethodPost, info.ControlURL+"/_control/login-url", bytes.NewReader(nil))
+	req, err := http.NewRequest(http.MethodPost, info.ControlURL+"/_control/"+action, bytes.NewReader(nil))
 	if err != nil {
 		return err
 	}
@@ -309,20 +380,22 @@ func open(args []string) error {
 		return fmt.Errorf("o servizo cld non responde: %w", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode/100 != 2 {
 		return fmt.Errorf("o servizo cld respondeu %s", resp.Status)
 	}
-	var out struct {
-		URL string `json:"url"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return err
-	}
-	if *print {
-		fmt.Println(out.URL)
+	if out == nil {
 		return nil
 	}
-	return openBrowser(out.URL)
+	return json.NewDecoder(resp.Body).Decode(out)
+}
+
+// openLog abre o rexistro do daemon; se pasa de 5 MB, gárdao como .1 e
+// empeza outro.
+func openLog(path string) (*os.File, error) {
+	if fi, err := os.Stat(path); err == nil && fi.Size() > 5<<20 {
+		os.Rename(path, path+".1")
+	}
+	return os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 }
 
 func openBrowser(u string) error {

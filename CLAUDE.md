@@ -121,7 +121,7 @@ O usuario entra na web do servidor co seu usuario e contrasinal e ve alí o cód
 - **Instalador de Linux** (`make dist`, `packaging/linux/install.sh`): por usuario sen root, servizo de systemd de usuario (ou autostart XDG), acceso directo. Verificado con `make installtest` en Debian 13 con systemd: instalar, vincular desde a web, recibir ficheiros, arranque tras reiniciar, desinstalar; e a man o camiño sen systemd. Syncthing 2.1.7 ten `syncthing device-id --home=…` para ver o Device ID sen arrancalo.
 - **Non usar `Referrer-Policy: no-referrer`** coa comprobación de `Origin`: o navegador envía `Origin: null` nos POST á mesma orixe e rexéitanse os formularios propios. Usar `same-origin`.
 - Pendente:
-  - Instaladores de Windows (tarefa de inicio, menú Inicio) e macOS (LaunchAgent, app). Paquete arm64 (descargar e verificar o binario de Syncthing das súas publicacións). Icona na bandexa (require CGO en Linux/macOS).
+  - **Instalador de Windows: implementado, sen probar en Windows** (`make dist-windows` → `cld.exe` autoinstalable con Syncthing embebido; `HKCU\…\Run`, menú Inicio, «Aplicacións instaladas», sen admin; ver README). Falta probalo, asinalo, icona. Instalador de macOS (LaunchAgent, app). Paquete arm64 (descargar e verificar o binario de Syncthing das súas publicacións). Icona na bandexa (require CGO en Linux/macOS).
   - Cambiar a carpeta local dun recurso xa aceptado (hoxe: deixar de sincronizar e volver aceptar).
 
 ## Cliente xenérico + texto de vinculación + OTP (implementado e verificado)
@@ -137,7 +137,7 @@ Motivo: un instalador con configuración por servidor dentro rompe a sinatura Au
 
 Para máis adiante (non agora): identificador aleatorio que caduque dentro do texto (evitaría que quen coñeza o usuario poida bloquear o seu emparellamento con OTP falsos, risco que xa existe hoxe); ligazón `cld://…` desde a web que encha a primeira casiña.
 
-Windows (avaliado, sen probar): `cld.exe` autoinstalable (`cld install`, Syncthing embebido con `go:embed`, `GOOS=windows` sen CGO) asinado con `osslsigncode` desde Linux; alternativas NSIS (`makensis`) ou MSI con `wixl`. Arranque sen admin con `HKCU\…\Run` ou acceso directo no cartafol de Inicio (unha tarefa programada ao iniciar sesión adoita pedir elevación). MSIX descartado. Certificado de asinamento: decisión do usuario.
+Windows (implementado o `cld.exe` autoinstalable, sen probar): `cld.exe` autoinstalable (`cld install`, Syncthing embebido con `go:embed`, `GOOS=windows` sen CGO) asinado con `osslsigncode` desde Linux; alternativas NSIS (`makensis`) ou MSI con `wixl`. Arranque sen admin con `HKCU\…\Run` ou acceso directo no cartafol de Inicio (unha tarefa programada ao iniciar sesión adoita pedir elevación). MSIX descartado. Certificado de asinamento: decisión do usuario.
 
 ## Para o futuro: cambios en SFTPGo ao integrar (pedidos polo usuario)
 

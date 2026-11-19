@@ -177,6 +177,7 @@ func (s *Supervisor) runOnce(ctx context.Context) (int, error) {
 		out = os.Stderr
 	}
 	cmd.Stdout, cmd.Stderr = out, out
+	hideWindow(cmd)
 	if err := cmd.Start(); err != nil {
 		return -1, fmt.Errorf("arrancando %s: %w", s.Bin, err)
 	}

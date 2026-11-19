@@ -15,6 +15,7 @@ make web          # abre a web de pairsrv (código de vinculación e descarga)
 make otp U=alice  # código de vinculación actual dun usuario de proba
 make blob U=alice # texto de vinculación dun usuario de proba
 make dist         # paquete de Linux co instalador
+make dist-windows # instalador de Windows (cld.exe autoinstalable)
 make installtest  # proba o paquete nun Debian con systemd
 make status   # estado de dispositivos, carpetas e conexións
 make help     # resto de ordes
@@ -185,8 +186,8 @@ Un só binario ([cmd/cld](cmd/cld/main.go), [internal/client](internal/client)):
   acceso dun só uso (60 s) e ábrea no navegador. O usuario non ten que saber
   porto, enderezo nin contrasinal.
 - `cld shortcut`: crea o acceso directo `cld` no menú de aplicacións (Linux,
-  `~/.local/share/applications/cld.desktop`). En Windows e macOS farao o
-  instalador.
+  `~/.local/share/applications/cld.desktop`). En Windows faino `cld
+  install` (ver [Instalador de Windows](#instalador-de-windows)).
 
 Seguridade da web: só loopback; URL de acceso dun só uso → cookie de sesión
 `HttpOnly`, `SameSite=Strict`; comprobación de `Host` (DNS rebinding) e de
@@ -238,6 +239,43 @@ servizo activo, vincular como alice desde a web (texto de vinculación,
 confirmación e código), recibir ficheiros de
 `/comun`, reiniciar o equipo, revogar o equipo e desinstalar. Require o
 contorno en marcha con SFTPGo preparado (`make demo` ou `make fresh`).
+
+## Instalador de Windows
+
+`make dist-windows` xera `dist/cld-windows-amd64.exe`: un só ficheiro,
+**autoinstalable**, co `syncthing.exe` 2.1.7 oficial dentro (comprimido con
+`go:embed`, etiqueta `embedsyncthing`) e as licenzas. O zip de Syncthing
+descárgase das publicacións de GitHub e verifícase co SHA-256 fixado no
+[Makefile](Makefile) (o publicado en `sha256sum.txt.asc`; a sinatura GPG non
+se comproba). Compílase con `-H windowsgui` (sen xanela de consola); desde
+unha consola, `cld` engánchase a ela para mostrar a saída.
+
+Dobre clic no `.exe` descargado = `cld install`. **Só para o usuario, sen
+administrador** ([install_windows.go](cmd/cld/install_windows.go)):
+
+- binarios en `%LOCALAPPDATA%\Programs\cld`, estado en `%LOCALAPPDATA%\cld`
+  (non en `Roaming`: a identidade do equipo non debe viaxar co perfil),
+  rexistro do daemon e de Syncthing en `%LOCALAPPDATA%\cld\cld.log`;
+- arranque ao iniciar sesión con `HKCU\…\Run`; acceso directo `cld` no menú
+  Inicio (`cld open`, creado con PowerShell/`WScript.Shell`); entrada en
+  «Aplicacións instaladas» (`HKCU\…\Uninstall\cld`) que executa `cld
+  uninstall`;
+- arranca o daemon e abre a web para vincular. Se xa había un daemon,
+  pídelle que se peche (`POST /_control/shutdown` coa clave de `ui.json`) e
+  agarda antes de substituír os binarios: serve tamén para actualizar;
+- o daemon é **único por estado** (mutex con nome); `Syncthing` arráncase sen
+  xanela (`CREATE_NO_WINDOW`), coa API en loopback (porto libre + API key);
+- o acceso directo volve arrancar o daemon se non está en marcha; os erros
+  sen consola móstranse nunha caixa de diálogo;
+- `cld uninstall` (pregunta; `-quiet` non) quita todo isto e conserva o
+  estado e as carpetas. O `cld.exe` en execución bórrao un `cmd` ao rematar.
+
+Pendente: **probalo nun Windows real** (só se comprobou que compila e pasa
+`go vet` con `GOOS=windows`); asinar o `.exe` (sen sinatura, SmartScreen
+avisa); icona e metadatos (recurso `.syso`); arm64. Ao primeiro arranque, o
+Firewall de Windows pregunta por `syncthing.exe` e permitilo require
+administrador: se se cancela, as conexións saíntes funcionan pero non as
+entrantes nin o descubrimento local.
 
 ## Pasos solos
 

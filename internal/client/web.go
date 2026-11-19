@@ -31,7 +31,7 @@ const (
 	loginTTL    = 60 * time.Second
 	sessionTTL  = 12 * time.Hour
 	cookieName  = "cld_session"
-	controlPath = "/_control/login-url"
+	controlPath = "/_control/"
 	controlHdr  = "X-CLD-Control"
 )
 
@@ -47,6 +47,9 @@ type Web struct {
 	app        *App
 	public     *url.URL // URL coa que o navegador accede (http://127.0.0.1:porto)
 	controlKey string
+	// OnShutdown, se se indica, atende a orde de control "shutdown" (o
+	// instalador de Windows pecha así o daemon: alí non hai sinais).
+	OnShutdown func()
 	now        func() time.Time
 
 	mu       sync.Mutex
@@ -82,7 +85,7 @@ func (w *Web) LoginURL() string {
 
 func (w *Web) Handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST "+controlPath, w.handleControl)
+	mux.HandleFunc("POST "+controlPath+"{action}", w.handleControl)
 	mux.HandleFunc("GET /login", w.handleLogin)
 	mux.HandleFunc("GET /{$}", w.page(w.handleIndex))
 	mux.HandleFunc("GET /devices", w.page(w.handleDevices))
@@ -129,11 +132,12 @@ func (w *Web) guard(next http.Handler) http.Handler {
 		h.Set("Cache-Control", "no-store")
 		// A ruta de control vai protexida pola clave (só a coñece quen le
 		// ui.json) e chámase pola URL local, non pola pública.
-		if r.Host != w.public.Host && r.URL.Path != controlPath {
+		isControl := strings.HasPrefix(r.URL.Path, controlPath)
+		if r.Host != w.public.Host && !isControl {
 			http.Error(rw, "host non permitido", http.StatusMisdirectedRequest)
 			return
 		}
-		if r.Method == http.MethodPost && r.URL.Path != controlPath {
+		if r.Method == http.MethodPost && !isControl {
 			o, s := r.Header.Get("Origin"), r.Header.Get("Sec-Fetch-Site")
 			if (o != "" && o != w.public.Scheme+"://"+w.public.Host) || (s != "" && s != "same-origin") {
 				log.Printf("web: POST %s rexeitado: Origin=%q Sec-Fetch-Site=%q (esperado %s)", r.URL.Path, o, s, w.public.Scheme+"://"+w.public.Host)
@@ -150,8 +154,20 @@ func (w *Web) handleControl(rw http.ResponseWriter, r *http.Request) {
 		http.Error(rw, "non autorizado", http.StatusUnauthorized)
 		return
 	}
-	rw.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(rw).Encode(map[string]string{"url": w.LoginURL()})
+	switch r.PathValue("action") {
+	case "login-url":
+		rw.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(rw).Encode(map[string]string{"url": w.LoginURL()})
+	case "shutdown":
+		if w.OnShutdown == nil {
+			http.NotFound(rw, r)
+			return
+		}
+		rw.WriteHeader(http.StatusAccepted)
+		go w.OnShutdown()
+	default:
+		http.NotFound(rw, r)
+	}
 }
 
 func (w *Web) handleLogin(rw http.ResponseWriter, r *http.Request) {

@@ -7,13 +7,20 @@ ARGS     ?= status
 C        ?= 1
 RUN      := $(COMPOSE) run --rm tools
 
-.PHONY: help up down restart logs proto demo fresh ui web otp blob dist installtest status test clean
+.PHONY: help up down restart logs proto demo fresh ui web otp blob dist dist-windows installtest status test clean
 
 # Paquete de Linux: cliente xenérico, o mesmo para todos os servidores (o
 # servidor indícao o texto de vinculación).
 VERSION    ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 SYNCTHING_IMAGE := docker.io/syncthing/syncthing:2.1.7
 DIST       := dist/cld-linux-amd64
+
+# Windows: cld.exe autoinstalable con Syncthing dentro. O zip oficial
+# verifícase co SHA-256 publicado en sha256sum.txt.asc da versión.
+ST_VERSION := 2.1.7
+ST_WIN_ZIP := syncthing-windows-amd64-v$(ST_VERSION).zip
+ST_WIN_SHA := 3ce7da770f546a8d02b65b2e7ee31f2a3b8b7c3f990ede045590cca4172ecfe1
+DIST_WIN   := dist/cld-windows-amd64.exe
 
 help:
 	@echo "make up       - arranca SFTPGo, o Syncthing do servidor, pairsrv e os clientes (cld + o seu Syncthing)"
@@ -24,6 +31,7 @@ help:
 	@echo "make otp U=alice - código de vinculación actual dun usuario de proba (o mesmo que mostra a web)"
 	@echo "make blob U=alice - texto de vinculación dun usuario de proba (o mesmo que mostra a web)"
 	@echo "make dist     - paquete de Linux (dist/cld-linux-amd64.tar.gz) co instalador"
+	@echo "make dist-windows - instalador de Windows (dist/cld-windows-amd64.exe, autoinstalable)"
 	@echo "make installtest - proba o paquete nun Debian con systemd (require make up e SFTPGo preparado)"
 	@echo "make status   - estado de dispositivos, carpetas e conexións"
 	@echo "make test     - tests unitarios"
@@ -86,6 +94,18 @@ dist:
 	chmod 755 $(DIST)/cld $(DIST)/syncthing $(DIST)/install.sh
 	tar -C dist -czf $(DIST).tar.gz cld-linux-amd64
 	@echo "Paquete: $(DIST).tar.gz ($(VERSION))"
+
+dist-windows:
+	@mkdir -p dist/cache cmd/cld/embed
+	$(RUN) sh -ec '\
+	  z=dist/cache/$(ST_WIN_ZIP); \
+	  if [ ! -f $$z ]; then wget -q -O $$z.part https://github.com/syncthing/syncthing/releases/download/v$(ST_VERSION)/$(ST_WIN_ZIP); mv $$z.part $$z; fi; \
+	  echo "$(ST_WIN_SHA)  $$z" | sha256sum -c -; \
+	  unzip -p $$z syncthing-windows-amd64-v$(ST_VERSION)/syncthing.exe | gzip -9 > cmd/cld/embed/syncthing.exe.gz; \
+	  sed "s/$$/\r/" packaging/linux/LICENZAS.txt > cmd/cld/embed/LICENZAS.txt; \
+	  GOOS=windows GOARCH=amd64 go build -tags embedsyncthing -trimpath \
+	    -ldflags "-s -w -H windowsgui -X main.version=$(VERSION)" -o $(DIST_WIN) ./cmd/cld'
+	@echo "Instalador: $(DIST_WIN) ($(VERSION))"
 
 installtest: dist
 	dev/installtest.sh

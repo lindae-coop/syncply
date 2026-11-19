@@ -428,3 +428,26 @@ func TestStoppedState(t *testing.T) {
 		t.Errorf("pausar estando detido: %s", loc)
 	}
 }
+
+func TestControlShutdown(t *testing.T) {
+	w, h := newTestWeb(t, false)
+	if rec := do(h, http.MethodPost, "/_control/shutdown", map[string]string{controlHdr: "control"}, nil, nil); rec.Code != http.StatusNotFound {
+		t.Errorf("sen OnShutdown: %d", rec.Code)
+	}
+	done := make(chan struct{})
+	w.OnShutdown = func() { close(done) }
+	if rec := do(h, http.MethodPost, "/_control/shutdown", map[string]string{controlHdr: "mal"}, nil, nil); rec.Code != http.StatusUnauthorized {
+		t.Errorf("clave incorrecta: %d", rec.Code)
+	}
+	if rec := do(h, http.MethodPost, "/_control/shutdown", map[string]string{controlHdr: "control"}, nil, nil); rec.Code != http.StatusAccepted {
+		t.Fatalf("shutdown: %d", rec.Code)
+	}
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("OnShutdown non se chamou")
+	}
+	if rec := do(h, http.MethodPost, "/_control/outra", map[string]string{controlHdr: "control"}, nil, nil); rec.Code != http.StatusNotFound {
+		t.Errorf("acción descoñecida: %d", rec.Code)
+	}
+}
