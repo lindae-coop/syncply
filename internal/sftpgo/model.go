@@ -26,6 +26,14 @@ type rawFolder struct {
 	VirtualPath string
 }
 
+// Restricións de acceso (filters de SFTPGo) que deciden se o usuario pode
+// entrar no WebClient.
+type accessFilters struct {
+	DeniedProtocols    []string `json:"denied_protocols"`
+	DeniedLoginMethods []string `json:"denied_login_methods"`
+	IsAnonymous        bool     `json:"is_anonymous"`
+}
+
 type rawGroup struct {
 	Name        string
 	Type        int
@@ -33,6 +41,7 @@ type rawGroup struct {
 	Provider    int
 	Permissions map[string][]string
 	Folders     []rawFolder
+	Filters     accessFilters
 }
 
 type rawUser struct {
@@ -42,6 +51,7 @@ type rawUser struct {
 	Provider    int
 	Permissions map[string][]string
 	Folders     []rawFolder
+	Filters     accessFilters
 	Groups      []rawGroup // na orde de SFTPGo
 }
 
@@ -51,11 +61,12 @@ type effectiveUser struct {
 	Provider    int
 	Permissions map[string][]string
 	Folders     []rawFolder
+	Filters     accessFilters
 }
 
 // effective reproduce User.applyGroupSettings de SFTPGo 2.7.6 nas
 // propiedades que importan aquí: directorio persoal, sistema de ficheiros,
-// cartafoles virtuais e permisos. O grupo primario aplícase primeiro e pode
+// cartafoles virtuais, permisos e restricións de acceso. O grupo primario aplícase primeiro e pode
 // cambiar o directorio persoal e os permisos de "/"; os secundarios só
 // engaden cartafoles e permisos doutras rutas; os de pertenza non achegan nada.
 func (u *rawUser) effective() effectiveUser {
@@ -65,6 +76,11 @@ func (u *rawUser) effective() effectiveUser {
 		Provider:    u.Provider,
 		Permissions: map[string][]string{},
 		Folders:     slices.Clone(u.Folders),
+		Filters: accessFilters{
+			DeniedProtocols:    slices.Clone(u.Filters.DeniedProtocols),
+			DeniedLoginMethods: slices.Clone(u.Filters.DeniedLoginMethods),
+			IsAnonymous:        u.Filters.IsAnonymous,
+		},
 	}
 	for k, v := range u.Permissions {
 		e.Permissions[k] = v
@@ -97,6 +113,9 @@ func (u *rawUser) effective() effectiveUser {
 				e.Permissions[k] = v
 			}
 		}
+		// mergeAdditiveProperties: as restricións súmanse (primario e secundarios).
+		e.Filters.DeniedProtocols = append(e.Filters.DeniedProtocols, g.Filters.DeniedProtocols...)
+		e.Filters.DeniedLoginMethods = append(e.Filters.DeniedLoginMethods, g.Filters.DeniedLoginMethods...)
 	}
 	for i := range u.Groups {
 		if g := &u.Groups[i]; g.Type == groupPrimary {
@@ -116,6 +135,18 @@ func (u *rawUser) effective() effectiveUser {
 		}
 	}
 	return e
+}
+
+// webClientAllowed reproduce as comprobacións de checkHTTPClientUser
+// (httpd/api_utils.go) para o login con contrasinal: protocolo HTTP permitido
+// e método "password" permitido. Os usuarios anónimos teñen HTTP denegado
+// (setAnonymousSettings). Decisión do proxecto: quen non pode entrar no
+// WebClient non ve o código de vinculación, así que queda fóra de Syncthing.
+// Ao integrar en SFTPGo, un usuario que entre só por OIDC tamén contaría.
+func (e *effectiveUser) webClientAllowed() bool {
+	return !e.Filters.IsAnonymous &&
+		!slices.Contains(e.Filters.DeniedProtocols, "HTTP") &&
+		!slices.Contains(e.Filters.DeniedLoginMethods, "password")
 }
 
 // permissionsFor reproduce User.GetPermissionsForPath de SFTPGo.

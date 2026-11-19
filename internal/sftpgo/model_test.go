@@ -132,3 +132,35 @@ func TestResources(t *testing.T) {
 		t.Errorf("bob con home cifrado: %v", ids)
 	}
 }
+
+func TestWebClientAllowed(t *testing.T) {
+	deny := func(protos ...string) accessFilters { return accessFilters{DeniedProtocols: protos} }
+	cases := []struct {
+		name string
+		u    rawUser
+		want bool
+	}{
+		{"sen restricións", rawUser{}, true},
+		{"outros protocolos", rawUser{Filters: deny("SSH", "FTP", "DAV")}, true},
+		{"HTTP denegado", rawUser{Filters: deny("HTTP")}, false},
+		{"contrasinal denegado", rawUser{Filters: accessFilters{DeniedLoginMethods: []string{"password"}}}, false},
+		{"só contrasinal por SSH", rawUser{Filters: accessFilters{DeniedLoginMethods: []string{"password-over-SSH"}}}, true},
+		{"anónimo", rawUser{Filters: accessFilters{IsAnonymous: true}}, false},
+		{"grupo primario", rawUser{Groups: []rawGroup{{Type: groupPrimary, Filters: deny("HTTP")}}}, false},
+		{"grupo secundario", rawUser{Groups: []rawGroup{{Type: groupSecondary,
+			Filters: accessFilters{DeniedLoginMethods: []string{"password"}}}}}, false},
+		{"grupo de pertenza", rawUser{Groups: []rawGroup{{Type: groupMembership, Filters: deny("HTTP")}}}, true},
+	}
+	for _, c := range cases {
+		e := c.u.effective()
+		if got := e.webClientAllowed(); got != c.want {
+			t.Errorf("%s: %v", c.name, got)
+		}
+	}
+	// effective non modifica as listas do usuario.
+	u := rawUser{Filters: deny("SSH"), Groups: []rawGroup{{Type: groupPrimary, Filters: deny("HTTP")}}}
+	u.effective()
+	if len(u.Filters.DeniedProtocols) != 1 {
+		t.Errorf("usuario modificado: %v", u.Filters.DeniedProtocols)
+	}
+}

@@ -95,6 +95,7 @@ O usuario entra na web do servidor co seu usuario e contrasinal e ve alí o cód
 - Desactivar un usuario en SFTPGo quítalle o acceso aos seus equipos no seguinte ciclo de reconciliación; reactivalo devólvello sen emparellar de novo.
 - **Xestor de eventos:** unha regra de provedor (`add`/`update`/`delete` sobre `user` e `group`) cunha acción HTTP avisa a pairsrv e o cambio aplícase en ~1 s. Os **cartafoles non xeran eventos de provedor** (`provider_objects` non inclúe `folder`): un cambio de `mapped_path` só chega coa reconciliación periódica. Non hai restricións para chamar a hosts internos.
 - **Ocultar ficheiros de Syncthing:** filtros `file_patterns` con `deny_policy: 1` en `/`. Os de `/` só se herdan de grupos **primarios** (os secundarios ignóranos), por iso o grupo primario `syncthing`.
+- **Acceso ao WebClient** (`checkHTTPClientUser` en `httpd/api_utils.go`): rexéitase con `HTTP` en `denied_protocols` ou `password` en `denied_login_methods` (salvo OIDC); os grupos primario e secundarios **engaden** as súas listas ás do usuario; os anónimos teñen HTTP denegado. pairsrv exclúe eses usuarios no `Snapshot` (como os desactivados: os seus equipos quedan sen acceso).
 - Limitacións coñecidas: os filtros de ficheiros (patróns permitidos/denegados), as cotas e os hooks de SFTPGo non se aplican ao que escribe Syncthing; `.stfolder` e temporais de Syncthing vense desde SFTPGo.
 
 ## Próximos pasos propostos

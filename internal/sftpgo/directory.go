@@ -111,6 +111,11 @@ func (d *Directory) Snapshot(ctx context.Context) (*pairing.Snapshot, error) {
 		if u.status != 1 || (u.expiration > 0 && u.expiration < nowMs) {
 			continue
 		}
+		// Quen non pode entrar no WebClient trátase como desactivado: non ve o
+		// código de vinculación e os equipos que xa tiña quedan sen acceso.
+		if e := u.effective(); !e.webClientAllowed() {
+			continue
+		}
 		pu := pairing.User{Name: u.Username}
 		for _, f := range resources(&u.rawUser) {
 			if prev, ok := folders[f.ID]; ok && prev.Path != f.Path {
@@ -178,7 +183,7 @@ func (d *Directory) load(ctx context.Context) ([]dbUser, error) {
 	defer tx.Rollback()
 
 	rows, err := tx.QueryContext(ctx, `SELECT u.id, u.username, u.status, u.expiration_date, u.home_dir,
-		u.permissions, COALESCE(u.filesystem, ''), COALESCE(r.name, '')
+		u.permissions, COALESCE(u.filters, ''), COALESCE(u.filesystem, ''), COALESCE(r.name, '')
 		FROM `+d.table("users")+` u LEFT JOIN `+d.table("roles")+` r ON r.id = u.role_id
 		WHERE u.deleted_at = 0 ORDER BY u.username`)
 	if err != nil {
@@ -188,15 +193,21 @@ func (d *Directory) load(ctx context.Context) ([]dbUser, error) {
 	byID := map[int64]int{}
 	for rows.Next() {
 		var u dbUser
-		var perms, fs string
+		var perms, filters, fs string
 		if err := rows.Scan(&u.id, &u.Username, &u.status, &u.expiration, &u.HomeDir,
-			&perms, &fs, &u.Role); err != nil {
+			&perms, &filters, &fs, &u.Role); err != nil {
 			rows.Close()
 			return nil, err
 		}
 		if err := json.Unmarshal([]byte(perms), &u.Permissions); err != nil {
 			rows.Close()
 			return nil, fmt.Errorf("usuario %s: permisos: %w", u.Username, err)
+		}
+		if filters != "" {
+			if err := json.Unmarshal([]byte(filters), &u.Filters); err != nil {
+				rows.Close()
+				return nil, fmt.Errorf("usuario %s: filtros: %w", u.Username, err)
+			}
 		}
 		u.Provider = provider(fs)
 		byID[u.id] = len(users)
@@ -261,11 +272,13 @@ func (d *Directory) load(ctx context.Context) ([]dbUser, error) {
 				HomeDir     string              `json:"home_dir"`
 				Permissions map[string][]string `json:"permissions"`
 				Filesystem  json.RawMessage     `json:"filesystem"`
+				Filters     accessFilters       `json:"filters"`
 			}
 			if err := json.Unmarshal([]byte(settings), &s); err != nil {
 				return nil, fmt.Errorf("grupo %s: %w", name, err)
 			}
 			g.HomeDir, g.Permissions, g.Provider = s.HomeDir, s.Permissions, provider(string(s.Filesystem))
+			g.Filters = s.Filters
 		}
 		users[i].Groups = append(users[i].Groups, g)
 	}
