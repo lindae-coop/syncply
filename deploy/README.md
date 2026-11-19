@@ -61,6 +61,30 @@ En `https://DOMINIO_SFTPGO/web/admin` (usuario `admin`, contrasinal en
 O usuario entra en `https://DOMINIO_CLD` co seu usuario e contrasinal de
 SFTPGo, descarga o cliente, copia o texto de vinculación e introduce o código.
 
+## Contrasinais e segredos (`.env`)
+
+| Variable                | Uso                                                       |
+|-------------------------|-----------------------------------------------------------|
+| `SFTPGO_ADMIN_USER`, `SFTPGO_ADMIN_PASSWORD` | administrador de SFTPGo. Só se usan para **crealo no primeiro arranque** e para `make setup-sftpgo` |
+| `ST_APIKEY`             | API key do Syncthing do servidor (só a usa pairsrv)       |
+| `PAIRSRV_HOOK_TOKEN`    | aviso de SFTPGo a pairsrv                                 |
+| `RELAY_TOKEN`           | acceso ao relay (tamén está en `pairsrv.json`)            |
+
+- **Garda `.env`** nun xestor de contrasinais ou xunto ás copias: sen el non
+  tes o contrasinal de admin de SFTPGo.
+- **Cambiar o contrasinal de admin:** na WebAdmin de SFTPGo. Despois
+  actualiza `SFTPGO_ADMIN_PASSWORD` en `.env` (cambialo só en `.env` non
+  cambia nada en SFTPGo). Se activas o 2FA do admin, `make setup-sftpgo`
+  deixa de poder entrar con el: usa outro administrador sen 2FA para iso.
+- **`ST_APIKEY`:** pódese cambiar en `.env` e `make up` (Syncthing e pairsrv
+  len o novo valor ao arrancar).
+- **`PAIRSRV_HOOK_TOKEN`:** ao cambialo, hai que cambiar tamén a cabeceira
+  `Authorization` da acción de eventos `pairsrv-sync` na WebAdmin
+  (`make setup-sftpgo` non modifica o que xa existe). Mentres non coincidan,
+  os cambios de usuarios chegan só coa reconciliación periódica (5 min).
+- **`RELAY_TOKEN`:** cambialo obriga a todos os clientes a «Actualizar a
+  conexión»: cámbiao en `.env` e en `pairsrv.json` e `make up`.
+
 ## Descubrimento e P2P
 
 O propio servidor fai de **servidor de descubrimento** (`stdiscosrv`) e de
@@ -103,6 +127,30 @@ Se se perde o volume `syncthing`, o servidor ten outro Device ID e os
 clientes rexéitano: todos terían que volver vincular. Garda tamén `.env` e
 `pairsrv.json`.
 
+## Datos dos usuarios nun directorio do equipo
+
+Por defecto os ficheiros van no volume `data`. Para telos nun directorio do
+equipo (máis doado de copiar ou de poñer noutro disco), cambia en
+`compose.yaml`, nos servizos `sftpgo` e `syncthing`, a liña
+`- data:/srv/sftpgo/data` por:
+
+```yaml
+      - /srv/cld-datos:/srv/sftpgo/data:z
+```
+
+O directorio ten que pertencer ao UID/GID 1000 **dentro dos contedores**:
+
+```sh
+sudo mkdir -p /srv/cld-datos
+sudo chown 1000:1000 /srv/cld-datos                # Docker ou Podman con root
+podman unshare chown 1000:1000 /srv/cld-datos      # Podman rootless (directorio do teu usuario)
+```
+
+A ruta de dentro (`/srv/sftpgo/data`) non se cambia: é a que gardan SFTPGo e
+Syncthing. Para mover datos existentes, para os servizos (`make down`),
+copia o contido do volume (`podman volume mount` ou un contedor temporal) e
+arranca de novo.
+
 ## Actualizar
 
 ```sh
@@ -111,6 +159,54 @@ git pull && make dist dist-windows && cd deploy && make up
 
 Antes de cambiar a versión de SFTPGo, revisar `internal/sftpgo` (le a súa BD
 directamente).
+
+## Estado e logs
+
+```sh
+make ps                                  # contedores e portos
+make logs                                # todos os servizos
+podman-compose logs -f pairsrv           # un servizo: caddy, sftpgo, syncthing, discosrv, relaysrv, pairsrv
+```
+
+Ao arrancar, pairsrv escribe as URL de descubrimento e relay que envía aos
+clientes (`P2P: …`).
+
+## Problemas habituais
+
+- **Caddy non obtén o certificado** (`logs caddy`): os dous dominios teñen
+  que apuntar a este equipo e os portos 80 e 443 teñen que ser accesibles
+  desde internet. En Podman rootless, comprobar
+  `net.ipv4.ip_unprivileged_port_start`. Moitos intentos fallidos esgotan
+  o límite de Let's Encrypt durante unha hora.
+- **pairsrv non arranca** (`logs pairsrv`): `web.publicURL` ten que ser
+  `https://`; agarda a Syncthing, a SFTPGo e aos certificados de discosrv e
+  relaysrv ata 2 minutos e despois sae (reinicia só).
+- **A web non acepta o usuario:** o contrasinal compróbase con SFTPGo; o
+  usuario ten que estar activo e, se ten 2FA en SFTPGo, a web pídeo.
+- **O usuario non ve recursos:** grupo primario `syncthing`, almacenamento en
+  disco local e permiso de escritura completo no recurso (só lectura non se
+  ofrece). Os cambios en usuarios e grupos aplícanse en ~1 s; os de
+  cartafoles virtuais (ruta), coa reconciliación (5 min).
+- **O cliente vincula pero non sincroniza:** o porto 22000 (tcp e udp) ten
+  que ser accesible desde fóra (`nc -vz DOMINIO_CLD 22000` desde outra
+  rede); `serverAddresses` de `pairsrv.json` ten que levar o dominio público.
+- **Os clientes non conectan entre eles fóra da LAN:** portos 8443 e 22067
+  accesibles; os equipos vinculados antes de activar ou cambiar `p2p`
+  necesitan «Actualizar a conexión».
+- **Os ficheiros tardan:** Syncthing agarda uns 10 s a agrupar cambios; o
+  normal son 10–20 s.
+
+## Desinstalar
+
+```sh
+make down                     # para e borra os contedores; os volumes (datos) quedan
+podman-compose down -v        # ⚠ borra tamén TODOS os volumes: ficheiros, BD, identidades
+```
+
+Nos equipos dos usuarios: en Linux, `./install.sh --uninstall` desde o
+paquete descargado (non se copia ao instalar); en Windows, desde
+«Aplicacións instaladas». Os dous conservan as carpetas sincronizadas e a
+configuración. Convén revogar antes o equipo desde «Os meus equipos».
 
 ## Probado
 
