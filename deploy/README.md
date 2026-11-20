@@ -34,7 +34,7 @@ key. Os tres servizos usan o UID/GID 1000.
 ## Instalación
 
 ```sh
-git clone … syncply && cd syncply
+git clone git@github.com:lindae-coop/syncply.git syncply && cd syncply
 make dist dist-windows        # paquetes do cliente en dist/ (a web ofréceos)
 cd deploy
 ./init.sh nube.example.org sftp.example.org   # crea .env e pairsrv.json
