@@ -170,7 +170,7 @@ func (s *Supervisor) runOnce(ctx context.Context) (int, error) {
 	cmd.Env = append(os.Environ(),
 		"STGUIAPIKEY="+s.APIKey, // por env para que non se vexa na lista de procesos
 		"STNODEFAULTFOLDER=1",
-		"STVERSIONEXTRA=cld",
+		"STVERSIONEXTRA=syncply",
 	)
 	out := s.Log
 	if out == nil {

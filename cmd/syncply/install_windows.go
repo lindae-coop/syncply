@@ -1,13 +1,13 @@
 package main
 
-// Instalador de Windows: cld.exe instálase a si mesmo, só para o usuario e
+// Instalador de Windows: syncply.exe instálase a si mesmo, só para o usuario e
 // sen permisos de administrador.
 //
-//	%LOCALAPPDATA%\Programs\cld\   cld.exe, syncthing.exe, LICENZAS.txt
-//	%LOCALAPPDATA%\cld\            estado (o mesmo que en Linux ~/.config/cld)
-//	HKCU\...\Run\cld               arranque do daemon ao iniciar sesión
-//	HKCU\...\Uninstall\cld         entrada en «Aplicacións instaladas»
-//	Menú Inicio\Programas\cld.lnk  acceso directo (`cld open`)
+//	%LOCALAPPDATA%\Programs\syncply\   syncply.exe, syncthing.exe, LICENZAS.txt
+//	%LOCALAPPDATA%\syncply\            estado (o mesmo que en Linux ~/.config/syncply)
+//	HKCU\...\Run\syncply               arranque do daemon ao iniciar sesión
+//	HKCU\...\Uninstall\syncply         entrada en «Aplicacións instaladas»
+//	Menú Inicio\Programas\Syncply.lnk  acceso directo (`syncply open`)
 
 import (
 	"bytes"
@@ -29,8 +29,8 @@ import (
 
 const (
 	runKey       = `Software\Microsoft\Windows\CurrentVersion\Run`
-	uninstallKey = `Software\Microsoft\Windows\CurrentVersion\Uninstall\cld`
-	valueName    = "cld"
+	uninstallKey = `Software\Microsoft\Windows\CurrentVersion\Uninstall\syncply`
+	valueName    = "syncply"
 	idYes        = 6 // MessageBox: botón «Si»
 )
 
@@ -39,7 +39,7 @@ func installDir() (string, error) {
 	if d == "" {
 		return "", errors.New("non se atopa %LOCALAPPDATA%")
 	}
-	return filepath.Join(d, "Programs", "cld"), nil
+	return filepath.Join(d, "Programs", "syncply"), nil
 }
 
 func shortcutPath() (string, error) {
@@ -47,7 +47,7 @@ func shortcutPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(d, "cld.lnk"), nil
+	return filepath.Join(d, "Syncply.lnk"), nil
 }
 
 func samePath(a, b string) bool {
@@ -56,7 +56,7 @@ func samePath(a, b string) bool {
 	return strings.EqualFold(filepath.Clean(a), filepath.Clean(b))
 }
 
-// runningInstalled indica se este cld.exe é o instalado.
+// runningInstalled indica se este syncply.exe é o instalado.
 func runningInstalled() bool {
 	exe, err := os.Executable()
 	dir, err2 := installDir()
@@ -93,9 +93,9 @@ func install(args []string) error {
 	if err := os.MkdirAll(dst, 0o755); err != nil {
 		return err
 	}
-	exe := filepath.Join(dst, "cld.exe")
+	exe := filepath.Join(dst, "syncply.exe")
 
-	// Syncthing: o que leva dentro este cld.exe ou, se non, o que haxa ao
+	// Syncthing: o que leva dentro este syncply.exe ou, se non, o que haxa ao
 	// seu lado (compilación de desenvolvemento).
 	switch {
 	case len(embeddedSyncthingGz) > 0:
@@ -109,7 +109,7 @@ func install(args []string) error {
 		}
 	case !samePath(filepath.Dir(self), dst):
 		if err := copyFile(filepath.Join(filepath.Dir(self), "syncthing.exe"), filepath.Join(dst, "syncthing.exe")); err != nil {
-			return fmt.Errorf("este cld.exe non leva Syncthing e non hai syncthing.exe ao seu lado: %w", err)
+			return fmt.Errorf("este syncply.exe non leva Syncthing e non hai syncthing.exe ao seu lado: %w", err)
 		}
 	}
 	if len(embeddedLicenses) > 0 {
@@ -119,7 +119,7 @@ func install(args []string) error {
 	}
 	if !samePath(self, exe) {
 		if err := copyFile(self, exe); err != nil {
-			return fmt.Errorf("copiando cld.exe: %w", err)
+			return fmt.Errorf("copiando syncply.exe: %w", err)
 		}
 	}
 
@@ -151,8 +151,8 @@ func install(args []string) error {
 			return err
 		}
 	}
-	info("cld " + version + " instalado.\n\n" +
-		"Atoparás «cld» no menú Inicio. Para vincular este equipo, pega o texto de " +
+	info("Syncply " + version + " instalado.\n\n" +
+		"Atoparás «Syncply» no menú Inicio. Para vincular este equipo, pega o texto de " +
 		"vinculación que atoparás na páxina do servidor, xunto ao código de vinculación.")
 	return nil
 }
@@ -163,7 +163,7 @@ func uninstall(args []string) error {
 	fs.Parse(args)
 
 	if !*quiet && !hasConsole {
-		if messageBox("cld", "Desinstalar cld?\n\nConsérvanse a configuración deste equipo e as carpetas sincronizadas.",
+		if messageBox("Syncply", "Desinstalar Syncply?\n\nConsérvanse a configuración deste equipo e as carpetas sincronizadas.",
 			windows.MB_YESNO|windows.MB_ICONQUESTION) != idYes {
 			return nil
 		}
@@ -186,7 +186,7 @@ func uninstall(args []string) error {
 			return err
 		}
 	}
-	exe := filepath.Join(dst, "cld.exe")
+	exe := filepath.Join(dst, "syncply.exe")
 	if runningInstalled() {
 		// Windows non deixa borrar un .exe en execución: bórrao un cmd
 		// cando este proceso remate.
@@ -198,7 +198,7 @@ func uninstall(args []string) error {
 		os.Remove(dst)
 	}
 	if !*quiet {
-		info("cld desinstalado.\n\nConsérvanse a configuración e a identidade deste equipo (" + state +
+		info("Syncply desinstalado.\n\nConsérvanse a configuración e a identidade deste equipo (" + state +
 			") e as carpetas sincronizadas. Para borrar tamén a configuración, borra ese cartafol.")
 	}
 	return nil
@@ -211,12 +211,12 @@ func stopDaemon(dir string) error {
 		return nil
 	}
 	if err := controlCall(dir, "shutdown", nil); err != nil {
-		return fmt.Errorf("non se pode pechar o servizo cld en marcha: %w", err)
+		return fmt.Errorf("non se pode pechar o servizo syncply en marcha: %w", err)
 	}
 	deadline := time.Now().Add(40 * time.Second)
 	for daemonRunning(dir) {
 		if time.Now().After(deadline) {
-			return errors.New("o servizo cld en marcha non se pecha; reinicia a sesión e volve tentalo")
+			return errors.New("o servizo syncply en marcha non se pecha; reinicia a sesión e volve tentalo")
 		}
 		time.Sleep(300 * time.Millisecond)
 	}
@@ -273,9 +273,9 @@ func writeUninstallEntry(dir, exe string) error {
 		return nil
 	})
 	for name, v := range map[string]string{
-		"DisplayName":          "cld",
+		"DisplayName":          "Syncply",
 		"DisplayVersion":       version,
-		"Publisher":            "cld",
+		"Publisher":            "Syncply",
 		"DisplayIcon":          exe,
 		"InstallLocation":      dir,
 		"UninstallString":      quoteArg(exe) + " uninstall",
@@ -315,12 +315,12 @@ func deleteValue(root registry.Key, path, name string) {
 // PowerShell (evita depender de COM en Go). As rutas van por variables de
 // contorno, non dentro do script, para non ter que escapalas.
 func createShortcut(lnk, target, args, desc string) error {
-	const script = `$s = (New-Object -ComObject WScript.Shell).CreateShortcut($env:CLD_LNK); ` +
-		`$s.TargetPath = $env:CLD_TARGET; $s.Arguments = $env:CLD_ARGS; ` +
-		`$s.WorkingDirectory = Split-Path $env:CLD_TARGET; $s.Description = $env:CLD_DESC; ` +
-		`$s.IconLocation = $env:CLD_TARGET + ',0'; $s.Save()`
+	const script = `$s = (New-Object -ComObject WScript.Shell).CreateShortcut($env:SYNCPLY_LNK); ` +
+		`$s.TargetPath = $env:SYNCPLY_TARGET; $s.Arguments = $env:SYNCPLY_ARGS; ` +
+		`$s.WorkingDirectory = Split-Path $env:SYNCPLY_TARGET; $s.Description = $env:SYNCPLY_DESC; ` +
+		`$s.IconLocation = $env:SYNCPLY_TARGET + ',0'; $s.Save()`
 	cmd := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script)
-	cmd.Env = append(os.Environ(), "CLD_LNK="+lnk, "CLD_TARGET="+target, "CLD_ARGS="+args, "CLD_DESC="+desc)
+	cmd.Env = append(os.Environ(), "SYNCPLY_LNK="+lnk, "SYNCPLY_TARGET="+target, "SYNCPLY_ARGS="+args, "SYNCPLY_DESC="+desc)
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: windows.CREATE_NO_WINDOW}
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("%w: %s", err, strings.TrimSpace(string(out)))

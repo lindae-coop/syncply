@@ -23,7 +23,7 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/DanBaDo/cld/internal/pairing"
+	"github.com/lindae-coop/syncply/internal/pairing"
 )
 
 // SchemaVersion é a versión do esquema da BD de SFTPGo coa que se probou.

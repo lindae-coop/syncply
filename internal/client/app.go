@@ -19,8 +19,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DanBaDo/cld/internal/pairing"
-	"github.com/DanBaDo/cld/internal/stapi"
+	"github.com/lindae-coop/syncply/internal/pairing"
+	"github.com/lindae-coop/syncply/internal/stapi"
 )
 
 // DefaultSyncthingOptions aplícanse sempre ao Syncthing do cliente, tamén
@@ -61,7 +61,7 @@ type App struct {
 	foldersBase string // onde se suxire crear as carpetas locais
 	now         func() time.Time
 
-	sup *Supervisor // nil se Syncthing é externo (non o arranca cld)
+	sup *Supervisor // nil se Syncthing é externo (non o arranca syncply)
 
 	mu    sync.Mutex
 	state State
@@ -178,7 +178,7 @@ func userErr(format string, args ...any) error { return &UserError{fmt.Sprintf(f
 
 // pairsrvHTTP é o cliente HTTP para pairsrv. O certificado valídase coas
 // CA do sistema (pairsrv vai detrás dun proxy con HTTPS); só en
-// desenvolvemento (CLD_DEV=1) se permite http.
+// desenvolvemento (SYNCPLY_DEV=1) se permite http.
 var pairsrvHTTP = &http.Client{Timeout: 30 * time.Second}
 
 // pairsrv chama á API de pairsrv co servidor gardado ao vincular.

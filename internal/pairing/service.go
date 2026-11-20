@@ -17,8 +17,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DanBaDo/cld/internal/stapi"
-	"github.com/DanBaDo/cld/internal/totp"
+	"github.com/lindae-coop/syncply/internal/stapi"
+	"github.com/lindae-coop/syncply/internal/totp"
 )
 
 const (

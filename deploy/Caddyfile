@@ -3,7 +3,7 @@
 # se publica: só a usa SFTPGo desde a rede dos contedores.
 
 # Web dos usuarios (código de vinculación, descargas) e API dos clientes.
-{$CLD_DOMAIN} {
+{$SYNCPLY_DOMAIN} {
 	reverse_proxy pairsrv:8080
 }
 

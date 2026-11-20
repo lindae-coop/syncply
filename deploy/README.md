@@ -1,4 +1,4 @@
-# Servidor cld en produción
+# Servidor Syncply en produción
 
 SFTPGo + Syncthing + pairsrv en contedores, detrás de **Caddy** (HTTPS
 automático con Let's Encrypt). Funciona con `podman-compose` ou con
@@ -6,8 +6,8 @@ automático con Let's Encrypt). Funciona con `podman-compose` ou con
 
 | Servizo   | Exposto                       | Para que                                            |
 |-----------|-------------------------------|-----------------------------------------------------|
-| caddy     | 80, 443/tcp                   | `https://DOMINIO_CLD` → pairsrv; `https://DOMINIO_SFTPGO` → SFTPGo |
-| syncthing | 22000/tcp e 22000/udp         | conexións dos clientes (`tcp://` e `quic://DOMINIO_CLD:22000`) |
+| caddy     | 80, 443/tcp                   | `https://DOMINIO_SYNCPLY` → pairsrv; `https://DOMINIO_SFTPGO` → SFTPGo |
+| syncthing | 22000/tcp e 22000/udp         | conexións dos clientes (`tcp://` e `quic://DOMINIO_SYNCPLY:22000`) |
 | sftpgo    | 2022/tcp                      | SFTP                                                |
 | discosrv  | 8443/tcp                      | descubrimento global propio (P2P)                   |
 | relaysrv  | 22067/tcp                     | relay propio, só con token (P2P)                    |
@@ -34,7 +34,7 @@ key. Os tres servizos usan o UID/GID 1000.
 ## Instalación
 
 ```sh
-git clone … cld && cd cld
+git clone … syncply && cd syncply
 make dist dist-windows        # paquetes do cliente en dist/ (a web ofréceos)
 cd deploy
 ./init.sh nube.example.org sftp.example.org   # crea .env e pairsrv.json
@@ -58,7 +58,7 @@ En `https://DOMINIO_SFTPGO/web/admin` (usuario `admin`, contrasinal en
    que o usuario ten **permiso de escritura completo** (ver o README
    principal).
 
-O usuario entra en `https://DOMINIO_CLD` co seu usuario e contrasinal de
+O usuario entra en `https://DOMINIO_SYNCPLY` co seu usuario e contrasinal de
 SFTPGo, descarga o cliente, copia o texto de vinculación e introduce o código.
 
 ## Contrasinais e segredos (`.env`)
@@ -135,15 +135,15 @@ equipo (máis doado de copiar ou de poñer noutro disco), cambia en
 `- data:/srv/sftpgo/data` por:
 
 ```yaml
-      - /srv/cld-datos:/srv/sftpgo/data:z
+      - /srv/syncply-datos:/srv/sftpgo/data:z
 ```
 
 O directorio ten que pertencer ao UID/GID 1000 **dentro dos contedores**:
 
 ```sh
-sudo mkdir -p /srv/cld-datos
-sudo chown 1000:1000 /srv/cld-datos                # Docker ou Podman con root
-podman unshare chown 1000:1000 /srv/cld-datos      # Podman rootless (directorio do teu usuario)
+sudo mkdir -p /srv/syncply-datos
+sudo chown 1000:1000 /srv/syncply-datos                # Docker ou Podman con root
+podman unshare chown 1000:1000 /srv/syncply-datos      # Podman rootless (directorio do teu usuario)
 ```
 
 A ruta de dentro (`/srv/sftpgo/data`) non se cambia: é a que gardan SFTPGo e
@@ -188,7 +188,7 @@ clientes (`P2P: …`).
   ofrece). Os cambios en usuarios e grupos aplícanse en ~1 s; os de
   cartafoles virtuais (ruta), coa reconciliación (5 min).
 - **O cliente vincula pero non sincroniza:** o porto 22000 (tcp e udp) ten
-  que ser accesible desde fóra (`nc -vz DOMINIO_CLD 22000` desde outra
+  que ser accesible desde fóra (`nc -vz DOMINIO_SYNCPLY 22000` desde outra
   rede); `serverAddresses` de `pairsrv.json` ten que levar o dominio público.
 - **Os clientes non conectan entre eles fóra da LAN:** portos 8443 e 22067
   accesibles; os equipos vinculados antes de activar ou cambiar `p2p`
@@ -213,7 +213,7 @@ configuración. Convén revogar antes o equipo desde «Os meus equipos».
 Esta pila verificouse en local con dominios `*.localhost` (CA interna de
 Caddy): arranque, API de Syncthing no socket, `setup-sftpgo`, aviso de
 SFTPGo → pairsrv, vinculación dun cliente do paquete de Linux por HTTPS
-(sen `CLD_DEV`) e sincronización nos dous sentidos. P2P: dous clientes sen
+(sen `SYNCPLY_DEV`) e sincronización nos dous sentidos. P2P: dous clientes sen
 descubrimento local nin conexión directa posible atopáronse no noso
 descubrimento e conectaron entre eles polo noso relay. **Falta probala nun
 servidor real con Let's Encrypt.**

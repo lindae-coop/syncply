@@ -1,5 +1,5 @@
 /.dev/
 /dist/
-/cmd/cld/embed/
+/cmd/syncply/embed/
 /deploy/.env
 /deploy/pairsrv.json

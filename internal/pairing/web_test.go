@@ -22,16 +22,16 @@ func (f fakeAuth) CheckPassword(_ context.Context, user, pass, _ string) error {
 
 var (
 	codeRe = regexp.MustCompile(`id="code">(\d{6})<`)
-	linkRe = regexp.MustCompile(`id="linktext"[^>]*>(cld1:[A-Za-z0-9_-]+)<`)
+	linkRe = regexp.MustCompile(`id="linktext"[^>]*>(syncply1:[A-Za-z0-9_-]+)<`)
 )
 
 func newWebEnv(t *testing.T) (*env, http.Handler) {
 	t.Helper()
 	e := newEnv(t)
-	t.Setenv("CLD_DEV", "1") // http://srv
+	t.Setenv("SYNCPLY_DEV", "1") // http://srv
 	w, err := NewWeb(e.svc, fakeAuth{"alice": "segredo", "eve": "x"}, WebOptions{
 		PublicURL: "http://srv",
-		Downloads: []Download{{Label: "Linux", URL: "/descargas/cld.tar.gz"}},
+		Downloads: []Download{{Label: "Linux", URL: "/descargas/syncply.tar.gz"}},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -42,7 +42,7 @@ func newWebEnv(t *testing.T) (*env, http.Handler) {
 
 func TestWebRequiresHTTPS(t *testing.T) {
 	e := newEnv(t)
-	t.Setenv("CLD_DEV", "")
+	t.Setenv("SYNCPLY_DEV", "")
 	for _, u := range []string{"", "http://nube.example.org", "nube.example.org"} {
 		if _, err := NewWeb(e.svc, fakeAuth{}, WebOptions{PublicURL: u}); err == nil {
 			t.Errorf("publicURL %q aceptada fóra de desenvolvemento", u)
@@ -101,7 +101,7 @@ func TestWebShowsPairingCode(t *testing.T) {
 	if page.Header().Get("Cache-Control") != "no-store" {
 		t.Error("a páxina co código non debe gardarse en caché")
 	}
-	for _, want := range []string{"/descargas/cld.tar.gz", "Común", "(0 de 2)"} {
+	for _, want := range []string{"/descargas/syncply.tar.gz", "Común", "(0 de 2)"} {
 		if !strings.Contains(page.Body.String(), want) {
 			t.Errorf("falta %q na páxina", want)
 		}

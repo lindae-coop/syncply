@@ -23,16 +23,16 @@ import (
 // navegador. Por iso:
 //
 //   - Entrar require unha URL de acceso dun só uso (60 s) que só pode pedir
-//     quen le o ficheiro privado do daemon (ui.json, 0600): `cld open`.
+//     quen le o ficheiro privado do daemon (ui.json, 0600): `syncply open`.
 //   - Despois, cookie de sesión HttpOnly, SameSite=Strict.
 //   - Comprobación de Host (contra DNS rebinding) e de Origin nos POST
 //     (contra CSRF).
 const (
 	loginTTL    = 60 * time.Second
 	sessionTTL  = 12 * time.Hour
-	cookieName  = "cld_session"
+	cookieName  = "syncply_session"
 	controlPath = "/_control/"
-	controlHdr  = "X-CLD-Control"
+	controlHdr  = "X-Syncply-Control"
 )
 
 //go:embed templates/*.html

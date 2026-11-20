@@ -15,8 +15,8 @@ import (
 // cliente xenérico. Non leva segredos (o código de vinculación é o que
 // autoriza); di ao cliente con que servidor e como que usuario vincularse.
 //
-//	cld1:<base64url(JSON)>
-const linkPrefix = "cld1:"
+//	syncply1:<base64url(JSON)>
+const linkPrefix = "syncply1:"
 
 // LinkData é o contido do texto de vinculación.
 type LinkData struct {
@@ -28,11 +28,11 @@ type LinkData struct {
 	Server string `json:"server"`
 }
 
-// DevMode indica o contorno de desenvolvemento (CLD_DEV=1): só entón se
+// DevMode indica o contorno de desenvolvemento (SYNCPLY_DEV=1): só entón se
 // permite HTTP sen cifrar entre o cliente e pairsrv. En produción pairsrv
 // vai detrás dun proxy con HTTPS (ou o que sexa, sempre cun certificado
 // válido para as CA do sistema).
-func DevMode() bool { return os.Getenv("CLD_DEV") == "1" }
+func DevMode() bool { return os.Getenv("SYNCPLY_DEV") == "1" }
 
 // CheckPublicURL valida a URL coa que os clientes chegan a pairsrv: https,
 // ou http só en desenvolvemento.
@@ -56,8 +56,8 @@ func (d LinkData) Encode() string {
 
 // Erros de ParseLinkText: mensaxes para o usuario.
 var (
-	ErrLinkPrefix  = errors.New("o texto de vinculación ten que empezar por «cld1:». Cópiao enteiro da páxina do servidor")
-	ErrInsecureURL = errors.New("o servidor non usa https: a conexión non iría cifrada. Avisa ao administrador (http só se permite en desenvolvemento, con CLD_DEV=1)")
+	ErrLinkPrefix  = errors.New("o texto de vinculación ten que empezar por «syncply1:». Cópiao enteiro da páxina do servidor")
+	ErrInsecureURL = errors.New("o servidor non usa https: a conexión non iría cifrada. Avisa ao administrador (http só se permite en desenvolvemento, con SYNCPLY_DEV=1)")
 	ErrLinkBroken  = errors.New("o texto de vinculación está incompleto ou estragado. Cópiao de novo enteiro da páxina do servidor")
 )
 

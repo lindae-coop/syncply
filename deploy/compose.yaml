@@ -1,4 +1,4 @@
-# Servidor cld para produción: SFTPGo + Syncthing + pairsrv detrás de Caddy
+# Servidor syncply para produción: SFTPGo + Syncthing + pairsrv detrás de Caddy
 # (HTTPS con Let's Encrypt), e descubrimento e relay propios para o P2P dos
 # clientes. Ver deploy/README.md.
 #
@@ -7,7 +7,7 @@
 #
 # Os tres servizos corren co UID/GID 1000, para que SFTPGo e Syncthing poidan
 # escribir os mesmos ficheiros e pairsrv usar o socket da API de Syncthing.
-name: cld-server
+name: syncply-server
 
 services:
   caddy:
@@ -16,7 +16,7 @@ services:
       - "${HTTP_PORT:-80}:80"
       - "${HTTPS_PORT:-443}:443"
     environment:
-      CLD_DOMAIN: ${CLD_DOMAIN:?falta CLD_DOMAIN en .env}
+      SYNCPLY_DOMAIN: ${SYNCPLY_DOMAIN:?falta SYNCPLY_DOMAIN en .env}
       SFTPGO_DOMAIN: ${SFTPGO_DOMAIN:?falta SFTPGO_DOMAIN en .env}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro,z
@@ -46,7 +46,7 @@ services:
   # mesma ruta que en SFTPGo, para que as rutas valan tal cal.
   syncthing:
     image: docker.io/syncthing/syncthing:2.1.7
-    hostname: cld-server
+    hostname: syncply-server
     ports:
       - "22000:22000/tcp"
       - "22000:22000/udp"
@@ -97,7 +97,7 @@ services:
     build:
       context: ..
       dockerfile: deploy/Containerfile.pairsrv
-    image: localhost/cld-pairsrv:latest
+    image: localhost/syncply-pairsrv:latest
     command: ["-config", "/etc/pairsrv.json",
               "-state", "/state/state.json",
               "-listen", ":8080",

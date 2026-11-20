@@ -5,7 +5,7 @@ package main
 import _ "embed"
 
 // Compilación de distribución para Windows (make dist-windows): Syncthing
-// e as licenzas van dentro de cld.exe, que se instala a si mesmo.
+// e as licenzas van dentro de syncply.exe, que se instala a si mesmo.
 
 //go:embed embed/syncthing.exe.gz
 var embeddedSyncthingGz []byte

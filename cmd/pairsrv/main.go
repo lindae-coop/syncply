@@ -19,9 +19,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DanBaDo/cld/internal/pairing"
-	"github.com/DanBaDo/cld/internal/sftpgo"
-	"github.com/DanBaDo/cld/internal/stapi"
+	"github.com/lindae-coop/syncply/internal/pairing"
+	"github.com/lindae-coop/syncply/internal/sftpgo"
+	"github.com/lindae-coop/syncply/internal/stapi"
 )
 
 func main() {
@@ -132,7 +132,7 @@ func main() {
 		log.Fatal(err)
 	}
 	if pairing.DevMode() {
-		log.Printf("aviso: modo de desenvolvemento (CLD_DEV=1): permítese http e as cookies van sen Secure")
+		log.Printf("aviso: modo de desenvolvemento (SYNCPLY_DEV=1): permítese http e as cookies van sen Secure")
 	}
 	mux.Handle("/", web.Handler())
 	if *downloads != "" {

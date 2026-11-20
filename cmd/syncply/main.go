@@ -1,13 +1,13 @@
-// cld: cliente de escritorio.
+// syncply: cliente de escritorio.
 //
-//	cld daemon    servizo de usuario: fala co Syncthing local e serve a web de
+//	syncply daemon    servizo de usuario: fala co Syncthing local e serve a web de
 //	              configuración en 127.0.0.1
-//	cld open      abre a web no navegador xa autenticada (o que executa o
+//	syncply open      abre a web no navegador xa autenticada (o que executa o
 //	              acceso directo)
-//	cld shortcut  crea o acceso directo no menú de aplicacións (Linux)
-//	cld install   instálase para o usuario (Windows; sen argumentos, o dobre
+//	syncply shortcut  crea o acceso directo no menú de aplicacións (Linux)
+//	syncply install   instálase para o usuario (Windows; sen argumentos, o dobre
 //	              clic instala ou, se xa está instalado, abre a web)
-//	cld uninstall desinstala (Windows)
+//	syncply uninstall desinstala (Windows)
 package main
 
 import (
@@ -32,8 +32,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DanBaDo/cld/internal/client"
-	"github.com/DanBaDo/cld/internal/stapi"
+	"github.com/lindae-coop/syncply/internal/client"
+	"github.com/lindae-coop/syncply/internal/stapi"
 )
 
 // version gravase ao compilar: -ldflags "-X main.version=..."
@@ -59,16 +59,16 @@ func main() {
 	case "shortcut":
 		err = shortcut(os.Args[2:])
 	case "version":
-		fmt.Println("cld", version)
+		fmt.Println("syncply", version)
 	default:
 		usage()
 	}
 	if errors.Is(err, errAlreadyRunning) {
-		fmt.Fprintln(os.Stderr, "cld:", err)
+		fmt.Fprintln(os.Stderr, "syncply:", err)
 		os.Exit(0)
 	}
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "cld:", err)
+		fmt.Fprintln(os.Stderr, "syncply:", err)
 		reportError(err)
 		os.Exit(1)
 	}
@@ -82,16 +82,16 @@ func hashString(s string) string {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "uso: cld daemon|open|shortcut|install|uninstall|version [opcións]  (-h para axuda)")
+	fmt.Fprintln(os.Stderr, "uso: syncply daemon|open|shortcut|install|uninstall|version [opcións]  (-h para axuda)")
 	os.Exit(2)
 }
 
 func defaultDir() string { return defaultStateDir() }
 
-// uiInfo é o que o daemon deixa para `cld open`: só lexible polo usuario.
+// uiInfo é o que o daemon deixa para `syncply open`: só lexible polo usuario.
 type uiInfo struct {
 	URL        string `json:"url"`        // a que abre o navegador
-	ControlURL string `json:"controlURL"` // a que usa `cld open` (sempre loopback)
+	ControlURL string `json:"controlURL"` // a que usa `syncply open` (sempre loopback)
 	ControlKey string `json:"controlKey"`
 }
 
@@ -102,17 +102,17 @@ func daemon(args []string) error {
 	dir := fs.String("dir", defaultDir(), "directorio de estado do cliente")
 	listen := fs.String("listen", "127.0.0.1:0", "enderezo da web (porto 0: un libre)")
 	publicURL := fs.String("public-url", "", "URL coa que o navegador chega á web (por defecto http://<listen>)")
-	stURL := fs.String("st-url", "", "API dun Syncthing externo (se se indica, cld non arranca o seu)")
-	stBin := fs.String("syncthing", "", "binario de Syncthing (por defecto, xunto a cld ou no PATH)")
+	stURL := fs.String("st-url", "", "API dun Syncthing externo (se se indica, syncply non arranca o seu)")
+	stBin := fs.String("syncthing", "", "binario de Syncthing (por defecto, xunto a syncply ou no PATH)")
 	stHome := fs.String("st-home", "", "directorio de Syncthing (por defecto <dir>/syncthing)")
 	stGUI := fs.String("st-gui", "", "enderezo da API de Syncthing (por defecto, socket Unix en <st-home>; en Windows, porto libre en 127.0.0.1)")
-	foldersBase := fs.String("folders-base", "", "onde se suxire crear as carpetas (por defecto ~/cld)")
-	logFile := fs.String("log", "", "ficheiro de rexistro (por defecto stderr; en Windows <dir>\\cld.log)")
+	foldersBase := fs.String("folders-base", "", "onde se suxire crear as carpetas (por defecto ~/syncply)")
+	logFile := fs.String("log", "", "ficheiro de rexistro (por defecto stderr; en Windows <dir>\\syncply.log)")
 	fs.Parse(args)
 
 	if *foldersBase == "" {
 		home, _ := os.UserHomeDir()
-		*foldersBase = filepath.Join(home, "cld")
+		*foldersBase = filepath.Join(home, "syncply")
 	}
 	if err := os.MkdirAll(*dir, 0o700); err != nil {
 		return err
@@ -173,7 +173,7 @@ func daemon(args []string) error {
 		return err
 	}
 	web.OnShutdown = func() {
-		log.Printf("cld: peche pedido polo canal de control")
+		log.Printf("syncply: peche pedido polo canal de control")
 		stop()
 	}
 	b, _ := json.Marshal(info)
@@ -204,7 +204,7 @@ func daemon(args []string) error {
 		defer c()
 		srv.Shutdown(sctx)
 	}()
-	log.Printf("cld %s: web en %s (escoita en %s)", version, info.URL, ln.Addr())
+	log.Printf("syncply %s: web en %s (escoita en %s)", version, info.URL, ln.Addr())
 	if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
@@ -284,11 +284,11 @@ func superviseSyncthing(ctx context.Context, app *client.App, dir, bin, home, gu
 		defer close(done)
 		sup.Run(ctx)
 	}()
-	log.Printf("cld: syncthing %s (home %s, API %s)", bin, home, gui)
+	log.Printf("syncply: syncthing %s (home %s, API %s)", bin, home, gui)
 	return done, nil
 }
 
-// findSyncthing busca o binario xunto a cld e despois no PATH.
+// findSyncthing busca o binario xunto a syncply e despois no PATH.
 func findSyncthing() (string, error) {
 	name := "syncthing"
 	if runtime.GOOS == "windows" {
@@ -302,7 +302,7 @@ func findSyncthing() (string, error) {
 	}
 	p, err := exec.LookPath(name)
 	if err != nil {
-		return "", fmt.Errorf("non se atopa syncthing (xunto a cld nin no PATH); usa -syncthing ou -st-url")
+		return "", fmt.Errorf("non se atopa syncthing (xunto a syncply nin no PATH); usa -syncthing ou -st-url")
 	}
 	return p, nil
 }
@@ -364,7 +364,7 @@ func loginURL(dir string) (string, error) {
 func controlCall(dir, action string, out any) error {
 	b, err := os.ReadFile(uiPath(dir))
 	if err != nil {
-		return fmt.Errorf("o servizo cld non está en marcha (%w)", err)
+		return fmt.Errorf("o servizo syncply non está en marcha (%w)", err)
 	}
 	var info uiInfo
 	if err := json.Unmarshal(b, &info); err != nil {
@@ -374,14 +374,14 @@ func controlCall(dir, action string, out any) error {
 	if err != nil {
 		return err
 	}
-	req.Header.Set("X-CLD-Control", info.ControlKey)
+	req.Header.Set("X-Syncply-Control", info.ControlKey)
 	resp, err := (&http.Client{Timeout: 10 * time.Second}).Do(req)
 	if err != nil {
-		return fmt.Errorf("o servizo cld non responde: %w", err)
+		return fmt.Errorf("o servizo syncply non responde: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode/100 != 2 {
-		return fmt.Errorf("o servizo cld respondeu %s", resp.Status)
+		return fmt.Errorf("o servizo syncply respondeu %s", resp.Status)
 	}
 	if out == nil {
 		return nil
@@ -437,11 +437,11 @@ func shortcut(args []string) error {
 	} else {
 		data = filepath.Join(data, ".local/share")
 	}
-	path := filepath.Join(data, "applications", "cld.desktop")
+	path := filepath.Join(data, "applications", "syncply.desktop")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	content := "[Desktop Entry]\nType=Application\nName=cld\nGenericName=Sincronización de ficheiros\n" +
+	content := "[Desktop Entry]\nType=Application\nName=Syncply\nGenericName=Sincronización de ficheiros\n" +
 		"Comment=Configurar a sincronización co servidor de ficheiros\nExec=" + execLine + "\n" +
 		"Icon=folder-sync\nTerminal=false\nCategories=Network;FileTransfer;\n"
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {

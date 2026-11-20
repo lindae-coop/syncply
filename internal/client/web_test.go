@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DanBaDo/cld/internal/pairing"
-	"github.com/DanBaDo/cld/internal/stapi"
+	"github.com/lindae-coop/syncply/internal/pairing"
+	"github.com/lindae-coop/syncply/internal/stapi"
 )
 
 const (
@@ -41,7 +41,7 @@ func fakeSyncthing(t *testing.T) *fakeST {
 		"/rest/config/devices":         []any{map[string]any{"deviceID": srvID, "paused": false}},
 		"/rest/config/defaults/device": map[string]any{"addresses": []any{"dynamic"}},
 		"/rest/system/connections":     map[string]any{"connections": map[string]any{srvID: map[string]any{"connected": true}}},
-		"/rest/config/folders":         []any{map[string]any{"id": "f1", "label": "Común <b>", "path": "/home/u/cld/Común"}},
+		"/rest/config/folders":         []any{map[string]any{"id": "f1", "label": "Común <b>", "path": "/home/u/syncply/Común"}},
 		"/rest/db/status":              map[string]any{"state": "syncing", "needFiles": 3, "needBytes": 1536, "globalFiles": 10, "globalBytes": 5 << 20},
 		"/rest/cluster/pending/folders": map[string]any{
 			"f2": map[string]any{"offeredBy": map[string]any{srvID: map[string]any{"label": "Documentos"}}},
@@ -111,11 +111,11 @@ type testEnv struct {
 
 func newEnv(t *testing.T, paired bool) *testEnv {
 	t.Helper()
-	t.Setenv("CLD_DEV", "1") // pairsrv falso por http
+	t.Setenv("SYNCPLY_DEV", "1") // pairsrv falso por http
 	st, ps := fakeSyncthing(t), httptest.NewServer(pairsrvHandler(srvID))
 	t.Cleanup(st.Close)
 	t.Cleanup(ps.Close)
-	app, err := NewApp(stapi.New("st", st.URL, "k"), filepath.Join(t.TempDir(), "state.json"), "/home/u/cld")
+	app, err := NewApp(stapi.New("st", st.URL, "k"), filepath.Join(t.TempDir(), "state.json"), "/home/u/syncply")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,7 +156,7 @@ func do(h http.Handler, method, target string, hdr map[string]string, cookie *ht
 	return rec
 }
 
-// login fai o que fai `cld open` e devolve a cookie de sesión.
+// login fai o que fai `syncply open` e devolve a cookie de sesión.
 func login(t *testing.T, h http.Handler) *http.Cookie {
 	t.Helper()
 	rec := do(h, http.MethodPost, "/_control/login-url", map[string]string{controlHdr: "control"}, nil, nil)
@@ -247,7 +247,7 @@ func TestPagesRender(t *testing.T) {
 	for _, want := range []string{
 		"alice", "Conectado ao servidor", "faltan 3 ficheiros (1,5 KiB)", "5 MiB",
 		"Común &lt;b&gt;", // escapado
-		"Documentos", "/home/u/cld/Documentos",
+		"Documentos", "/home/u/syncply/Documentos",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("index: falta %q", want)
@@ -271,7 +271,7 @@ func TestUnpairedShowsPairing(t *testing.T) {
 	if !strings.Contains(body, "texto de vinculación") || !strings.Contains(body, `action="/pair/check"`) || strings.Contains(body, "Os meus equipos") {
 		t.Error("sen vincular debería amosarse só o formulario de vinculación")
 	}
-	for _, text := range []string{"", "123456", "cld1:estragado"} {
+	for _, text := range []string{"", "123456", "syncply1:estragado"} {
 		rec := do(h, http.MethodPost, "/pair/check", nil, c, url.Values{"linktext": {text}})
 		if loc := rec.Header().Get("Location"); rec.Code != http.StatusSeeOther || !strings.Contains(loc, "err=") {
 			t.Errorf("texto %q: %d %s", text, rec.Code, loc)
@@ -345,7 +345,7 @@ func TestPairRejectsOtherServer(t *testing.T) {
 // as CA do sistema.
 func TestPairsrvHTTPS(t *testing.T) {
 	e := newEnv(t, false)
-	t.Setenv("CLD_DEV", "")
+	t.Setenv("SYNCPLY_DEV", "")
 	ts := httptest.NewTLSServer(pairsrvHandler(srvID))
 	defer ts.Close()
 	httpLink := pairing.LinkData{URL: e.ps.URL, User: "alice", Server: srvID}.Encode()

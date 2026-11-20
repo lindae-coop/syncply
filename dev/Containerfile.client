@@ -1,5 +1,5 @@
-# Imaxe de desenvolvemento dos clientes: Go para executar cld con `go run` e
-# o binario de Syncthing (mesma versión que o servidor) para que cld o arranque.
+# Imaxe de desenvolvemento dos clientes: Go para executar syncply con `go run` e
+# o binario de Syncthing (mesma versión que o servidor) para que syncply o arranque.
 FROM docker.io/syncthing/syncthing:2.1.7 AS syncthing
 FROM docker.io/library/golang:1.27.4-alpine
 COPY --from=syncthing /bin/syncthing /usr/local/bin/syncthing

@@ -1,4 +1,4 @@
-# cld — nube de ficheiros lixeira (SFTPGo + Syncthing)
+# Syncply — nube de ficheiros lixeira (SFTPGo + Syncthing)
 
 Ver [CLAUDE.md](CLAUDE.md) para o contexto e as decisións do proxecto.
 
@@ -18,7 +18,7 @@ make web          # abre a web de pairsrv (código de vinculación e descarga)
 make otp U=alice  # código de vinculación actual dun usuario de proba
 make blob U=alice # texto de vinculación dun usuario de proba
 make dist         # paquete de Linux co instalador
-make dist-windows # instalador de Windows (cld.exe autoinstalable)
+make dist-windows # instalador de Windows (syncply.exe autoinstalable)
 make installtest  # proba o paquete nun Debian con systemd
 make status   # estado de dispositivos, carpetas e conexións
 make help     # resto de ordes
@@ -31,7 +31,7 @@ Que levanta `compose.yaml`:
 |--------------|----------------------------------------------------------|
 | `sftpgo`     | SFTPGo 2.7.6 (BD SQLite), datos en `/srv/sftpgo/data`    |
 | `st-server`  | Syncthing do servidor; ve os datos de SFTPGo na mesma ruta |
-| `st-client1` | Cliente de proba (alice): `cld daemon` + o seu Syncthing; web en `127.0.0.1:8411` |
+| `st-client1` | Cliente de proba (alice): `syncply daemon` + o seu Syncthing; web en `127.0.0.1:8411` |
 | `st-client2` | Cliente de proba (bob); web en `127.0.0.1:8412`          |
 | `st-client3` | Cliente de proba (alice, segundo equipo); web en `127.0.0.1:8413` |
 | `pairsrv`    | Servizo de emparellamento (`cmd/pairsrv`); web dos usuarios en `127.0.0.1:8090` |
@@ -39,7 +39,7 @@ Que levanta `compose.yaml`:
 
 - A API REST de Syncthing só é accesible desde a rede interna `stnet` e con
   API key (`ST_APIKEY`, cun valor por defecto só para desenvolvemento). O
-  único porto publicado é a web dos clientes `cld`, e só en `127.0.0.1`.
+  único porto publicado é a web dos clientes `syncply`, e só en `127.0.0.1`.
 - O estado de cada nodo garda en `./.dev/<nodo>` (ignorado por git). Os
   datos sincronizados están en `./.dev/<nodo>/data/`.
 - `PUID=0`: en Podman rootless o root do contedor é o teu usuario, así que os
@@ -84,7 +84,7 @@ certificado dunha CA propia, hai que instalala nos equipos.)
 
 `web.publicURL` é a URL do proxy e ten que ser `https://`: pairsrv non
 arranca con `http://`, e o cliente rexeita textos de vinculación con
-`http://`. A única excepción é o **modo de desenvolvemento**, `CLD_DEV=1`
+`http://`. A única excepción é o **modo de desenvolvemento**, `SYNCPLY_DEV=1`
 (en `compose.yaml` para todos os contedores; en `make installtest`, como
 drop-in do servizo): permite `http` e as cookies van sen `Secure`.
 
@@ -105,7 +105,7 @@ ese código. Dentro ve:
   dun directorio en `/descargas/` con `-downloads`; en desenvolvemento,
   `./dist`). O cliente é **xenérico**: o mesmo binario para todos os
   servidores;
-- o **texto de vinculación** (`cld1:` + base64url dun JSON
+- o **texto de vinculación** (`syncply1:` + base64url dun JSON
   `{"v":1,"url","user","server"}`), cun botón **Copiar** (único script da
   web, `/static/copy.js`; sen el cópiase a man). Indica ao cliente a URL de
   pairsrv (`web.publicURL`, obrigatoria), o usuario e o Device ID do
@@ -150,17 +150,17 @@ SFTPGo e crea a regra de eventos. Todos teñen o grupo primario `syncthing`:
 | alice   | escritura → **sincroniza** | escritura → **sincroniza** | só lectura → non |
 | bob     | só lectura → non   | escritura → **sincroniza** | só lectura → non   |
 
-## Cliente `cld`
+## Cliente `syncply`
 
-Un só binario ([cmd/cld](cmd/cld/main.go), [internal/client](internal/client)):
+Un só binario ([cmd/syncply](cmd/syncply/main.go), [internal/client](internal/client)):
 
-- `cld daemon`: servizo de usuario. **Arranca e vixía o seu propio
+- `syncply daemon`: servizo de usuario. **Arranca e vixía o seu propio
   Syncthing** (proceso fillo con `--no-restart`: reinícioo ao momento se
   Syncthing pide reiniciarse e con espera crecente se falla) e serve a web
   de configuración só en `127.0.0.1` (porto libre).
   - Syncthing vai en `<dir>/syncthing` (`0700`), coa **API nun socket Unix**
     (`gui.sock`; en Windows, porto libre en loopback) e unha API key
-    aleatoria gardada no estado. Busca o binario `syncthing` xunto a `cld`
+    aleatoria gardada no estado. Busca o binario `syncthing` xunto a `syncply`
     ou no PATH (`-syncthing`). Con `-st-url` usa un Syncthing externo.
     - Cada vez que Syncthing arranca aplica os **valores seguros por
     defecto** compilados (`client.DefaultSyncthingOptions`: sen
@@ -184,12 +184,12 @@ Un só binario ([cmd/cld](cmd/cld/main.go), [internal/client](internal/client)):
   - pausa 1 h / 8 h (retómase só), ou **detén** (para o proceso de
     Syncthing; lémbrase entre reinicios) e arranca;
   - ve os seus equipos e revoga outros (cun código de vinculación novo).
-- `cld open`: o que executa o **acceso directo**. Le `ui.json` (porto e
+- `syncply open`: o que executa o **acceso directo**. Le `ui.json` (porto e
   clave de control, `0600`, só do usuario), pídelle ao daemon unha URL de
   acceso dun só uso (60 s) e ábrea no navegador. O usuario non ten que saber
   porto, enderezo nin contrasinal.
-- `cld shortcut`: crea o acceso directo `cld` no menú de aplicacións (Linux,
-  `~/.local/share/applications/cld.desktop`). En Windows faino `cld
+- `syncply shortcut`: crea o acceso directo `syncply` no menú de aplicacións (Linux,
+  `~/.local/share/applications/syncply.desktop`). En Windows faino `syncply
   install` (ver [Instalador de Windows](#instalador-de-windows)).
 
 Seguridade da web: só loopback; URL de acceso dun só uso → cookie de sesión
@@ -198,7 +198,7 @@ Seguridade da web: só loopback; URL de acceso dun só uso → cookie de sesión
 
 O cliente non ten configuración de servidor: todo vén do texto de
 vinculación e da resposta de pairsrv. (As instalacións anteriores con
-`cld.json` aparecen sen vincular; volver vincular co mesmo usuario renova o
+`syncply.json` aparecen sen vincular; volver vincular co mesmo usuario renova o
 token do equipo.)
 
 No contorno, os contedores `st-clientN` usan a imaxe
@@ -217,7 +217,7 @@ abrir o navegador (entran na web co contrasinal de proba).
 
 ## Instalador de Linux
 
-`make dist` xera `dist/cld-linux-amd64.tar.gz`: `cld` (estático),
+`make dist` xera `dist/syncply-linux-amd64.tar.gz`: `syncply` (estático),
 `syncthing` 2.1.7 (o binario da imaxe oficial fixada), `install.sh` e
 [LICENZAS.txt](packaging/linux/LICENZAS.txt) (Syncthing é MPL-2.0). De
 momento só amd64. **Non leva configuración de ningún servidor**: o mesmo
@@ -226,12 +226,12 @@ paquete vale para todos.
 [install.sh](packaging/linux/install.sh) instala **só para o usuario, sen
 root**:
 
-- binarios en `~/.local/share/cld/bin`, estado en `~/.config/cld`
-  (`0700`; borra o `cld.json` das versións anteriores, que xa non se usa);
-- `cld daemon` como **servizo de systemd de usuario** (`cld.service`); sen
+- binarios en `~/.local/share/syncply/bin`, estado en `~/.config/syncply`
+  (`0700`; borra o `syncply.json` das versións anteriores, que xa non se usa);
+- `syncply daemon` como **servizo de systemd de usuario** (`syncply.service`); sen
   systemd de usuario, arranque automático XDG (`~/.config/autostart`) e
   arráncao xa;
-- acceso directo `cld` no menú e, se hai sesión gráfica, abre a web para
+- acceso directo `syncply` no menú e, se hai sesión gráfica, abre a web para
   vincular (`--no-open` para non abrila);
 - `install.sh --uninstall` desinstala e conserva a configuración (identidade
   do equipo) e as carpetas sincronizadas.
@@ -245,23 +245,23 @@ contorno en marcha con SFTPGo preparado (`make demo` ou `make fresh`).
 
 ## Instalador de Windows
 
-`make dist-windows` xera `dist/cld-windows-amd64.exe`: un só ficheiro,
+`make dist-windows` xera `dist/syncply-windows-amd64.exe`: un só ficheiro,
 **autoinstalable**, co `syncthing.exe` 2.1.7 oficial dentro (comprimido con
 `go:embed`, etiqueta `embedsyncthing`) e as licenzas. O zip de Syncthing
 descárgase das publicacións de GitHub e verifícase co SHA-256 fixado no
 [Makefile](Makefile) (o publicado en `sha256sum.txt.asc`; a sinatura GPG non
 se comproba). Compílase con `-H windowsgui` (sen xanela de consola); desde
-unha consola, `cld` engánchase a ela para mostrar a saída.
+unha consola, `syncply` engánchase a ela para mostrar a saída.
 
-Dobre clic no `.exe` descargado = `cld install`. **Só para o usuario, sen
-administrador** ([install_windows.go](cmd/cld/install_windows.go)):
+Dobre clic no `.exe` descargado = `syncply install`. **Só para o usuario, sen
+administrador** ([install_windows.go](cmd/syncply/install_windows.go)):
 
-- binarios en `%LOCALAPPDATA%\Programs\cld`, estado en `%LOCALAPPDATA%\cld`
+- binarios en `%LOCALAPPDATA%\Programs\syncply`, estado en `%LOCALAPPDATA%\syncply`
   (non en `Roaming`: a identidade do equipo non debe viaxar co perfil),
-  rexistro do daemon e de Syncthing en `%LOCALAPPDATA%\cld\cld.log`;
-- arranque ao iniciar sesión con `HKCU\…\Run`; acceso directo `cld` no menú
-  Inicio (`cld open`, creado con PowerShell/`WScript.Shell`); entrada en
-  «Aplicacións instaladas» (`HKCU\…\Uninstall\cld`) que executa `cld
+  rexistro do daemon e de Syncthing en `%LOCALAPPDATA%\syncply\syncply.log`;
+- arranque ao iniciar sesión con `HKCU\…\Run`; acceso directo `syncply` no menú
+  Inicio (`syncply open`, creado con PowerShell/`WScript.Shell`); entrada en
+  «Aplicacións instaladas» (`HKCU\…\Uninstall\syncply`) que executa `syncply
   uninstall`;
 - arranca o daemon e abre a web para vincular. Se xa había un daemon,
   pídelle que se peche (`POST /_control/shutdown` coa clave de `ui.json`) e
@@ -270,8 +270,8 @@ administrador** ([install_windows.go](cmd/cld/install_windows.go)):
   xanela (`CREATE_NO_WINDOW`), coa API en loopback (porto libre + API key);
 - o acceso directo volve arrancar o daemon se non está en marcha; os erros
   sen consola móstranse nunha caixa de diálogo;
-- `cld uninstall` (pregunta; `-quiet` non) quita todo isto e conserva o
-  estado e as carpetas. O `cld.exe` en execución bórrao un `cmd` ao rematar.
+- `syncply uninstall` (pregunta; `-quiet` non) quita todo isto e conserva o
+  estado e as carpetas. O `syncply.exe` en execución bórrao un `cmd` ao rematar.
 
 Pendente: **probalo nun Windows real** (só se comprobou que compila e pasa
 `go vet` con `GOOS=windows`); asinar o `.exe` (sen sinatura, SmartScreen

@@ -1,4 +1,4 @@
-module github.com/DanBaDo/cld
+module github.com/lindae-coop/syncply
 
 go 1.27
 

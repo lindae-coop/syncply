@@ -19,7 +19,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DanBaDo/cld/internal/pairing"
+	"github.com/lindae-coop/syncply/internal/pairing"
 )
 
 const pairsrvURL = "http://pairsrv:8080"
@@ -89,7 +89,7 @@ func waitPairsrv(ctx context.Context) error {
 
 var (
 	codeRe = regexp.MustCompile(`id="code">(\d{6})<`)
-	linkRe = regexp.MustCompile(`id="linktext"[^>]*>(cld1:[A-Za-z0-9_-]+)<`)
+	linkRe = regexp.MustCompile(`id="linktext"[^>]*>(syncply1:[A-Za-z0-9_-]+)<`)
 )
 
 // devPage entra na web de pairsrv co contrasinal de proba do usuario e
@@ -160,7 +160,7 @@ func cmdBlob(ctx context.Context, user string) error {
 }
 
 // cmdOTP amosa o código de vinculación actual para usar a man (p. ex. na web
-// de cld).
+// de syncply).
 func cmdOTP(ctx context.Context, user string) error {
 	code, err := devOTP(ctx, user)
 	if err != nil {

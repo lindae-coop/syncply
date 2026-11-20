@@ -16,7 +16,7 @@ func defaultStateDir() string {
 	if err != nil {
 		d = "."
 	}
-	return filepath.Join(d, "cld")
+	return filepath.Join(d, "syncply")
 }
 
 // Fóra de Windows o daemon escribe en stderr (journal de systemd).

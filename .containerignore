@@ -1,4 +1,4 @@
 .git
 .dev
 dist
-cmd/cld/embed
+cmd/syncply/embed

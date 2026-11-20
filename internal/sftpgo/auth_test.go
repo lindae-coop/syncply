@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/DanBaDo/cld/internal/pairing"
+	"github.com/lindae-coop/syncply/internal/pairing"
 )
 
 func TestCheckPassword(t *testing.T) {

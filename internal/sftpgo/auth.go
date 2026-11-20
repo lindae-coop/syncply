@@ -6,7 +6,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/DanBaDo/cld/internal/pairing"
+	"github.com/lindae-coop/syncply/internal/pairing"
 )
 
 // CheckPassword implementa pairing.PasswordChecker: comproba usuario e

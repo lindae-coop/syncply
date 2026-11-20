@@ -11,10 +11,10 @@ set -eu
 cd "$(dirname "$0")"
 
 if [ $# -ne 2 ]; then
-	echo "uso: $0 DOMINIO_CLD DOMINIO_SFTPGO" >&2
+	echo "uso: $0 DOMINIO_SYNCPLY DOMINIO_SFTPGO" >&2
 	exit 2
 fi
-cld=$1 sftp=$2
+syncply=$1 sftp=$2
 
 rnd() { head -c 32 /dev/urandom | base64 | tr '+/' '-_' | tr -d '=\n'; }
 
@@ -33,7 +33,7 @@ else
 	umask 077
 	cat > .env <<ENV
 # Xerado por init.sh. Non o subas ao repositorio.
-CLD_DOMAIN=$cld
+SYNCPLY_DOMAIN=$syncply
 SFTPGO_DOMAIN=$sftp
 SFTPGO_ADMIN_USER=admin
 SFTPGO_ADMIN_PASSWORD=$(rnd)
@@ -50,14 +50,14 @@ if [ -e pairsrv.json ]; then
 else
 	cat > pairsrv.json <<JSON
 {
-  "serverAddresses": ["tcp://$cld:22000", "quic://$cld:22000"],
+  "serverAddresses": ["tcp://$syncply:22000", "quic://$syncply:22000"],
   "maxDevicesPerUser": 5,
   "syncthingOptions": {
     "localAnnounceEnabled": true
   },
   "p2p": {
-    "discovery": {"url": "https://$cld:8443/", "certFile": "/discosrv/cert.pem"},
-    "relay": {"url": "relay://$cld:22067/", "certFile": "/relaysrv/cert.pem", "token": "$relay_token"}
+    "discovery": {"url": "https://$syncply:8443/", "certFile": "/discosrv/cert.pem"},
+    "relay": {"url": "relay://$syncply:22067/", "certFile": "/relaysrv/cert.pem", "token": "$relay_token"}
   },
   "serverSyncthingOptions": {
     "globalAnnounceEnabled": false,
@@ -73,10 +73,10 @@ else
     "apiURL": "http://sftpgo:8080"
   },
   "web": {
-    "publicURL": "https://$cld",
+    "publicURL": "https://$syncply",
     "downloads": [
-      {"label": "Linux (x86-64)", "url": "/descargas/cld-linux-amd64.tar.gz"},
-      {"label": "Windows (x86-64, en probas)", "url": "/descargas/cld-windows-amd64.exe"}
+      {"label": "Linux (x86-64)", "url": "/descargas/syncply-linux-amd64.tar.gz"},
+      {"label": "Windows (x86-64, en probas)", "url": "/descargas/syncply-windows-amd64.exe"}
     ]
   }
 }

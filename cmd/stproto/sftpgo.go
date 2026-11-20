@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DanBaDo/cld/internal/sftpgo"
+	"github.com/lindae-coop/syncply/internal/sftpgo"
 )
 
 const (

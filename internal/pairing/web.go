@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DanBaDo/cld/internal/totp"
+	"github.com/lindae-coop/syncply/internal/totp"
 )
 
 // PasswordChecker comproba as credenciais dun usuario (SFTPGo). otp é o

@@ -1,5 +1,5 @@
 {{template "head"}}
-{{if .Overview.Paired}}{{template "nav" "index"}}{{else}}<header><h1>cld</h1></header>{{end}}
+{{if .Overview.Paired}}{{template "nav" "index"}}{{else}}<header><h1>Syncply</h1></header>{{end}}
 {{template "flash" .}}
 
 {{if .Overview.Stopped}}
@@ -38,10 +38,10 @@
 {{else if not .Overview.Paired}}
 <section>
   <h2>Vincular este equipo</h2>
-  <p class="muted">Entra na páxina do servidor onde descargaches este programa co teu usuario e contrasinal. Alí atoparás o <strong>texto de vinculación</strong> (empeza por «cld1:») e o <strong>código de vinculación</strong>.</p>
+  <p class="muted">Entra na páxina do servidor onde descargaches este programa co teu usuario e contrasinal. Alí atoparás o <strong>texto de vinculación</strong> (empeza por «syncply1:») e o <strong>código de vinculación</strong>.</p>
   <form method="post" action="/pair/check">
     <label for="linktext">1. Pega aquí o texto de vinculación</label>
-    <textarea id="linktext" name="linktext" class="linktext" rows="3" spellcheck="false" autocomplete="off" placeholder="cld1:…" required autofocus></textarea>
+    <textarea id="linktext" name="linktext" class="linktext" rows="3" spellcheck="false" autocomplete="off" placeholder="syncply1:…" required autofocus></textarea>
     <p class="muted">2. No seguinte paso confirmarás o servidor e introducirás o código de vinculación.</p>
     <p><button class="primary">Continuar</button></p>
   </form>

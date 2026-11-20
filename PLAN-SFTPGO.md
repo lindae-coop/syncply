@@ -1,6 +1,6 @@
 # Plan: fase 1 da integración en SFTPGo
 
-Obxectivo: substituír pairsrv por código dentro dun **fork de SFTPGo 2.7.6**. Syncthing segue sendo un **proceso aparte**, pero agora SFTPGo arráncao e supervísao. O estado gárdase en **táboas propias** na BD de SFTPGo. O cliente `cld` non cambia, nin tampouco os IDs de carpeta, polo que os equipos xa vinculados seguen funcionando sen vincular de novo.
+Obxectivo: substituír pairsrv por código dentro dun **fork de SFTPGo 2.7.6**. Syncthing segue sendo un **proceso aparte**, pero agora SFTPGo arráncao e supervísao. O estado gárdase en **táboas propias** na BD de SFTPGo. O cliente `syncply` non cambia, nin tampouco os IDs de carpeta, polo que os equipos xa vinculados seguen funcionando sen vincular de novo.
 
 Fóra desta fase: embeber Syncthing como biblioteca, borrar funcionalidades do código de SFTPGo e o modo con **varios nodos** (ver o final; o esquema xa se deseña para el).
 
@@ -26,14 +26,14 @@ Estimación total: **18–27 días** (+2–4 d se se fai o paso opcional 11).
 
 **Recomendado:** sacar de `internal/` os paquetes que usan o servidor e o cliente (`pairing` sen a web, `totp`, `stapi`, `linktext` e o supervisor de `internal/client`) e levalos a `pkg/` neste repo. O fork importaríaos como módulo Go. Así o fork só leva a cola de unión (adaptador, almacenamento, rutas, páxinas), e o diff contra upstream queda pequeno.
 
-Alternativa: copialos no fork. É máis simple ao principio, pero queda código duplicado entre `cld` e o fork.
+Alternativa: copialos no fork. É máis simple ao principio, pero queda código duplicado entre `syncply` e o fork.
 
 ## Pasos
 
 Cada paso remata con algo verificable. A orde permite manter `make demo` funcionando todo o tempo.
 
 ### 0. Base do fork (0,5–1 d)
-- Facer un fork de `drakkan/sftpgo` na etiqueta `v2.7.6`, nunha rama `cld`.
+- Facer un fork de `drakkan/sftpgo` na etiqueta `v2.7.6`, nunha rama `syncply`.
 - Compilar sen cambios no contedor `tools` e facer unha imaxe a partir do `Dockerfile` de upstream, coa etapa extra de copiar `syncthing` 2.1.7 desde `docker.io/syncthing/syncthing:2.1.7`.
 - Cambiar o servizo `sftpgo` de `compose.yaml` pola imaxe do fork.
 - **Verificar:** `make demo` pasa igual que hoxe (pairsrv segue fóra).
@@ -44,7 +44,7 @@ Cada paso remata con algo verificable. A orde permite manter `make demo` funcion
 - **Verificar:** `make test`, `make demo`.
 
 ### 2. Adaptador do dataprovider (2–3 d)
-- Novo paquete no fork (p. ex. `internal/cldsync`) que implemente `Directory.Snapshot` con `dataprovider`. Percorre os usuarios paxinados, aplica os grupos e calcula os recursos ofrecidos:
+- Novo paquete no fork (p. ex. `internal/syncply`) que implemente `Directory.Snapshot` con `dataprovider`. Percorre os usuarios paxinados, aplica os grupos e calcula os recursos ofrecidos:
   - directorio persoal e cartafoles virtuais con `FsConfig.Provider` local (sen cifrado nin SFTP/S3);
   - permiso de escritura completo en toda a árbore, tendo en conta os permisos de subrutas e os cartafoles montados dentro;
   - o usuario está activo e non caducou;
@@ -56,19 +56,19 @@ Cada paso remata con algo verificable. A orde permite manter `make demo` funcion
 
 ### 3. Estado en táboas propias (3–4 d)
 - **Sen interferir con SFTPGo:**
-  - táboas co prefixo `cld_` e versión de esquema propia (`cld_schema_version`), independente da de SFTPGo (v33), con migracións propias;
+  - táboas co prefixo `syncply_` e versión de esquema propia (`syncply_schema_version`), independente da de SFTPGo (v33), con migracións propias;
   - **sen claves foráneas** cara ás táboas de SFTPGo; o callback do paso 5 borra as filas dun usuario borrado;
   - conexión propia (`*sql.DB`) aberta coa configuración do `data_provider`.
 - **Provedores:** SQLite, MySQL, PostgreSQL e CockroachDB. Con `bolt`/`memory`, Syncthing non se ofrece (erro claro ao arrancar se `syncthing.enabled`).
 - **Esquema** (pensado xa para varios nodos):
-  - `cld_users`: `username` (PK), `otp_secret` (cifrado co KMS de SFTPGo), `otp_last_step`, `updated_at`.
-  - `cld_devices`: `device_id` (PK), `username`, `name`, `token_hash`, `created_at`, `last_seen`.
-  - `cld_server`: identidade de Syncthing do servidor (certificado e clave cifrados co KMS) e Device ID. Garda o mesmo que o home de Syncthing, para que se poida recrear.
-  - `cld_lease`: `name`, `node`, `expires_at`. **Creada pero sen usar** nesta fase (líder para varios nodos).
-  - `cld_changes`: contador de cambios. Tamén **sen usar** de momento (avisos entre nodos).
-- **OTP atómico:** marcar o código como usado con `UPDATE cld_users SET otp_last_step = ? WHERE username = ? AND otp_last_step < ?`. Se non actualiza ningunha fila, o código xa se usou, aínda que chegue por dous nodos distintos.
+  - `syncply_users`: `username` (PK), `otp_secret` (cifrado co KMS de SFTPGo), `otp_last_step`, `updated_at`.
+  - `syncply_devices`: `device_id` (PK), `username`, `name`, `token_hash`, `created_at`, `last_seen`.
+  - `syncply_server`: identidade de Syncthing do servidor (certificado e clave cifrados co KMS) e Device ID. Garda o mesmo que o home de Syncthing, para que se poida recrear.
+  - `syncply_lease`: `name`, `node`, `expires_at`. **Creada pero sen usar** nesta fase (líder para varios nodos).
+  - `syncply_changes`: contador de cambios. Tamén **sen usar** de momento (avisos entre nodos).
+- **OTP atómico:** marcar o código como usado con `UPDATE syncply_users SET otp_last_step = ? WHERE username = ? AND otp_last_step < ?`. Se non actualiza ningunha fila, o código xa se usou, aínda que chegue por dous nodos distintos.
 - Datas en `int64` (ms), como fai SFTPGo, para evitar diferenzas de tipos entre dialectos.
-- **Migración desde pairsrv:** importar `state.json` (segredos, dispositivos, tokens) e o certificado do home de Syncthing a `cld_*`. Así o servidor conserva o seu Device ID e ninguén ten que vincular de novo.
+- **Migración desde pairsrv:** importar `state.json` (segredos, dispositivos, tokens) e o certificado do home de Syncthing a `syncply_*`. Así o servidor conserva o seu Device ID e ninguén ten que vincular de novo.
 - **Verificar:** probas do `Store` contra SQLite, PostgreSQL e MySQL en contedores; a importación de `state.json` produce o mesmo estado.
 
 ### 4. Configuración e ciclo de vida (1–2 d)
@@ -76,31 +76,31 @@ Cada paso remata con algo verificable. A orde permite manter `make demo` funcion
   - `enabled`, `binary`, `home`;
   - `public_url`, `max_devices`, `syncthing_options`, `reconcile_interval`, `downloads_dir`.
 - En `startServices`: abrir o `Store`, crear o servizo de vinculación, arrancar Syncthing co supervisor (API en socket Unix e API key xerada) e o bucle de reconciliación. Parar todo cando se pecha `Shutdown`.
-- Se o home de Syncthing non ten certificado, escribir o de `cld_server` antes de arrancar. Se non hai ningún, xeralo e gardalo.
-- Manter a regra `public_url` `https://` agás con `CLD_DEV=1`.
+- Se o home de Syncthing non ten certificado, escribir o de `syncply_server` antes de arrancar. Se non hai ningún, xeralo e gardalo.
+- Manter a regra `public_url` `https://` agás con `SYNCPLY_DEV=1`.
 - **Verificar:** SFTPGo arranca Syncthing co Device ID gardado, e `/rest/system/status` responde polo socket.
 
 ### 5. Avisos en memoria (0,5–1 d)
-- Callback rexistrado desde `cldsync`, chamado en `executeAction` para `user`, `group` e `folder` → `RequestReconcile()`. É unha liña en `actions.go` máis un setter. Cando se borra un usuario, borra tamén as súas filas en `cld_*`.
+- Callback rexistrado desde `internal/syncply`, chamado en `executeAction` para `user`, `group` e `folder` → `RequestReconcile()`. É unha liña en `actions.go` máis un setter. Cando se borra un usuario, borra tamén as súas filas en `syncply_*`.
 - A reconciliación periódica queda como rede de seguridade (as caducidades de usuario non xeran eventos).
 - Retirar da demo a regra HTTP do xestor de eventos.
 - **Verificar:** un cambio de `mapped_path` dun cartafol aplícase en ~1 s (hoxe non chega ata a reconciliación periódica).
 
 ### 6. API para o cliente (1–2 d)
 - Montar os manexadores de `pairing/http.go` no router de SFTPGo, sen os middlewares de autenticación de SFTPGo:
-  - `/healthz` → `/cld/healthz`;
-  - `/api/v1/pair`, `/api/v1/devices`… → baixo un prefixo (p. ex. `/cld/api/v1/…`).
+  - `/healthz` → `/syncply/healthz`;
+  - `/api/v1/pair`, `/api/v1/devices`… → baixo un prefixo (p. ex. `/syncply/api/v1/…`).
 - `public_url` = URL base de SFTPGo + prefixo. O cliente segue construíndo as rutas desde a URL do texto de vinculación, así que non cambia.
 - Desaparece `/internal/v1/sync`.
 - Considerar o **defender** de SFTPGo para os OTP fallidos (bloqueo por IP).
-- **Verificar:** `cld` vincula e lista equipos contra o fork.
+- **Verificar:** `syncply` vincula e lista equipos contra o fork.
 
 ### 7. Páxina no WebClient (3–5 d)
 - Nova ruta `/web/client/sync`, entrada no menú de `base.html`, modelo `sync.html` e manexador en `webclient.go` que colle o usuario da sesión (JWT). **O login propio desaparece**, e de paso funcionan o 2FA e OIDC de SFTPGo.
 - Contido: código de vinculación con contador (JS con `nonce`), texto de vinculación con Copiar, descargas desde `downloads_dir`, recursos ofrecidos e os meus equipos (N de máximo).
 - Novo: **revogar desde a web** (POST con CSRF de SFTPGo; a sesión xa autentica, sen OTP).
 - Chaves i18n en `en` (e `it`/`de`/`fr` en inglés ou traducidas). O galego é opcional, porque supón engadir un idioma a SFTPGo.
-- Endpoint de API de usuario `GET /api/v2/user/cld` (token JWT de `/api/v2/user/token`) que devolva código e texto: serve para `make otp`/`make blob` sen raspar o HTML.
+- Endpoint de API de usuario `GET /api/v2/user/syncply` (token JWT de `/api/v2/user/token`) que devolva código e texto: serve para `make otp`/`make blob` sen raspar o HTML.
 - **Verificar:** vincular nun navegador real desde o WebClient.
 
 ### 8. Ocultar os ficheiros de Syncthing no código (1 d)
@@ -131,12 +131,12 @@ Cada paso remata con algo verificable. A orde permite manter `make demo` funcion
 
 ## Ficheiros de upstream tocados (para manter os rebases baratos)
 
-`dataprovider/actions.go`, `dataprovider/user.go` (`IsFileAllowed`), `config/config.go`, `service/service.go`, `httpd/httpd.go`, `httpd/server.go`, `httpd/webclient.go`, `httpd/webadmin.go`, `templates/webclient/base.html`, `templates/webadmin/user.html`, `static/locales/*/translation.json`, `Dockerfile`, `go.mod`. Todo o demais (incluídas as táboas `cld_*` e as súas migracións) vai en ficheiros novos.
+`dataprovider/actions.go`, `dataprovider/user.go` (`IsFileAllowed`), `config/config.go`, `service/service.go`, `httpd/httpd.go`, `httpd/server.go`, `httpd/webclient.go`, `httpd/webadmin.go`, `templates/webclient/base.html`, `templates/webadmin/user.html`, `static/locales/*/translation.json`, `Dockerfile`, `go.mod`. Todo o demais (incluídas as táboas `syncply_*` e as súas migracións) vai en ficheiros novos.
 
 ## Riscos e preguntas abertas
 
 - **Tres dialectos SQL** (marcadores `?`/`$1`, tipos, `UPSERT`): manter as consultas simples e probalas contra os tres motores.
-- **Restauracións de SFTPGo** (backup/restore de `dumpdata`): non inclúen as táboas `cld_*`. Documentar que se fai copia da BD enteira, ou engadir exportación propia máis adiante.
+- **Restauracións de SFTPGo** (backup/restore de `dumpdata`): non inclúen as táboas `syncply_*`. Documentar que se fai copia da BD enteira, ou engadir exportación propia máis adiante.
 - **CGO:** comprobar que o contedor `tools` compila SFTPGo con `CGO_ENABLED=1` (SQLite de `mattn`).
 - **Rebase a novas versións de SFTPGo:** revisar o adaptador e os puntos de enganche (substitúe a nota actual sobre `internal/sftpgo`).
 
@@ -144,9 +144,9 @@ Cada paso remata con algo verificable. A orde permite manter `make demo` funcion
 
 Só se aparece unha necesidade real. Require `is_shared: 1` (MySQL, PostgreSQL ou CockroachDB) e disco compartido (NFS ou similar) entre os nodos.
 
-1. **Un único Syncthing activo:** o nodo que ten a concesión en `cld_lease` (`UPDATE … WHERE expires_at < now`, renovada periodicamente) executa Syncthing e a reconciliación. O resto de nodos serven a web e a API e só escriben na BD.
-2. **Mesma identidade tras un fallo:** o novo líder arranca Syncthing co certificado de `cld_server`. Despois dunha caída hai que reescanear todo.
-3. **Avisos entre nodos:** `executeAction` só se dispara no nodo onde se fixo o cambio, e SFTPGo só sincroniza as súas cachés cada 10 min. Cada nodo incrementa `cld_changes` e o líder consúltao cada poucos segundos (ou chámase o líder usando a táboa `nodes` de SFTPGo).
+1. **Un único Syncthing activo:** o nodo que ten a concesión en `syncply_lease` (`UPDATE … WHERE expires_at < now`, renovada periodicamente) executa Syncthing e a reconciliación. O resto de nodos serven a web e a API e só escriben na BD.
+2. **Mesma identidade tras un fallo:** o novo líder arranca Syncthing co certificado de `syncply_server`. Despois dunha caída hai que reescanear todo.
+3. **Avisos entre nodos:** `executeAction` só se dispara no nodo onde se fixo o cambio, e SFTPGo só sincroniza as súas cachés cada 10 min. Cada nodo incrementa `syncply_changes` e o líder consúltao cada poucos segundos (ou chámase o líder usando a táboa `nodes` de SFTPGo).
 4. **Cambios no disco desde outros nodos:** inotify non os ve en NFS. Cada evento de ficheiro de SFTPGo, en calquera nodo, ten que forzar `POST /rest/db/scan` no líder.
 5. **Enderezo do servidor para os clientes:** IP virtual, DNS ou descubrimento propio, para que atopen o líder novo.
 6. **Probas:** dous nodos + PostgreSQL + volume compartido en compose, con caída do líder.

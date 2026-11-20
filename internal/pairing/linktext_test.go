@@ -11,7 +11,7 @@ const testServerID = "AAAAAAA-BBBBBBB-CCCCCCC-DDDDDDD-EEEEEEE-FFFFFFF-GGGGGGG-HH
 func TestLinkTextRoundTrip(t *testing.T) {
 	in := LinkData{URL: "https://nube.example.org/", User: "alice", Server: testServerID}
 	s := in.Encode()
-	if !strings.HasPrefix(s, "cld1:") {
+	if !strings.HasPrefix(s, "syncply1:") {
 		t.Fatalf("sen prefixo: %s", s)
 	}
 	// Ao copiar poden colarse saltos de liña e espazos.
@@ -30,11 +30,11 @@ func TestLinkTextRoundTrip(t *testing.T) {
 
 func TestLinkTextHTTPOnlyInDev(t *testing.T) {
 	text := LinkData{URL: "http://pairsrv:8080", User: "bob", Server: testServerID}.Encode()
-	t.Setenv("CLD_DEV", "")
+	t.Setenv("SYNCPLY_DEV", "")
 	if _, err := ParseLinkText(text); !errors.Is(err, ErrInsecureURL) {
 		t.Errorf("http fóra de desenvolvemento: %v", err)
 	}
-	t.Setenv("CLD_DEV", "1")
+	t.Setenv("SYNCPLY_DEV", "1")
 	if _, err := ParseLinkText(text); err != nil {
 		t.Errorf("http en desenvolvemento: %v", err)
 	}
@@ -48,8 +48,8 @@ func TestLinkTextInvalid(t *testing.T) {
 	}{
 		"baleiro":      {"", ErrLinkPrefix},
 		"só código":    {"123456", ErrLinkPrefix},
-		"base64 mal":   {"cld1:%%%", ErrLinkBroken},
-		"non JSON":     {"cld1:aG9sYQ", ErrLinkBroken},
+		"base64 mal":   {"syncply1:%%%", ErrLinkBroken},
+		"non JSON":     {"syncply1:aG9sYQ", ErrLinkBroken},
 		"cortado":      {ok.Encode()[:30], ErrLinkBroken},
 		"sen usuario":  {LinkData{URL: ok.URL, Server: ok.Server}.Encode(), ErrLinkBroken},
 		"sen servidor": {LinkData{URL: ok.URL, User: "bob", Server: "XYZ"}.Encode(), ErrLinkBroken},
@@ -59,7 +59,7 @@ func TestLinkTextInvalid(t *testing.T) {
 			t.Errorf("%s: %v, quería %v", name, err, tc.want)
 		}
 	}
-	if _, err := ParseLinkText(`cld1:eyJ2IjoyfQ`); err == nil || !strings.Contains(err.Error(), "versión") { // {"v":2}
+	if _, err := ParseLinkText(`syncply1:eyJ2IjoyfQ`); err == nil || !strings.Contains(err.Error(), "versión") { // {"v":2}
 		t.Errorf("versión: %v", err)
 	}
 }

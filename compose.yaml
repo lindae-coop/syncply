@@ -1,9 +1,9 @@
 # Contorno de desenvolvemento do prototipo (Podman rootless).
 # As APIs só son accesibles desde a rede interna "stnet". As excepcións,
 # publicadas só en 127.0.0.1 do equipo para abrilas co navegador, son a web
-# dos clientes cld (make ui C=1) e a web de pairsrv onde os usuarios ven o
+# dos clientes syncply (make ui C=1) e a web de pairsrv onde os usuarios ven o
 # código de vinculación (make web, http://127.0.0.1:8090).
-name: cld
+name: syncply
 
 x-syncthing: &syncthing
   image: docker.io/syncthing/syncthing:2.1.7
@@ -13,7 +13,7 @@ x-syncthing: &syncthing
     PUID: "0"
     PGID: "0"
     STGUIADDRESS: "0.0.0.0:8384"
-    STGUIAPIKEY: ${ST_APIKEY:-cld-dev-apikey-NON-USAR-EN-PRODUCION}
+    STGUIAPIKEY: ${ST_APIKEY:-syncply-dev-apikey-NON-USAR-EN-PRODUCION}
     STNOUPGRADE: "1"
     STNODEFAULTFOLDER: "1"
   networks: [stnet]
@@ -21,23 +21,23 @@ x-syncthing: &syncthing
 
 x-sftpgo-env: &sftpgo-env
   SFTPGO_ADMIN_USER: admin
-  SFTPGO_ADMIN_PASSWORD: ${SFTPGO_ADMIN_PASSWORD:-cld-dev-admin-NON-USAR-EN-PRODUCION}
+  SFTPGO_ADMIN_PASSWORD: ${SFTPGO_ADMIN_PASSWORD:-syncply-dev-admin-NON-USAR-EN-PRODUCION}
 
 x-go: &go
   image: docker.io/library/golang:1.27.4-alpine
   working_dir: /src
   environment:
     <<: *sftpgo-env
-    PAIRSRV_HOOK_TOKEN: ${PAIRSRV_HOOK_TOKEN:-cld-dev-hook-NON-USAR-EN-PRODUCION}
-    ST_APIKEY: ${ST_APIKEY:-cld-dev-apikey-NON-USAR-EN-PRODUCION}
-    # Desenvolvemento: pairsrv e cld permiten http (en produción, só https
+    PAIRSRV_HOOK_TOKEN: ${PAIRSRV_HOOK_TOKEN:-syncply-dev-hook-NON-USAR-EN-PRODUCION}
+    ST_APIKEY: ${ST_APIKEY:-syncply-dev-apikey-NON-USAR-EN-PRODUCION}
+    # Desenvolvemento: pairsrv e syncply permiten http (en produción, só https
     # detrás dun proxy) e as cookies de pairsrv van sen Secure.
-    CLD_DEV: "1"
+    SYNCPLY_DEV: "1"
     CGO_ENABLED: "0"
     GOFLAGS: "-buildvcs=false"
   networks: [stnet]
 
-# Clientes: cada contedor executa `cld daemon`, que arranca o seu propio
+# Clientes: cada contedor executa `syncply daemon`, que arranca o seu propio
 # Syncthing (como no equipo dun usuario). Hostname st-clientN para que stproto
 # chegue á API de Syncthing (en desenvolvemento en TCP interno con
 # ST_APIKEY; no cliente real vai nun socket Unix). A web publícase só en
@@ -45,7 +45,7 @@ x-go: &go
 # (mesma identidade que cando eran contedores de Syncthing).
 x-client: &client
   <<: *go
-  image: localhost/cld-client-dev:latest
+  image: localhost/syncply-client-dev:latest
   build:
     context: dev
     dockerfile: Containerfile.client
@@ -61,7 +61,7 @@ services:
     environment:
       SFTPGO_DATA_PROVIDER__CREATE_DEFAULT_ADMIN: "true"
       SFTPGO_DEFAULT_ADMIN_USERNAME: admin
-      SFTPGO_DEFAULT_ADMIN_PASSWORD: ${SFTPGO_ADMIN_PASSWORD:-cld-dev-admin-NON-USAR-EN-PRODUCION}
+      SFTPGO_DEFAULT_ADMIN_PASSWORD: ${SFTPGO_ADMIN_PASSWORD:-syncply-dev-admin-NON-USAR-EN-PRODUCION}
     volumes:
       - ./.dev/sftpgo/lib:/var/lib/sftpgo:z
       - ./.dev/sftpgo/data:/srv/sftpgo/data:z
@@ -79,7 +79,7 @@ services:
   st-client1:
     <<: *client
     hostname: st-client1
-    command: ["go", "run", "./cmd/cld", "daemon", "-dir", "/cfg",
+    command: ["go", "run", "./cmd/syncply", "daemon", "-dir", "/cfg",
               "-listen", "0.0.0.0:8400", "-public-url", "http://127.0.0.1:8411",
               "-st-home", "/var/syncthing/config", "-st-gui", "0.0.0.0:8384",
               "-folders-base", "/var/syncthing/data"]
@@ -87,14 +87,14 @@ services:
     volumes:
       - ./:/src:z
       - ./.dev/st-client1:/var/syncthing:Z
-      - ./.dev/cld-client1:/cfg:Z
+      - ./.dev/syncply-client1:/cfg:Z
       - gocache:/root/.cache/go-build
       - gomod:/go/pkg/mod
 
   st-client2:
     <<: *client
     hostname: st-client2
-    command: ["go", "run", "./cmd/cld", "daemon", "-dir", "/cfg",
+    command: ["go", "run", "./cmd/syncply", "daemon", "-dir", "/cfg",
               "-listen", "0.0.0.0:8400", "-public-url", "http://127.0.0.1:8412",
               "-st-home", "/var/syncthing/config", "-st-gui", "0.0.0.0:8384",
               "-folders-base", "/var/syncthing/data"]
@@ -102,14 +102,14 @@ services:
     volumes:
       - ./:/src:z
       - ./.dev/st-client2:/var/syncthing:Z
-      - ./.dev/cld-client2:/cfg:Z
+      - ./.dev/syncply-client2:/cfg:Z
       - gocache:/root/.cache/go-build
       - gomod:/go/pkg/mod
 
   st-client3:
     <<: *client
     hostname: st-client3
-    command: ["go", "run", "./cmd/cld", "daemon", "-dir", "/cfg",
+    command: ["go", "run", "./cmd/syncply", "daemon", "-dir", "/cfg",
               "-listen", "0.0.0.0:8400", "-public-url", "http://127.0.0.1:8413",
               "-st-home", "/var/syncthing/config", "-st-gui", "0.0.0.0:8384",
               "-folders-base", "/var/syncthing/data"]
@@ -117,7 +117,7 @@ services:
     volumes:
       - ./:/src:z
       - ./.dev/st-client3:/var/syncthing:Z
-      - ./.dev/cld-client3:/cfg:Z
+      - ./.dev/syncply-client3:/cfg:Z
       - gocache:/root/.cache/go-build
       - gomod:/go/pkg/mod
 

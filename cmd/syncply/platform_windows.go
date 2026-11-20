@@ -11,7 +11,7 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// En Windows cld compílase como aplicación gráfica (-H windowsgui) para que
+// En Windows syncply compílase como aplicación gráfica (-H windowsgui) para que
 // o daemon e o acceso directo non abran unha xanela de consola. Se se
 // executa desde unha consola, enganchámonos a ela para mostrar a saída.
 var hasConsole bool
@@ -38,7 +38,7 @@ func init() {
 // (acceso directo, dobre clic).
 func reportError(err error) {
 	if !hasConsole {
-		messageBox("cld", "Erro: "+err.Error(), windows.MB_OK|windows.MB_ICONERROR)
+		messageBox("Syncply", "Erro: "+err.Error(), windows.MB_OK|windows.MB_ICONERROR)
 	}
 }
 
@@ -54,21 +54,21 @@ func info(text string) {
 		os.Stdout.WriteString(text + "\n")
 		return
 	}
-	messageBox("cld", text, windows.MB_OK|windows.MB_ICONINFORMATION)
+	messageBox("Syncply", text, windows.MB_OK|windows.MB_ICONINFORMATION)
 }
 
-// defaultStateDir: %LOCALAPPDATA%\cld. Non AppData\Roaming: a identidade do
+// defaultStateDir: %LOCALAPPDATA%\syncply. Non AppData\Roaming: a identidade do
 // equipo e a base de datos de Syncthing non deben viaxar co perfil.
 func defaultStateDir() string {
 	if d := os.Getenv("LOCALAPPDATA"); d != "" {
-		return filepath.Join(d, "cld")
+		return filepath.Join(d, "syncply")
 	}
 	d, _ := os.UserConfigDir()
-	return filepath.Join(d, "cld")
+	return filepath.Join(d, "syncply")
 }
 
-// defaultLogFile: sen consola, o daemon escribe en <dir>\cld.log.
-func defaultLogFile(dir string) string { return filepath.Join(dir, "cld.log") }
+// defaultLogFile: sen consola, o daemon escribe en <dir>\syncply.log.
+func defaultLogFile(dir string) string { return filepath.Join(dir, "syncply.log") }
 
 // mutexName depende do directorio de estado: un daemon por estado.
 func mutexName(dir string) string {
@@ -76,7 +76,7 @@ func mutexName(dir string) string {
 	if err != nil {
 		abs = dir
 	}
-	return `Local\cld-daemon-` + hashString(abs)
+	return `Local\syncply-daemon-` + hashString(abs)
 }
 
 // singleInstance impide dous daemons co mesmo estado (o arranque
