@@ -1,4 +1,68 @@
-# Syncply — nube de ficheiros lixeira (SFTPGo + Syncthing)
+# Syncply — nube de ficheiros lixeira para grupos de confianza (SFTPGo + Syncthing)
+
+Syncply é unha nube de ficheiros propia para o teu grupo: as carpetas
+compartidas viven nun servidor voso e aparecen en todos os vosos ordenadores
+coma unha carpeta máis. Cando alguén garda ou modifica un documento, o cambio
+chega só aos equipos de quen ten acceso a esa carpeta, sen enviar ficheiros
+por correo nin preocuparse de cal é a última versión. Os cambios envíanse á
+vez ao servidor e aos ordenadores dos compañeiros que estean conectados; se
+estades na mesma oficina, pasan directamente dun equipo a outro, máis rápido
+e reducindo o emprego de Internet. Tamén se pode entrar desde o
+navegador para consultar ou subir ficheiros desde calquera sitio.
+
+Por dentro, Syncply combina [SFTPGo](https://github.com/drakkan/sftpgo), un
+servidor de ficheiros con acceso por SFTP e web que xestiona usuarios e
+permisos, co núcleo de [Syncthing](https://syncthing.net/), que sincroniza as
+carpetas cos equipos. Os usuarios instalan un cliente (`syncply`) que se
+vincula co servidor e mantén os seus recursos sincronizados nunha carpeta
+local.
+
+**Para quen é.** Grupos pequenos de persoas que se coñecen e confían entre si
+(colectivos, cooperativas, familias, equipos de traballo pequenos) e que queren
+aloxar os seus propios ficheiros nun servidor seu, sen depender dun provedor
+de nube nin manter unha plataforma pesada.
+
+**Avantaxes.**
+
+- **Os teus ficheiros, no teu servidor.** Ninguén alleo ao grupo garda nin
+  le os vosos documentos, non pagades unha subscrición por persoa e non
+  dependedes dunha gran empresa.
+- **Traballas coma sempre.** Os ficheiros están nunha carpeta normal do teu
+  ordenador e funcionan sen conexión; cando volves ter rede, os cambios
+  envíanse sós.
+- **Fácil de poñer en marcha.** Descargas o programa, pegas un texto e
+  escribes un código que ves na web do servidor. Non hai que configurar nada
+  máis.
+- **Cada quen ve só o que lle toca.** Os permisos que xa tedes no servidor
+  deciden que carpetas recibe cada persoa, e os cambios aplícanse axiña.
+- **Todos os teus equipos, baixo control.** Podes usalo no portátil e no
+  ordenador de casa, ver que equipos tes vinculados e retirar o acceso a un
+  que perdiches ou xa non usas.
+- **Rápido e económico.** Os equipos do grupo intercambian os ficheiros
+  directamente entre eles, mesmo na mesma oficina, sen pasar sempre polo
+  servidor: as copias chegan antes e o servidor pode ser pequeno e barato.
+
+**Estado.** Prototipo funcional en desenvolvemento. O fluxo completo
+(vincular, recibir recursos, sincronizar nos dous sentidos, revogar) está
+verificado en contedores. O despregamento de produción
+([deploy/](deploy/README.md)) está probado en local, aínda non nun servidor
+real. O cliente de Linux ten instalador probado; o de Windows está
+implementado pero sen probar, e o de macOS está pendente. O plan a medio prazo
+é integrar Syncply no propio SFTPGo ([PLAN-SFTPGO.md](PLAN-SFTPGO.md)).
+
+**Limitacións.**
+
+- Só recursos en **disco local** con **permiso de escritura completo** (non
+  S3, nin cifrado de SFTPGo, nin SFTP remoto; tampouco recursos de só lectura).
+- O que escribe Syncthing non pasa por SFTPGo: **non se aplican cotas, filtros
+  de ficheiros nin hooks**.
+- A **revogación non é instantánea** para os pares que non estean conectados
+  ao servidor, e cada equipo ve os identificadores e nomes dos outros equipos
+  cos que comparte recursos.
+- O servidor non pode impoñer só lectura a un par, e un servidor comprometido
+  podería introducir equipos alleos: o modelo presupón **confianza** no
+  servidor e entre os membros do grupo.
+- Pensado para **poucos usuarios e equipos**: todos conectan con todos.
 
 Ver [CLAUDE.md](CLAUDE.md) para o contexto e as decisións do proxecto.
 
