@@ -46,8 +46,8 @@ de nube nin manter unha plataforma pesada.
 (vincular, recibir recursos, sincronizar nos dous sentidos, revogar) está
 verificado en contedores. O despregamento de produción
 ([deploy/](deploy/README.md)) está probado en local, aínda non nun servidor
-real. O cliente de Linux ten instalador probado; o de Windows está
-implementado pero sen probar, e o de macOS está pendente. O plan a medio prazo
+real. Os instaladores de Linux e Windows están probados (Windows 11 nunha VM,
+aínda sen asinar), e o de macOS está pendente. O plan a medio prazo
 é integrar Syncply no propio SFTPGo ([PLAN-SFTPGO.md](PLAN-SFTPGO.md)).
 
 **Limitacións.**
@@ -84,6 +84,8 @@ make blob U=alice # texto de vinculación dun usuario de proba
 make dist         # paquete de Linux co instalador
 make dist-windows # instalador de Windows (syncply.exe autoinstalable)
 make installtest  # proba o paquete nun Debian con systemd
+make winvm-install WIN_ISO=... # instala Windows 11 na VM de probas (unha vez)
+make wintest      # proba o instalador de Windows na VM
 make status   # estado de dispositivos, carpetas e conexións
 make help     # resto de ordes
 make clean    # para os contedores e borra o estado (./.dev)
@@ -337,12 +339,53 @@ administrador** ([install_windows.go](cmd/syncply/install_windows.go)):
 - `syncply uninstall` (pregunta; `-quiet` non) quita todo isto e conserva o
   estado e as carpetas. O `syncply.exe` en execución bórrao un `cmd` ao rematar.
 
-Pendente: **probalo nun Windows real** (só se comprobou que compila e pasa
-`go vet` con `GOOS=windows`); asinar o `.exe` (sen sinatura, SmartScreen
-avisa); icona e metadatos (recurso `.syso`); arm64. Ao primeiro arranque, o
-Firewall de Windows pregunta por `syncthing.exe` e permitilo require
-administrador: se se cancela, as conexións saíntes funcionan pero non as
-entrantes nin o descubrimento local.
+Ao rematar Syncthing (pechar o daemon, desinstalar, actualizar), syncply mata
+se fai falta **toda a árbore** de procesos: Syncthing 2.x lanza un proceso
+fillo e en Windows matar o pai deixábao orfo, sincronizando e bloqueando
+`syncthing.exe`. En Windows vai nun *Job Object* con `KILL_ON_JOB_CLOSE` (se o
+daemon morre, Syncthing tamén); en Linux, nun grupo de procesos.
+
+### Probas en Windows (`make wintest`)
+
+Probado nunha VM con Windows 11 Enterprise (avaliación, 26H2, es-ES) como
+usuaria **sen administrador**. A VM ([dev/winvm/](dev/winvm/)) é QEMU/KVM
+dentro dun contedor Podman conectado á rede do contorno (chega a `pairsrv` e
+`st-server` polos seus nomes); o disco queda en `.winvm/` (~20 GB).
+
+```sh
+make winvm-install WIN_ISO=/ruta/Win11_Enterprise_Eval.iso   # unha vez, 30-40 min, desatendida
+make fresh && make dist-windows && make wintest                # ~5 min
+```
+
+- `winvm-install`: instalación desatendida ([autounattend.xml](dev/winvm/autounattend.xml):
+  sen TPM nin arranque seguro, usuarios `admin` e `ana`, contrasinal
+  `syncply`, `ana` entra soa) e un axente PowerShell ([agent.ps1](dev/winvm/agent.ps1))
+  que executa na sesión de `ana` as ordes de [winvm.py](dev/winvm/winvm.py).
+- `wintest` ([dev/wintest.sh](dev/wintest.sh)) parte sempre dunha copia nova
+  do Windows instalado: descargar de pairsrv, instalar, vincular como alice
+  (texto + código), recibir e enviar ficheiros, reiniciar Windows, revogar,
+  matar o daemon (sen Syncthing orfo; `syncply open` volve arrancalo) e
+  desinstalar. `KEEP=1` deixa a VM acesa ao rematar.
+- Durante a proba: VNC en `127.0.0.1:5900`; capturas e teclado/rato con
+  `podman exec syncply-winvm python3 /winvm/winvm.py shot /work/x.png | key alt-tab | click X Y`.
+
+Visto a man co dobre clic (ficheiro marcado como descargado de Internet):
+
+- **SmartScreen** bloquea o `.exe` sen asinar («Windows protegió su PC»,
+  «Editor desconocido»); hai que premer «Más información» → «Ejecutar de todas
+  formas».
+- Ao arrancar Syncthing, o **Firewall de Windows** pregunta por «Syncthing -
+  Open Source Continuous File Synchronization» (non por Syncply). «Permitir»
+  pide o contrasinal dun administrador; se se cancela, as conexións saíntes
+  (servidor, relay) funcionan, pero non as entrantes nin o descubrimento local.
+- Logo a mensaxe «Syncply instalado» e, ao aceptala, Edge coa páxina
+  «Vincular este equipo». (Antes a mensaxe quedaba agochada detrás do
+  navegador ou do aviso do Firewall; agora vai primeiro e `MB_TOPMOST`.)
+- Reinstalar nun equipo revogado: a web mostra a conta e os recursos de antes
+  con «Sen conexión co servidor», sen dicir que foi revogado.
+
+Pendente: asinar o `.exe`; icona e metadatos (recurso `.syso`); arm64;
+decidir que facer co aviso do Firewall; avisar na web dun equipo revogado.
 
 ## Pasos solos
 

@@ -146,14 +146,17 @@ func install(args []string) error {
 	if *quiet {
 		return nil
 	}
+	// Primeiro a mensaxe e despois o navegador: ao revés, o navegador
+	// quedaba diante e a mensaxe agochada (visto en Windows 11).
+	next := "Atoparás «Syncply» no menú Inicio."
 	if !*noOpen {
-		if err := openUI(state, false); err != nil {
-			return err
-		}
+		next = "Ao aceptar, abrirase a configuración no navegador (tamén está «Syncply» no menú Inicio)."
 	}
-	info("Syncply " + version + " instalado.\n\n" +
-		"Atoparás «Syncply» no menú Inicio. Para vincular este equipo, pega o texto de " +
+	info("Syncply " + version + " instalado.\n\n" + next + " Para vincular este equipo, pega o texto de " +
 		"vinculación que atoparás na páxina do servidor, xunto ao código de vinculación.")
+	if !*noOpen {
+		return openUI(state, false)
+	}
 	return nil
 }
 
@@ -182,7 +185,8 @@ func uninstall(args []string) error {
 		os.Remove(lnk)
 	}
 	for _, f := range []string{"syncthing.exe", "LICENZAS.txt"} {
-		if err := os.Remove(filepath.Join(dst, f)); err != nil && !errors.Is(err, os.ErrNotExist) {
+		err := retry(func() error { return os.Remove(filepath.Join(dst, f)) })
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
 	}
@@ -347,6 +351,19 @@ func deleteAfterExit(exe, dir string) error {
 	return cmd.Process.Release()
 }
 
+// retry: un proceso que acaba de rematar pode ter aínda o seu .exe bloqueado
+// uns instantes.
+func retry(f func() error) error {
+	var err error
+	for i := 0; i < 20; i++ {
+		if err = f(); err == nil || errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+	return err
+}
+
 func quoteArg(s string) string { return `"` + s + `"` }
 
 func copyFile(src, dst string) error {
@@ -375,7 +392,7 @@ func writeFileAtomic(path string, r io.Reader) error {
 		os.Remove(tmp)
 		return err
 	}
-	if err := os.Rename(tmp, path); err != nil {
+	if err := retry(func() error { return os.Rename(tmp, path) }); err != nil {
 		os.Remove(tmp)
 		return err
 	}

@@ -45,7 +45,9 @@ func reportError(err error) {
 func messageBox(title, text string, flags uint32) int32 {
 	t, _ := windows.UTF16PtrFromString(text)
 	c, _ := windows.UTF16PtrFromString(title)
-	r, _ := windows.MessageBox(0, t, c, flags|windows.MB_SETFOREGROUND)
+	// TOPMOST: sen isto, o aviso do Firewall (que sae ao arrancar Syncthing)
+	// ou o navegador deixaban a mensaxe agochada detrás (visto en Windows 11).
+	r, _ := windows.MessageBox(0, t, c, flags|windows.MB_SETFOREGROUND|windows.MB_TOPMOST)
 	return r
 }
 

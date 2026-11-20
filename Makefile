@@ -7,7 +7,7 @@ ARGS     ?= status
 C        ?= 1
 RUN      := $(COMPOSE) run --rm tools
 
-.PHONY: help up down restart logs proto demo fresh ui web otp blob dist dist-windows installtest status test clean
+.PHONY: help up down restart logs proto demo fresh ui web otp blob dist dist-windows installtest winvm-install wintest status test clean
 
 # Paquete de Linux: cliente xenérico, o mesmo para todos os servidores (o
 # servidor indícao o texto de vinculación).
@@ -33,6 +33,8 @@ help:
 	@echo "make dist     - paquete de Linux (dist/syncply-linux-amd64.tar.gz) co instalador"
 	@echo "make dist-windows - instalador de Windows (dist/syncply-windows-amd64.exe, autoinstalable)"
 	@echo "make installtest - proba o paquete nun Debian con systemd (require make up e SFTPGo preparado)"
+	@echo "make winvm-install WIN_ISO=... - instala Windows 11 (desatendido) na VM de probas (.winvm)"
+	@echo "make wintest  - proba o instalador de Windows na VM (require make up, SFTPGo preparado e make dist-windows)"
 	@echo "make status   - estado de dispositivos, carpetas e conexións"
 	@echo "make test     - tests unitarios"
 	@echo "make proto ARGS='...' - executa cmd/stproto con argumentos"
@@ -109,6 +111,22 @@ dist-windows:
 
 installtest: dist
 	dev/installtest.sh
+
+# VM de Windows (dev/winvm): QEMU/KVM nun contedor. A ISO non se distribúe:
+# indica a túa (p. ex. Windows 11 Enterprise de avaliación).
+WIN_ISO ?=
+WINVM_IMAGE := localhost/syncply-winvm:latest
+winvm-install:
+	@[ -f "$(WIN_ISO)" ] || { echo "indica a ISO de Windows: make winvm-install WIN_ISO=/ruta/windows.iso"; exit 1; }
+	@mkdir -p .winvm
+	podman build -q -t $(WINVM_IMAGE) dev/winvm >/dev/null
+	-podman rm -f syncply-winvm 2>/dev/null
+	@echo "Instalando Windows (20-40 min; podes velo por VNC en 127.0.0.1:5900)"
+	podman run --rm --name syncply-winvm --device /dev/kvm -v ./.winvm:/work \
+	  -v "$(WIN_ISO):/iso/windows.iso:ro" -p 127.0.0.1:5900:5900 $(WINVM_IMAGE) install
+
+wintest:
+	dev/wintest.sh
 
 status:
 	$(RUN) go run ./cmd/stproto status

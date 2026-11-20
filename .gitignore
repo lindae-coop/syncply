@@ -3,3 +3,4 @@
 /cmd/syncply/embed/
 /deploy/.env
 /deploy/pairsrv.json
+/.winvm/

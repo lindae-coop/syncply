@@ -135,7 +135,7 @@ O usuario entra na web do servidor co seu usuario e contrasinal e ve alí o cód
 - **Instalador de Linux** (`make dist`, `packaging/linux/install.sh`): por usuario sen root, servizo de systemd de usuario (ou autostart XDG), acceso directo. Verificado con `make installtest` en Debian 13 con systemd: instalar, vincular desde a web, recibir ficheiros, arranque tras reiniciar, desinstalar; e a man o camiño sen systemd. Syncthing 2.1.7 ten `syncthing device-id --home=…` para ver o Device ID sen arrancalo.
 - **Non usar `Referrer-Policy: no-referrer`** coa comprobación de `Origin`: o navegador envía `Origin: null` nos POST á mesma orixe e rexéitanse os formularios propios. Usar `same-origin`.
 - Pendente:
-  - **Instalador de Windows: implementado, sen probar en Windows** (`make dist-windows` → `syncply.exe` autoinstalable con Syncthing embebido; `HKCU\…\Run`, menú Inicio, «Aplicacións instaladas», sen admin; ver README). Falta probalo, asinalo, icona. Instalador de macOS (LaunchAgent, app). Paquete arm64 (descargar e verificar o binario de Syncthing das súas publicacións). Icona na bandexa (require CGO en Linux/macOS).
+  - **Instalador de Windows: probado en Windows 11** (VM, usuaria sen admin; `make winvm-install WIN_ISO=…` unha vez e `make wintest`; ver README). Falta asinalo, icona, decidir que facer co aviso do Firewall e avisar na web dun equipo revogado. Instalador de macOS (LaunchAgent, app). Paquete arm64 (descargar e verificar o binario de Syncthing das súas publicacións). Icona na bandexa (require CGO en Linux/macOS).
   - Cambiar a carpeta local dun recurso xa aceptado (hoxe: deixar de sincronizar e volver aceptar).
 
 ## Cliente xenérico + texto de vinculación + OTP (implementado e verificado)
@@ -151,7 +151,16 @@ Motivo: un instalador con configuración por servidor dentro rompe a sinatura Au
 
 Para máis adiante (non agora): identificador aleatorio que caduque dentro do texto (evitaría que quen coñeza o usuario poida bloquear o seu emparellamento con OTP falsos, risco que xa existe hoxe); ligazón `syncply://…` desde a web que encha a primeira casiña.
 
-Windows (implementado o `syncply.exe` autoinstalable, sen probar): `syncply.exe` autoinstalable (`syncply install`, Syncthing embebido con `go:embed`, `GOOS=windows` sen CGO) asinado con `osslsigncode` desde Linux; alternativas NSIS (`makensis`) ou MSI con `wixl`. Arranque sen admin con `HKCU\…\Run` ou acceso directo no cartafol de Inicio (unha tarefa programada ao iniciar sesión adoita pedir elevación). MSIX descartado. Certificado de asinamento: decisión do usuario.
+Windows (`syncply.exe` autoinstalable, probado en Windows 11): `syncply.exe` autoinstalable (`syncply install`, Syncthing embebido con `go:embed`, `GOOS=windows` sen CGO) asinado con `osslsigncode` desde Linux; alternativas NSIS (`makensis`) ou MSI con `wixl`. Arranque sen admin con `HKCU\…\Run` ou acceso directo no cartafol de Inicio (unha tarefa programada ao iniciar sesión adoita pedir elevación). MSIX descartado. Certificado de asinamento: decisión do usuario.
+
+## Achados verificados en Windows 11 (VM, `make wintest`)
+
+- Contorno: QEMU/KVM nun contedor Podman na rede `syncply_stnet` (`dev/winvm/`), instalación desatendida (LabConfig sen TPM/arranque seguro; grupos locais co nome en castelán: `Administradores`, `Usuarios`), axente PowerShell na sesión de `ana` que consulta a `10.0.2.2:8000`. Windows resolve `pairsrv`/`st-server` co DNS do contedor (`dnssearch=dns.podman` + `AllowUnqualifiedQuery`). Instalar leva ~33 min; cada proba usa unha copia (`test.qcow2` sobre `base.qcow2`).
+- Funciona sen admin: instalar, `HKCU\…\Run`, «Aplicacións instaladas», acceso directo, vincular, sincronizar nos dous sentidos, arranque tras reiniciar, revogar, desinstalar.
+- **Erro corrixido:** Syncthing 2.x crea un proceso fillo; en Windows `Kill()` só mataba o pai e o fillo quedaba orfo (sincronizando e bloqueando `syncthing.exe`: a desinstalación fallaba con «Acceso denegado»). Pasaba cando Syncthing tardaba máis de 15 s en pechar (equipo recén revogado, en bucle de reconexións). Agora: *Job Object* con `KILL_ON_JOB_CLOSE` en Windows e grupo de procesos (`Setpgid`) en Linux (`internal/client/proc_*.go`).
+- Dobre clic: SmartScreen («Editor desconocido», «Ejecutar de todas formas»); aviso do Firewall para «Syncthing - Open Source…» ao escoitar en `:22000`, e «Permitir» pide credenciais de admin. A mensaxe do instalador quedaba detrás de Edge/Firewall: agora vai antes do navegador e con `MB_TOPMOST`.
+- Antes de aplicar as opcións de pairsrv, o Syncthing do cliente usa uns segundos o descubrimento global e os relays públicos (visto no log en Windows; tamén pasará en Linux).
+- `Invoke-WebRequest` de PowerShell 5.1 truncou unha descarga de 24 MB na VM; `curl.exe` (incluído en Windows) non. Un `Start-Process` dun ficheiro con marca de Internet desde un proceso oculto bloquéase no diálogo de SmartScreen: lanzalo con `explorer.exe`.
 
 ## Funcionalidades desexables do cliente (pedidas polo usuario, sen deseñar)
 

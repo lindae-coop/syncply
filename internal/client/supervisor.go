@@ -32,7 +32,7 @@ type Supervisor struct {
 
 	mu      sync.Mutex
 	want    bool
-	proc    *os.Process
+	proc    *procTree
 	changed chan struct{}
 }
 
@@ -177,12 +177,19 @@ func (s *Supervisor) runOnce(ctx context.Context) (int, error) {
 		out = os.Stderr
 	}
 	cmd.Stdout, cmd.Stderr = out, out
-	hideWindow(cmd)
+	prepareCmd(cmd)
 	if err := cmd.Start(); err != nil {
 		return -1, fmt.Errorf("arrancando %s: %w", s.Bin, err)
 	}
+	tree, err := newProcTree(cmd.Process)
+	if err != nil {
+		cmd.Process.Kill()
+		cmd.Wait()
+		return -1, fmt.Errorf("vixiando %s: %w", s.Bin, err)
+	}
+	defer tree.Close()
 	s.mu.Lock()
-	s.proc = cmd.Process
+	s.proc = tree
 	s.mu.Unlock()
 	log.Printf("syncthing arrancado (pid %d)", cmd.Process.Pid)
 
@@ -192,7 +199,6 @@ func (s *Supervisor) runOnce(ctx context.Context) (int, error) {
 	}
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
-	var err error
 	select {
 	case err = <-done:
 	case <-ctx.Done():
@@ -205,7 +211,8 @@ func (s *Supervisor) runOnce(ctx context.Context) (int, error) {
 		select {
 		case err = <-done:
 		case <-time.After(15 * time.Second):
-			cmd.Process.Kill()
+			log.Printf("syncthing non rematou a tempo; mátase")
+			tree.Kill()
 			err = <-done
 		}
 	}

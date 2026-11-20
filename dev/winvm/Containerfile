@@ -1,0 +1,10 @@
+# VM de Windows para probar o cliente (make wintest): QEMU/KVM dentro dun
+# contedor conectado á rede do contorno, para que Windows chegue a pairsrv e
+# st-server polos seus nomes (rede de usuario de QEMU → DNS do contedor).
+FROM docker.io/library/debian:13
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      qemu-system-x86 qemu-utils ovmf genisoimage python3 \
+    && rm -rf /var/lib/apt/lists/*
+COPY winvm.py agent.ps1 autounattend.xml /winvm/
+ENTRYPOINT ["python3", "-u", "/winvm/winvm.py"]
+CMD ["run"]
