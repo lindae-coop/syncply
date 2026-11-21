@@ -175,6 +175,18 @@ Windows (`syncply.exe` autoinstalable, probado en Windows 11): `syncply.exe` aut
   - Estados respecto ao servidor (endpoints de memoria, verificar en 2.1.7): `SYNC` baixando (`/rest/db/need?folder=…`, eventos `ItemStarted`/`ItemFinished`); `SYNC` pendente de subir (`/rest/db/remoteneed?folder=…&device=<servidor>`); `ERROR` (`/rest/folder/errors?folder=…`); conflito (nome `*.sync-conflict-*`); `OK` se non está en ningún dos anteriores e `FolderCompletion` do servidor está ao 100 %. O daemon mantén en memoria, a partir dos eventos, o conxunto de ficheiros «non OK»; o resto é `OK`.
 - **Actualizacións do cliente desde o servidor:** que `syncply` poida recibir actualizacións a través do servidor ao que está vinculado. Ideas sen verificar: pairsrv publica a versión e o paquete por plataforma; o cliente compróbao periodicamente, verifica unha sinatura (clave pública compilada no cliente, independente do operador, porque o cliente é xenérico; Authenticode en Windows) e substitúese e reinicia o servizo. Inclúe o Syncthing embebido/empaquetado (o seu actualizador automático segue desactivado).
 
+## Para futuras versións (pedidas polo usuario, sen deseñar)
+
+- **Web con modo escuro automático** (`prefers-color-scheme`).
+- **Levar a estética da web ás aplicacións** (web local do cliente `syncply`, instaladores…).
+- **Panel de administración propio** para xestionar usuarios e recursos sen entrar en SFTPGo:
+  - Crear usuarios e poñerlles contrasinal; cambiar contrasinais.
+  - Crear grupos: cada grupo leva **un único recurso compartido** (cartafol virtual) creado co grupo.
+  - Asignar usuarios a grupos e cambiar a pertenza.
+  - Os usuarios creados desde o panel **non teñen carpeta persoal** (só os recursos dos seus grupos).
+  - Acceso coas **credenciais do administrador de SFTPGo**.
+  - Notas sen verificar: facelo pola API REST de SFTPGo (`/api/v2/users`, `/groups`, `/folders`) co token do admin, non escribindo na BD; o cartafol do grupo ten que levar *virtual path* (trampa vista no hosting) e permiso de escritura completo para que se ofreza; SFTPGo esixe `home_dir`, así que «sen carpeta persoal» probablemente implique un directorio persoal sen permisos (ou sen escritura) para que pairsrv non o ofreza; os usuarios novos deben ir no grupo primario `syncthing`.
+
 ## Para o futuro: cambios en SFTPGo ao integrar (pedidos polo usuario)
 
 - **Eliminar do código de SFTPGo as funcionalidades que deixan de ter sentido con Syncthing.** Exemplo: as **cotas dos usuarios**, que non se aplican ao que escribe Syncthing. Revisar tamén outras do mesmo tipo (límites de transferencia, filtros de ficheiros, hooks por operación…) e decidir caso a caso.
