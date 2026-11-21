@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/logo.svg" alt="Syncply" width="200"></p>
+
 # Syncply — nube de ficheiros lixeira para grupos de confianza (SFTPGo + Syncthing)
 
 Syncply é unha nube de ficheiros propia para o teu grupo: as carpetas
@@ -63,6 +65,8 @@ aínda sen asinar), e o de macOS está pendente. O plan a medio prazo
   podería introducir equipos alleos: o modelo presupón **confianza** no
   servidor e entre os membros do grupo.
 - Pensado para **poucos usuarios e equipos**: todos conectan con todos.
+
+Web para persoas usuarias: [lindae-coop.github.io/syncply](https://lindae-coop.github.io/syncply/) (fonte en [docs/](docs/index.html)).
 
 Ver [CLAUDE.md](CLAUDE.md) para o contexto e as decisións do proxecto.
 

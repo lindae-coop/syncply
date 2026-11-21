@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="gl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Syncply — a nube de ficheiros do teu grupo</title>
+<meta name="description" content="Syncply é unha nube de ficheiros lixeira para grupos pequenos de confianza: as vosas carpetas, no voso servidor e en todos os vosos ordenadores.">
+<link rel="icon" type="image/svg+xml" href="logo.svg">
+<link rel="icon" type="image/png" href="logo.png">
+<meta property="og:title" content="Syncply — a nube de ficheiros do teu grupo">
+<meta property="og:description" content="As vosas carpetas, no voso servidor e en todos os vosos ordenadores.">
+<meta property="og:image" content="logo.png">
+<style>
+  :root {
+    color-scheme: light;
+    --cian: #00ffff;
+    --cian-suave: #d9ffff;
+    --tinta: #000;
+    --texto: #1b1b1b;
+    --apagado: #4a4a4a;
+    --fondo: #fff;
+    --fondo-alt: #f4fbfb;
+    --raio: 18px;
+    --borde: 3px solid var(--tinta);
+    --sombra: 6px 6px 0 var(--tinta);
+    --ancho: 68rem;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font: 1.0625rem/1.6 system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", Ubuntu, Cantarell, sans-serif;
+    color: var(--texto);
+    background: var(--fondo);
+  }
+  a { color: inherit; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+  a:hover { background: var(--cian); }
+  img { max-width: 100%; }
+  h1, h2, h3 { color: var(--tinta); line-height: 1.15; letter-spacing: -0.01em; }
+  h2 { font-size: clamp(1.7rem, 4vw, 2.4rem); font-weight: 850; margin: 0 0 1rem; }
+  h3 { font-size: 1.2rem; font-weight: 800; margin: 0 0 .4rem; }
+  p { margin: 0 0 1rem; }
+  .envoltorio { max-width: var(--ancho); margin: 0 auto; padding-inline: 1.25rem; }
+  section { padding-block: 4.5rem; }
+  section.alt { background: var(--fondo-alt); border-block: var(--borde); }
+  .entradilla { font-size: 1.2rem; color: var(--apagado); max-width: 44rem; }
+
+  /* Cabeceira */
+  .barra {
+    position: sticky; top: 0; z-index: 10;
+    background: rgba(255,255,255,.92); backdrop-filter: blur(6px);
+    border-bottom: var(--borde);
+  }
+  .barra .envoltorio { display: flex; align-items: center; gap: 1rem; padding-block: .5rem; flex-wrap: wrap; }
+  .barra .marca { display: flex; align-items: center; gap: .5rem; font-weight: 850; font-size: 1.15rem; text-decoration: none; }
+  .barra .marca:hover { background: none; }
+  .barra .marca img { width: 44px; height: 44px; }
+  .barra nav { margin-left: auto; display: flex; gap: .25rem 1rem; flex-wrap: wrap; font-weight: 600; font-size: .95rem; }
+  .barra nav a { text-decoration: none; padding: .15rem .35rem; border-radius: 6px; }
+
+  /* Portada */
+  .portada { padding-block: 4rem 5rem; }
+  .portada .envoltorio { display: grid; grid-template-columns: 1.2fr 1fr; gap: 2.5rem; align-items: center; }
+  .portada h1 { font-size: clamp(2.3rem, 6vw, 3.8rem); font-weight: 900; margin: 0 0 1.2rem; }
+  .portada h1 mark { background: var(--cian); padding: 0 .2em; border-radius: 8px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+  .portada .logo { width: min(100%, 360px); justify-self: center; }
+  .botons { display: flex; flex-wrap: wrap; gap: .8rem; margin-top: 1.6rem; }
+  .boton {
+    display: inline-block; padding: .7rem 1.3rem; border: var(--borde); border-radius: 999px;
+    font-weight: 800; text-decoration: none; box-shadow: 4px 4px 0 var(--tinta);
+    background: var(--fondo); transition: transform .1s, box-shadow .1s;
+  }
+  .boton.principal { background: var(--cian); }
+  .boton:hover { transform: translate(2px,2px); box-shadow: 2px 2px 0 var(--tinta); background: var(--cian); }
+
+  /* Tarxetas */
+  .grella { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: 1.4rem; margin-top: 2rem; }
+  .grella.catro { grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
+  .tarxeta {
+    background: var(--fondo); border: var(--borde); border-radius: var(--raio);
+    box-shadow: var(--sombra); padding: 1.4rem 1.4rem 1.1rem;
+  }
+  .tarxeta p { color: var(--apagado); margin: 0; }
+  .icona {
+    display: inline-grid; place-items: center; width: 2.6rem; height: 2.6rem; margin-bottom: .7rem;
+    background: var(--cian); border: var(--borde); border-radius: 50%;
+  }
+  .icona svg { width: 1.3rem; height: 1.3rem; }
+
+  /* Para quen */
+  .publico { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: 1.2rem; padding: 0; list-style: none; }
+  .publico li { border: var(--borde); border-radius: 999px; padding: .35rem 1rem; font-weight: 700; background: var(--cian-suave); }
+
+  /* Como funciona */
+  .esquema { display: grid; grid-template-columns: 1fr 1fr; gap: 2.5rem; align-items: center; }
+  .esquema figure { margin: 0; }
+  .esquema-debuxo { overflow-x: auto; }
+  .esquema-debuxo svg { width: 100%; min-width: 300px; height: auto; display: block; }
+  .esquema figcaption { font-size: .9rem; color: var(--apagado); margin-top: .5rem; }
+
+  /* Pasos */
+  ol.pasos { list-style: none; padding: 0; margin: 2rem 0 0; display: grid; gap: 1.2rem; counter-reset: paso; }
+  ol.pasos > li {
+    counter-increment: paso; position: relative;
+    border: var(--borde); border-radius: var(--raio); background: var(--fondo);
+    padding: 1.2rem 1.4rem 1.1rem 5rem; box-shadow: var(--sombra);
+  }
+  ol.pasos > li::before {
+    content: counter(paso); position: absolute; left: 1.2rem; top: 1.1rem;
+    width: 2.6rem; height: 2.6rem; display: grid; place-items: center;
+    font-weight: 900; font-size: 1.25rem; background: var(--cian); border: var(--borde); border-radius: 50%;
+  }
+  ol.pasos p { margin: 0; color: var(--apagado); }
+  ol.pasos p + p { margin-top: .5rem; }
+  .codigo {
+    display: inline-block; font: 800 1.15rem/1 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    letter-spacing: .25em; background: var(--tinta); color: var(--cian); padding: .35rem .6rem .35rem .8rem; border-radius: 8px;
+  }
+  code { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-size: .9em; background: var(--cian-suave); padding: .05em .35em; border-radius: 5px; border: 1px solid #9ee; }
+
+  /* Plataformas */
+  .plataformas { display: flex; flex-wrap: wrap; gap: .8rem; margin-top: 1.2rem; }
+  .plataforma { border: var(--borde); border-radius: 12px; padding: .5rem 1rem; font-weight: 700; background: var(--fondo); }
+  .plataforma small { display: block; font-weight: 500; color: var(--apagado); }
+  .plataforma.pendente { border-style: dashed; color: var(--apagado); }
+
+  /* Avisos e FAQ */
+  .aviso { border: var(--borde); border-left-width: 10px; border-radius: 12px; padding: 1rem 1.2rem; background: var(--cian-suave); margin-top: 1.5rem; }
+  .aviso p:last-child { margin: 0; }
+  ul.lista { padding-left: 1.2rem; margin: 1rem 0 0; }
+  ul.lista li { margin-bottom: .7rem; }
+  ul.lista li::marker { color: var(--tinta); }
+  details {
+    border: var(--borde); border-radius: 14px; background: var(--fondo); margin-top: 1rem; overflow: hidden;
+  }
+  summary { cursor: pointer; font-weight: 800; padding: 1rem 1.2rem; list-style: none; display: flex; gap: .8rem; align-items: center; }
+  summary::-webkit-details-marker { display: none; }
+  summary::before { content: "+"; display: grid; place-items: center; flex: none; width: 1.7rem; height: 1.7rem; border: 2px solid var(--tinta); border-radius: 50%; background: var(--cian); font-weight: 900; }
+  details[open] summary::before { content: "−"; }
+  details[open] summary { border-bottom: 2px solid var(--tinta); }
+  details > div { padding: 1rem 1.2rem .2rem; color: var(--apagado); }
+
+  /* Estado */
+  .estado { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 1rem; margin-top: 1.5rem; padding: 0; list-style: none; }
+  .estado li { border: var(--borde); border-radius: 12px; padding: .8rem 1rem; background: var(--fondo); }
+  .estado b { display: block; }
+  .estado .feito b::before { content: "✓ "; }
+  .estado .proba b::before { content: "◐ "; }
+  .estado .pendente { border-style: dashed; }
+  .estado .pendente b::before { content: "○ "; }
+  .estado span { color: var(--apagado); font-size: .95rem; }
+
+  /* Pé */
+  footer { background: var(--tinta); color: #fff; padding-block: 3rem; }
+  footer .envoltorio { display: flex; flex-wrap: wrap; gap: 2rem; align-items: center; justify-content: space-between; }
+  footer img { width: 72px; height: 72px; }
+  footer a:hover { background: var(--cian); color: var(--tinta); }
+  footer p { margin: .2rem 0; color: #ddd; }
+  footer .esquerda { display: flex; gap: 1rem; align-items: center; }
+
+  @media (max-width: 52rem) {
+    .portada .envoltorio, .esquema { grid-template-columns: 1fr; }
+    .portada .logo { order: -1; width: min(70%, 260px); }
+    .portada { padding-block: 2.5rem 3.5rem; }
+    section { padding-block: 3.2rem; }
+    ol.pasos > li { padding-left: 1.2rem; padding-top: 4.2rem; }
+  }
+  @media (max-width: 34rem) {
+    .barra nav { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .boton { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="barra">
+  <div class="envoltorio">
+    <a class="marca" href="#"><img src="logo.svg" alt="" width="44" height="44">Syncply</a>
+    <nav aria-label="Seccións">
+      <a href="#que-e">Que é</a>
+      <a href="#avantaxes">Avantaxes</a>
+      <a href="#empezar">Como empezar</a>
+      <a href="#dia-a-dia">Día a día</a>
+      <a href="#preguntas">Preguntas</a>
+      <a href="https://github.com/lindae-coop/syncply">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+<section class="portada">
+  <div class="envoltorio">
+    <div>
+      <h1>A nube de ficheiros <mark>do teu grupo</mark>, no voso servidor.</h1>
+      <p class="entradilla">Syncply leva as carpetas compartidas do grupo a todos os vosos ordenadores, coma unha carpeta máis. Sen enviar ficheiros por correo, sen dúbidas sobre cal é a última versión e sen depender dunha gran empresa.</p>
+      <div class="botons">
+        <a class="boton principal" href="#empezar">Como empezar</a>
+        <a class="boton" href="#que-e">Que é Syncply?</a>
+      </div>
+    </div>
+    <img class="logo" src="logo.svg" alt="Logotipo de Syncply: unha nube cian cunha espiral e o texto Syncply" width="360" height="360">
+  </div>
+</section>
+
+<section id="que-e" class="alt">
+  <div class="envoltorio esquema">
+    <div>
+      <h2>Que é Syncply</h2>
+      <p>As carpetas compartidas do grupo viven nun <strong>servidor voso</strong> e aparecen en todos os vosos ordenadores. Cando alguén garda ou modifica un documento, o cambio chega só aos equipos de quen ten acceso a esa carpeta.</p>
+      <p>Os cambios envíanse á vez ao servidor e aos ordenadores dos compañeiros que estean conectados. Se estades na mesma oficina, pasan <strong>directamente dun equipo a outro</strong>: chegan antes e gastan menos Internet.</p>
+      <p>E cando non estás no teu ordenador, podes entrar desde o <strong>navegador</strong> para consultar ou subir ficheiros desde calquera sitio.</p>
+      <h3 style="margin-top:1.6rem">Para quen é</h3>
+      <p>Para grupos pequenos de persoas que se coñecen e confían entre si, e que queren gardar os seus ficheiros nun servidor propio, sen manter unha plataforma pesada.</p>
+      <ul class="publico">
+        <li>Colectivos</li><li>Cooperativas</li><li>Familias</li><li>Equipos de traballo pequenos</li><li>Asociacións</li>
+      </ul>
+    </div>
+    <figure>
+      <div class="esquema-debuxo">
+        <svg viewBox="0 0 420 370" role="img" aria-labelledby="esq-t esq-d">
+          <title id="esq-t">Como viaxan os ficheiros</title>
+          <desc id="esq-d">O servidor do grupo comparte as carpetas con tres ordenadores. Os ordenadores tamén se envían os cambios directamente entre eles.</desc>
+          <g stroke="#000" stroke-width="3" fill="none" stroke-linecap="round">
+            <!-- servidor ↔ equipos -->
+            <path d="M210 112 L82 222"/>
+            <path d="M210 112 L210 222"/>
+            <path d="M210 112 L338 222"/>
+            <!-- entre pares -->
+            <path d="M112 262 Q146 300 180 262" stroke-dasharray="6 7"/>
+            <path d="M240 262 Q274 300 308 262" stroke-dasharray="6 7"/>
+            <path d="M82 312 Q210 380 338 312" stroke-dasharray="6 7"/>
+          </g>
+          <!-- servidor: nube -->
+          <path d="M150 104 a30 30 0 0 1 8-58 a42 42 0 0 1 78-14 a34 34 0 0 1 52 34 a24 24 0 0 1-4 38 z" fill="#00ffff" stroke="#000" stroke-width="4" stroke-linejoin="round"/>
+          <text x="216" y="84" text-anchor="middle" font-family="system-ui, sans-serif" font-weight="800" font-size="17">Servidor</text>
+          <!-- equipos -->
+          <g font-family="system-ui, sans-serif" font-weight="700" font-size="14" text-anchor="middle">
+            <g transform="translate(52 222)">
+              <rect width="60" height="42" rx="6" fill="#fff" stroke="#000" stroke-width="3"/>
+              <rect x="-6" y="44" width="72" height="8" rx="3" fill="#000"/>
+              <text x="30" y="74">Ana</text>
+            </g>
+            <g transform="translate(180 222)">
+              <rect width="60" height="42" rx="6" fill="#fff" stroke="#000" stroke-width="3"/>
+              <rect x="-6" y="44" width="72" height="8" rx="3" fill="#000"/>
+              <text x="30" y="74">Brais</text>
+            </g>
+            <g transform="translate(308 222)">
+              <rect width="60" height="42" rx="6" fill="#fff" stroke="#000" stroke-width="3"/>
+              <rect x="-6" y="44" width="72" height="8" rx="3" fill="#000"/>
+              <text x="30" y="74">Carme</text>
+            </g>
+          </g>
+        </svg>
+      </div>
+      <figcaption>Liña continua: o servidor comparte cada carpeta con quen ten permiso. Liña descontinua: os equipos intercámbianse os cambios directamente.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section id="avantaxes">
+  <div class="envoltorio">
+    <h2>Por que Syncply</h2>
+    <p class="entradilla">Todo o cómodo dunha nube, pero vosa.</p>
+    <div class="grella">
+      <article class="tarxeta">
+        <span class="icona" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span>
+        <h3>Os teus ficheiros, no teu servidor</h3>
+        <p>Ninguén alleo ao grupo garda nin le os vosos documentos. Sen subscricións por persoa e sen depender dunha gran empresa.</p>
+      </article>
+      <article class="tarxeta">
+        <span class="icona" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>
+        <h3>Traballas coma sempre</h3>
+        <p>Os ficheiros están nunha carpeta normal do teu ordenador e funcionan sen conexión. Cando volves ter rede, os cambios envíanse sós.</p>
+      </article>
+      <article class="tarxeta">
+        <span class="icona" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3 5 14h6l-1 7 8-11h-6z"/></svg></span>
+        <h3>Fácil de poñer en marcha</h3>
+        <p>Descargas o programa, pegas un texto e escribes un código que ves na web do servidor. Non hai que configurar nada máis.</p>
+      </article>
+      <article class="tarxeta">
+        <span class="icona" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/></svg></span>
+        <h3>Cada quen ve só o que lle toca</h3>
+        <p>Os permisos que xa tedes no servidor deciden que carpetas recibe cada persoa, e os cambios aplícanse axiña.</p>
+      </article>
+      <article class="tarxeta">
+        <span class="icona" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="14" height="10" rx="1.5"/><path d="M1 17h16"/><rect x="18" y="8" width="5" height="11" rx="1.2"/></svg></span>
+        <h3>Todos os teus equipos, baixo control</h3>
+        <p>Úsao no portátil e no ordenador de casa, mira que equipos tes vinculados e retira o acceso a un que perdiches ou xa non usas.</p>
+      </article>
+      <article class="tarxeta">
+        <span class="icona" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="6" r="2.5"/><circle cx="19" cy="18" r="2.5"/><path d="M7.3 11 16.7 7M7.3 13l9.4 4M19 8.5v7"/></svg></span>
+        <h3>Rápido e económico</h3>
+        <p>Os equipos do grupo intercambian os ficheiros directamente entre eles, sen pasar sempre polo servidor: as copias chegan antes e o servidor pode ser pequeno e barato.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section id="empezar" class="alt">
+  <div class="envoltorio">
+    <h2>Como empezar</h2>
+    <p class="entradilla">Necesitas un usuario no servidor do teu grupo. Se aínda non o tes, pídello a quen o administra.</p>
+    <ol class="pasos">
+      <li>
+        <h3>Entra na web do servidor</h3>
+        <p>Abre a páxina de Syncply que che indicou o teu grupo e entra co teu <strong>usuario e contrasinal</strong> de sempre. Alí verás todo o necesario para os pasos seguintes.</p>
+      </li>
+      <li>
+        <h3>Descarga e instala o programa</h3>
+        <p>Descarga o programa desde esa mesma web e ábreo. Instálase só para ti, <strong>sen permisos de administración</strong>, e arranca só cada vez que acendes o ordenador. Ao rematar, ábrese o navegador na páxina «Vincular este equipo».</p>
+        <div class="plataformas" aria-label="Sistemas compatibles">
+          <span class="plataforma">Windows<small>probado en Windows 11</small></span>
+          <span class="plataforma">Linux<small>64 bits</small></span>
+          <span class="plataforma pendente">macOS<small>en preparación</small></span>
+        </div>
+      </li>
+      <li>
+        <h3>Pega o texto de vinculación</h3>
+        <p>Na web do servidor hai un <strong>texto de vinculación</strong> que empeza por <code>syncply1:</code> e un botón <strong>Copiar</strong>. Pégao no programa. Syncply comprobará que o servidor responde e preguntarache se queres vincular con ese servidor co teu usuario.</p>
+      </li>
+      <li>
+        <h3>Escribe o código</h3>
+        <p>A web do servidor mostra un <strong>código de 6 cifras</strong>, por exemplo <span class="codigo">482 916</span>, cunha barra que indica canto tempo lle queda: cambia cada 30 segundos. Escríbeo no programa e dálle un nome ao equipo (por exemplo, «Portátil de Ana»).</p>
+        <p>Non fai falta ningunha app no móbil: o código vese na propia web.</p>
+      </li>
+      <li>
+        <h3>Escolle onde gardar cada carpeta</h3>
+        <p>Ao momento aparecen as carpetas que o servidor che ofrece. Para cada unha, escolle en que carpeta do teu ordenador queres tela e acepta. Listo: a partir de aquí, os cambios viaxan sós.</p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section id="dia-a-dia">
+  <div class="envoltorio">
+    <h2>No día a día</h2>
+    <p class="entradilla">Abre o acceso directo <strong>Syncply</strong> do menú de aplicacións e verás a páxina de configuración no teu navegador. Desde alí podes:</p>
+    <div class="grella catro">
+      <article class="tarxeta">
+        <h3>Ver as túas carpetas</h3>
+        <p>Que carpetas sincronizas, o seu estado e tamaño, e que outras che ofrece o servidor.</p>
+      </article>
+      <article class="tarxeta">
+        <h3>Pausar un momento</h3>
+        <p>Pausa durante 1 ou 8 horas (por exemplo, cunha conexión lenta) e retómase só. Ou detén a sincronización ata que a volvas arrancar.</p>
+      </article>
+      <article class="tarxeta">
+        <h3>Deixar de sincronizar</h3>
+        <p>Deixa de recibir unha carpeta. Os ficheiros que xa tes no ordenador <strong>non se borran</strong>, e podes volver aceptala cando queiras.</p>
+      </article>
+      <article class="tarxeta">
+        <h3>Os meus equipos</h3>
+        <p>Mira cantos equipos tes vinculados e cales están conectados. Se perdiches un, retíralle o acceso desde calquera dos outros co código da web.</p>
+      </article>
+    </div>
+    <div class="aviso">
+      <p><strong>A páxina de configuración só a ves ti.</strong> Funciona dentro do teu propio ordenador e ábrese co acceso directo, sen contrasinais nin enderezos que lembrar.</p>
+    </div>
+  </div>
+</section>
+
+<section id="saber" class="alt">
+  <div class="envoltorio">
+    <h2>O que convén saber</h2>
+    <p class="entradilla">Syncply é sinxelo a propósito. Estas son as súas regras:</p>
+    <ul class="lista">
+      <li><strong>Só recibes carpetas nas que podes escribir.</strong> As carpetas nas que só tes permiso de lectura consúltanse desde o navegador, pero non se sincronizan.</li>
+      <li><strong>Se dúas persoas cambian o mesmo ficheiro á vez</strong>, gárdanse as dúas versións: unha delas co nome <code>.sync-conflict-…</code>. Revísaas e quedade coa boa.</li>
+      <li><strong>Os cambios tardan uns segundos</strong> (arredor de 15) en chegar aos demais equipos.</li>
+      <li><strong>Retirar un equipo non é instantáneo</strong> para os ordenadores que nese momento estean desconectados do servidor: o deixarán de coñecer cando se conecten.</li>
+      <li><strong>Os compañeiros ven os nomes dos teus equipos</strong> se compartides carpetas. Escolle nomes que non che importe que vexan.</li>
+      <li><strong>Está pensado para grupos de confianza</strong> e de poucas persoas: todos os equipos conectan con todos, e quen administra o servidor decide quen entra.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="preguntas">
+  <div class="envoltorio">
+    <h2>Preguntas frecuentes</h2>
+
+    <details>
+      <summary>Podo traballar sen Internet?</summary>
+      <div><p>Si. Os ficheiros están no teu ordenador. Cando volvas ter conexión, Syncply envía os teus cambios e recibe os dos demais.</p></div>
+    </details>
+
+    <details>
+      <summary>Perdín o portátil. Que fago?</summary>
+      <div><p>Desde outro dos teus equipos, abre Syncply e vai a «Os meus equipos». Retira o portátil perdido escribindo o código que ves na web do servidor. Se non tes outro equipo, pídello a quen administra o servidor.</p></div>
+    </details>
+
+    <details>
+      <summary>Windows di que «protexeu o meu PC». É normal?</summary>
+      <div>
+        <p>De momento si: o instalador aínda non está asinado dixitalmente e Windows avisa. Preme <strong>«Máis información»</strong> e logo <strong>«Executar de todos modos»</strong> (o texto exacto depende do idioma do teu Windows).</p>
+        <p>Despois pode aparecer un aviso do Firewall sobre «Syncthing», o motor de sincronización que usa Syncply. Se non tes permisos de administración podes cancelalo: a sincronización segue funcionando, aínda que os equipos da mesma oficina non se poderán atopar directamente entre eles.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>Podo usalo en varios ordenadores?</summary>
+      <div><p>Si. Instala o programa en cada un e vincúlao co texto e cun código novo. O servidor pode limitar cantos equipos ten cada persoa; verás o número na web.</p></div>
+    </details>
+
+    <details>
+      <summary>Se deixo de sincronizar unha carpeta ou desinstalo Syncply, perdo os ficheiros?</summary>
+      <div><p>Non. Os ficheiros quedan no teu ordenador tal como estaban; simplemente deixan de actualizarse.</p></div>
+    </details>
+
+    <details>
+      <summary>Podo cambiar a carpeta onde se garda un recurso?</summary>
+      <div><p>Polo de agora, deixa de sincronizalo e volve aceptalo escollendo a carpeta nova. (Estamos traballando para facelo máis cómodo.)</p></div>
+    </details>
+
+    <details>
+      <summary>Que pasa se o servidor cambia de enderezo?</summary>
+      <div><p>Quen administra o servidor avisará. En «Os meus equipos» usa <strong>«Actualizar a conexión»</strong>: pega o novo texto de vinculación e o código. As túas carpetas e a súa configuración quedan como estaban.</p></div>
+    </details>
+
+    <details>
+      <summary>Con que está feito?</summary>
+      <div><p>Syncply une dous proxectos libres e consolidados: <a href="https://github.com/drakkan/sftpgo">SFTPGo</a>, o servidor de ficheiros que xestiona usuarios, permisos e o acceso web, e <a href="https://syncthing.net/">Syncthing</a>, que sincroniza as carpetas entre equipos.</p></div>
+    </details>
+  </div>
+</section>
+
+<section id="estado" class="alt">
+  <div class="envoltorio">
+    <h2>Estado do proxecto</h2>
+    <p class="entradilla">Syncply é un <strong>prototipo funcional en desenvolvemento</strong>. Aínda non o recomendamos para datos dos que non teñas outra copia.</p>
+    <ul class="estado">
+      <li class="feito"><b>Vincular, sincronizar e retirar equipos</b><span>Verificado de punta a punta.</span></li>
+      <li class="feito"><b>Programa para Linux</b><span>Probado en Debian 13.</span></li>
+      <li class="proba"><b>Programa para Windows</b><span>Probado en Windows 11; falta asinalo.</span></li>
+      <li class="proba"><b>Servidor de produción</b><span>Probado en local; aínda non nun servidor real.</span></li>
+      <li class="pendente"><b>macOS</b><span>Pendente.</span></li>
+      <li class="pendente"><b>Integración en SFTPGo</b><span>Plan a medio prazo: todo nunha soa web.</span></li>
+    </ul>
+    <div class="aviso">
+      <p><strong>Administras un servidor?</strong> As instrucións de instalación están na <a href="https://github.com/lindae-coop/syncply/blob/main/deploy/README.md">guía de despregamento</a>, e os detalles técnicos no <a href="https://github.com/lindae-coop/syncply#readme">README do repositorio</a>.</p>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="envoltorio">
+    <div class="esquerda">
+      <img src="logo.svg" alt="" width="72" height="72">
+      <div>
+        <p><strong style="color:#fff">Syncply</strong> — a nube de ficheiros do teu grupo.</p>
+        <p>Un proxecto de <a href="https://lindae.eu">lindæ</a>.</p>
+      </div>
+    </div>
+    <p><a href="https://github.com/lindae-coop/syncply">Código fonte en GitHub</a></p>
+  </div>
+</footer>
+
+</body>
+</html>
