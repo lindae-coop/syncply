@@ -17,13 +17,29 @@ import (
 	"time"
 )
 
-// P2POptions configura o descubrimento global e o relay propios.
+// P2POptions configura o descubrimento global e o relay propios e, como
+// apoio opcional, os públicos da Syncthing Foundation.
 type P2POptions struct {
 	// Servidor de descubrimento: URL (https://host:8443/) e certificado.
 	Discovery *P2PServer `json:"discovery,omitempty"`
 	// Relay: URL (relay://host:22067/), certificado e token (-token de strelaysrv).
 	Relay *P2PServer `json:"relay,omitempty"`
+	// PublicDiscovery engade os servidores públicos de descubrimento
+	// ("default") aos propios: os clientes anúncianse e buscan en todos, e
+	// séguense atopando se o noso servidor cae.
+	PublicDiscovery bool `json:"publicDiscovery,omitempty"`
+	// PublicRelays engade a reserva pública de relays ao relay propio. Cada
+	// relay é unha escoita á parte coa mesma prioridade, así que un par pode
+	// usar o público aínda que o noso funcione.
+	PublicRelays bool `json:"publicRelays,omitempty"`
 }
+
+const (
+	// Valor de Syncthing para os servidores públicos de descubrimento.
+	PublicDiscoveryServers = "default"
+	// Reserva pública de relays (a que usa "default" en listenAddresses).
+	PublicRelayPool = "dynamic+https://relays.syncthing.net/endpoint"
+)
 
 type P2PServer struct {
 	URL      string `json:"url"`
@@ -36,23 +52,38 @@ type P2PServer struct {
 // servizos xéranos no primeiro arranque.
 func (p *P2POptions) ClientOptions(ctx context.Context) (map[string]any, error) {
 	opts := map[string]any{}
+	var announce []string
 	if p.Discovery != nil {
 		u, err := p.Discovery.pinnedURL(ctx, "https")
 		if err != nil {
 			return nil, fmt.Errorf("p2p.discovery: %w", err)
 		}
-		opts["globalAnnounceEnabled"] = true
-		opts["globalAnnounceServers"] = []string{u}
+		announce = append(announce, u)
 	}
+	if p.PublicDiscovery {
+		announce = append(announce, PublicDiscoveryServers)
+	}
+	if len(announce) > 0 {
+		opts["globalAnnounceEnabled"] = true
+		opts["globalAnnounceServers"] = announce
+	}
+	// Sen "default" en listenAddresses: nin relays públicos (agás con
+	// PublicRelays) nin escoita en todos os enderezos por defecto; o resto
+	// é o mesmo que "default".
+	listen := []string{"tcp://0.0.0.0:22000", "quic://0.0.0.0:22000"}
 	if p.Relay != nil {
 		u, err := p.Relay.pinnedURL(ctx, "relay")
 		if err != nil {
 			return nil, fmt.Errorf("p2p.relay: %w", err)
 		}
+		listen = append(listen, u)
+	}
+	if p.PublicRelays {
+		listen = append(listen, PublicRelayPool)
+	}
+	if len(listen) > 2 {
 		opts["relaysEnabled"] = true
-		// Sen "default": nin relays públicos nin escoita en todos os
-		// enderezos por defecto; o resto é o mesmo que "default".
-		opts["listenAddresses"] = []string{"tcp://0.0.0.0:22000", "quic://0.0.0.0:22000", u}
+		opts["listenAddresses"] = listen
 	}
 	if len(opts) > 0 {
 		opts["natEnabled"] = true // UPnP/NAT-PMP: máis conexións directas

@@ -88,7 +88,8 @@ SFTPGo, descarga o cliente, copia o texto de vinculación e introduce o código.
 ## Descubrimento e P2P
 
 O propio servidor fai de **servidor de descubrimento** (`stdiscosrv`) e de
-**relay** (`strelaysrv`); non se usa a infraestrutura pública de Syncthing.
+**relay** (`strelaysrv`). A infraestrutura pública de Syncthing só se usa
+como apoio, se se activa (ver [Apoio público](#apoio-público-syncthing-foundation)).
 
 - Os clientes anuncian os seus enderezos no noso descubrimento e buscan alí
   os dos pares (os pares introducidos teñen enderezo `dynamic`). Conectan
@@ -112,6 +113,29 @@ Os clientes reciben estas opcións **ao vincular**: un cambio posterior chega
 aos equipos xa vinculados cando o usuario fai «Actualizar a conexión» (ou
 volve vincular). Se se perde o volume `discosrv` ou `relaysrv`, cambia o seu
 Device ID e pasa o mesmo.
+
+### Apoio público (Syncthing Foundation)
+
+Se o servidor cae, os clientes en redes distintas deixan de atoparse: o
+descubrimento e o relay propios están nel. Para iso, en `p2p` de
+`pairsrv.json`:
+
+- **`publicDiscovery`** (`true` por defecto en `init.sh`): os clientes
+  anúncianse e buscan tamén nos servidores públicos de descubrimento
+  (`"default"` en `globalAnnounceServers`, despois do noso). Estes servidores
+  ven os Device ID e as IP dos equipos, non os ficheiros.
+- **`publicRelays`** (`false` por defecto): engade a reserva pública de relays
+  (`dynamic+https://relays.syncthing.net/endpoint`) ao noso. O tráfico vai
+  cifrado de extremo a extremo, pero cada relay é unha escoita á parte coa
+  mesma prioridade: **un par pode usar un relay público aínda que o noso
+  funcione**, e os públicos teñen límites de velocidade.
+
+Sen os dous, sistema só con servidores propios. Como calquera cambio en
+`p2p`, chega aos equipos xa vinculados con «Actualizar a conexión».
+
+Verificado en local (2.1.7) cos nosos descubrimento e relay inaccesibles:
+dous clientes sen descubrimento local nin conexión directa atopáronse no
+descubrimento público e conectaron por un relay público.
 
 ## Copias de seguridade
 

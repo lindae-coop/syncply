@@ -53,3 +53,56 @@ func TestP2PClientOptions(t *testing.T) {
 		t.Error("aceptou un relay sen relay://")
 	}
 }
+
+func TestP2PClientOptionsPublic(t *testing.T) {
+	own := &P2POptions{
+		Discovery: &P2PServer{URL: "https://nube.example.org:8443", CertFile: "testdata/st-cert.pem"},
+		Relay:     &P2PServer{URL: "relay://nube.example.org:22067", CertFile: "testdata/st-cert.pem", Token: "t"},
+	}
+
+	// Só descubrimento público como apoio: o propio vai primeiro, e o relay
+	// segue sendo só o noso.
+	p := *own
+	p.PublicDiscovery = true
+	o, err := p.ClientOptions(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ann := o["globalAnnounceServers"].([]string)
+	if len(ann) != 2 || !strings.HasPrefix(ann[0], "https://nube.example.org:8443/") || ann[1] != PublicDiscoveryServers {
+		t.Errorf("descubrimento: %v", ann)
+	}
+	for _, a := range o["listenAddresses"].([]string) {
+		if strings.Contains(a, "syncthing.net") || a == "default" {
+			t.Errorf("relay público sen pedilo: %s", a)
+		}
+	}
+
+	// Relays públicos ademais do noso.
+	p.PublicRelays = true
+	o, err = p.ClientOptions(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	la := o["listenAddresses"].([]string)
+	if len(la) != 4 || !strings.HasPrefix(la[2], "relay://nube.example.org:22067/") || la[3] != PublicRelayPool {
+		t.Errorf("escoita: %v", la)
+	}
+
+	// Só os públicos, sen servidores propios.
+	o, err = (&P2POptions{PublicDiscovery: true, PublicRelays: true}).ClientOptions(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if o["globalAnnounceEnabled"] != true || o["relaysEnabled"] != true || o["natEnabled"] != true {
+		t.Errorf("opcións: %v", o)
+	}
+	if la := o["listenAddresses"].([]string); len(la) != 3 || la[2] != PublicRelayPool {
+		t.Errorf("escoita: %v", la)
+	}
+
+	// Sen nada: sen opcións (sistema pechado).
+	if o, _ := (&P2POptions{}).ClientOptions(context.Background()); len(o) != 0 {
+		t.Errorf("opcións sen p2p: %v", o)
+	}
+}

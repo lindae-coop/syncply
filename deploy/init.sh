@@ -57,7 +57,9 @@ else
   },
   "p2p": {
     "discovery": {"url": "https://$syncply:8443/", "certFile": "/discosrv/cert.pem"},
-    "relay": {"url": "relay://$syncply:22067/", "certFile": "/relaysrv/cert.pem", "token": "$relay_token"}
+    "relay": {"url": "relay://$syncply:22067/", "certFile": "/relaysrv/cert.pem", "token": "$relay_token"},
+    "publicDiscovery": true,
+    "publicRelays": false
   },
   "serverSyncthingOptions": {
     "globalAnnounceEnabled": false,
