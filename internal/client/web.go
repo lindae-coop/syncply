@@ -16,6 +16,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/lindae-coop/syncply/internal/brand"
 )
 
 // A web só escoita en loopback, pero calquera proceso ou usuario do equipo
@@ -116,6 +118,7 @@ func (w *Web) Handler() http.Handler {
 	mux.HandleFunc("POST /revoke", w.action(func(r *http.Request) (string, error) {
 		return "Equipo revogado.", w.app.Revoke(r.Context(), r.FormValue("id"), r.FormValue("otp"))
 	}))
+	brand.Register(mux)
 	return w.guard(mux)
 }
 

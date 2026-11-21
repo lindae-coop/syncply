@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/lindae-coop/syncply/internal/brand"
 	"github.com/lindae-coop/syncply/internal/totp"
 )
 
@@ -129,13 +130,14 @@ func (w *Web) Handler() http.Handler {
 		rw.Header().Set("Content-Type", "text/javascript; charset=utf-8")
 		rw.Write(copyJS)
 	})
+	brand.Register(mux)
 	return w.guard(mux)
 }
 
 func (w *Web) guard(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		h := rw.Header()
-		h.Set("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
+		h.Set("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("X-Frame-Options", "DENY")
 		// Non "no-referrer": o navegador enviaría "Origin: null" nos POST.

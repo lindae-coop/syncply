@@ -4,61 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sincronización de ficheiros</title>
-<style>
-:root {
-  --bg: #f6f7f9; --card: #fff; --fg: #1d2330; --muted: #5d6677; --line: #dde1e8;
-  --accent: #2459c9; --accent-fg: #fff; --ok: #1f8a4c; --bad: #c0352b;
-  color-scheme: light;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #14171d; --card: #1c2028; --fg: #e6e9ef; --muted: #9aa3b2; --line: #2d3340;
-    --accent: #6d9bff; --accent-fg: #0b1020; --ok: #4cc27f; --bad: #ff7b6e;
-    color-scheme: dark;
-  }
-}
-* { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--fg);
-  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-main { max-width: 44rem; margin: 0 auto; padding: 1.25rem 1rem 3rem; }
-header { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
-header h1 { font-size: 1.35rem; margin: 0; }
-header .who { margin-left: auto; color: var(--muted); }
-section { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 1rem 1.1rem; margin: 0 0 1rem; }
-h2 { font-size: 1.05rem; margin: 0 0 .6rem; }
-p { margin: .4rem 0; }
-ul { margin: .3rem 0; padding-left: 1.2rem; }
-.muted { color: var(--muted); }
-label { display: block; font-size: .9em; color: var(--muted); margin: .5rem 0 .2rem; }
-input[type=text], input[type=password] { width: 100%; padding: .5rem .6rem; border: 1px solid var(--line); border-radius: 6px;
-  background: var(--bg); color: var(--fg); font: inherit; }
-input.otp { width: 9ch; letter-spacing: .15em; font-variant-numeric: tabular-nums; }
-button { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--fg);
-  padding: .45rem .9rem; border-radius: 6px; cursor: pointer; }
-button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
-form.inline { display: inline; }
-a { color: var(--accent); }
-.code { font: 600 2.6rem/1.1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  letter-spacing: .18em; font-variant-numeric: tabular-nums; margin: .3rem 0 .6rem; }
-.bar { height: 6px; max-width: 17rem; background: var(--line); border-radius: 3px; overflow: hidden; }
-.bar > div { height: 100%; background: var(--accent); transform-origin: left; animation: drain linear forwards; }
-@keyframes drain { from { transform: scaleX(1); } to { transform: scaleX(0); } }
-@media (prefers-reduced-motion: reduce) { .bar > div { animation: none; } }
-ol.steps { margin: .3rem 0; padding-left: 1.3rem; }
-ol.steps > li { margin: 0 0 1rem; }
-ol.steps > li:last-child { margin-bottom: 0; }
-ol.steps .muted { display: block; font-size: .9em; margin-top: .3rem; }
-textarea.linktext { display: block; width: 100%; margin: .4rem 0; padding: .5rem .6rem; resize: vertical;
-  border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg);
-  font: .85rem/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; word-break: break-all; }
-.row { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
-.ok { color: var(--ok); }
-.dot { display: inline-block; width: .6em; height: .6em; border-radius: 50%; margin-right: .35em;
-  vertical-align: .05em; background: var(--line); }
-.dot.ok { background: var(--ok); }
-.msg { padding: .6rem .8rem; border-radius: 8px; margin-bottom: 1rem; border: 1px solid var(--bad); color: var(--bad); }
-details summary { cursor: pointer; color: var(--muted); font-size: .9em; }
-</style>
+<link rel="stylesheet" href="/static/syncply.css">
+<link rel="icon" type="image/svg+xml" href="/static/logo.svg">
 {{end}}
 
 {{define "foot"}}

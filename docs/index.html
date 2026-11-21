@@ -24,6 +24,23 @@
     --borde: 3px solid var(--tinta);
     --sombra: 6px 6px 0 var(--tinta);
     --ancho: 68rem;
+    --negro: #000;          /* texto sobre cian e fondos sempre escuros */
+    --barra-fondo: rgba(255,255,255,.92);
+    --code-borde: #9ee;
+  }
+  /* Modo escuro automático: mesmas formas, tinta clara sobre fondo escuro. */
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --cian-suave: #0f3a3c;
+      --tinta: #e6f7f7;
+      --texto: #e3ecec;
+      --apagado: #a3b1b1;
+      --fondo: #0e1314;
+      --fondo-alt: #132022;
+      --barra-fondo: rgba(14,19,20,.92);
+      --code-borde: #1f6466;
+    }
   }
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
@@ -34,7 +51,7 @@
     background: var(--fondo);
   }
   a { color: inherit; text-decoration-thickness: 2px; text-underline-offset: 3px; }
-  a:hover { background: var(--cian); }
+  a:hover { background: var(--cian); color: var(--negro); }
   img { max-width: 100%; }
   h1, h2, h3 { color: var(--tinta); line-height: 1.15; letter-spacing: -0.01em; }
   h2 { font-size: clamp(1.7rem, 4vw, 2.4rem); font-weight: 850; margin: 0 0 1rem; }
@@ -48,7 +65,7 @@
   /* Cabeceira */
   .barra {
     position: sticky; top: 0; z-index: 10;
-    background: rgba(255,255,255,.92); backdrop-filter: blur(6px);
+    background: var(--barra-fondo); backdrop-filter: blur(6px);
     border-bottom: var(--borde);
   }
   .barra .envoltorio { display: flex; align-items: center; gap: 1rem; padding-block: .5rem; flex-wrap: wrap; }
@@ -62,16 +79,18 @@
   .portada { padding-block: 4rem 5rem; }
   .portada .envoltorio { display: grid; grid-template-columns: 1.2fr 1fr; gap: 2.5rem; align-items: center; }
   .portada h1 { font-size: clamp(2.3rem, 6vw, 3.8rem); font-weight: 900; margin: 0 0 1.2rem; }
-  .portada h1 mark { background: var(--cian); padding: 0 .2em; border-radius: 8px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
-  .portada .logo { width: min(100%, 360px); justify-self: center; }
+  .portada h1 mark { background: var(--cian); color: var(--negro); padding: 0 .2em; border-radius: 8px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+  .portada .logo { display: block; width: min(100%, 360px); justify-self: center; }
+  .portada .logo img, .barra .marca picture { display: block; }
+  .portada .logo img { width: 100%; height: auto; }
   .botons { display: flex; flex-wrap: wrap; gap: .8rem; margin-top: 1.6rem; }
   .boton {
     display: inline-block; padding: .7rem 1.3rem; border: var(--borde); border-radius: 999px;
     font-weight: 800; text-decoration: none; box-shadow: 4px 4px 0 var(--tinta);
     background: var(--fondo); transition: transform .1s, box-shadow .1s;
   }
-  .boton.principal { background: var(--cian); }
-  .boton:hover { transform: translate(2px,2px); box-shadow: 2px 2px 0 var(--tinta); background: var(--cian); }
+  .boton.principal { background: var(--cian); color: var(--negro); }
+  .boton:hover { transform: translate(2px,2px); box-shadow: 2px 2px 0 var(--tinta); background: var(--cian); color: var(--negro); }
 
   /* Tarxetas */
   .grella { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: 1.4rem; margin-top: 2rem; }
@@ -83,7 +102,7 @@
   .tarxeta p { color: var(--apagado); margin: 0; }
   .icona {
     display: inline-grid; place-items: center; width: 2.6rem; height: 2.6rem; margin-bottom: .7rem;
-    background: var(--cian); border: var(--borde); border-radius: 50%;
+    background: var(--cian); border: var(--borde); border-radius: 50%; color: var(--negro);
   }
   .icona svg { width: 1.3rem; height: 1.3rem; }
 
@@ -108,15 +127,15 @@
   ol.pasos > li::before {
     content: counter(paso); position: absolute; left: 1.2rem; top: 1.1rem;
     width: 2.6rem; height: 2.6rem; display: grid; place-items: center;
-    font-weight: 900; font-size: 1.25rem; background: var(--cian); border: var(--borde); border-radius: 50%;
+    font-weight: 900; font-size: 1.25rem; background: var(--cian); border: var(--borde); border-radius: 50%; color: var(--negro);
   }
   ol.pasos p { margin: 0; color: var(--apagado); }
   ol.pasos p + p { margin-top: .5rem; }
   .codigo {
     display: inline-block; font: 800 1.15rem/1 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-    letter-spacing: .25em; background: var(--tinta); color: var(--cian); padding: .35rem .6rem .35rem .8rem; border-radius: 8px;
+    letter-spacing: .25em; background: var(--negro); color: var(--cian); padding: .35rem .6rem .35rem .8rem; border-radius: 8px;
   }
-  code { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-size: .9em; background: var(--cian-suave); padding: .05em .35em; border-radius: 5px; border: 1px solid #9ee; }
+  code { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-size: .9em; background: var(--cian-suave); padding: .05em .35em; border-radius: 5px; border: 1px solid var(--code-borde); }
 
   /* Plataformas */
   .plataformas { display: flex; flex-wrap: wrap; gap: .8rem; margin-top: 1.2rem; }
@@ -141,7 +160,7 @@
   }
   summary { cursor: pointer; font-weight: 800; padding: 1rem 1.2rem; list-style: none; display: flex; gap: .8rem; align-items: center; }
   summary::-webkit-details-marker { display: none; }
-  summary::before { content: "+"; display: grid; place-items: center; flex: none; width: 1.7rem; height: 1.7rem; border: 2px solid var(--tinta); border-radius: 50%; background: var(--cian); font-weight: 900; }
+  summary::before { content: "+"; display: grid; place-items: center; flex: none; width: 1.7rem; height: 1.7rem; border: 2px solid var(--tinta); border-radius: 50%; background: var(--cian); color: var(--negro); font-weight: 900; }
   details[open] summary::before { content: "−"; }
   details[open] summary { border-bottom: 2px solid var(--tinta); }
   details > div { padding: 1rem 1.2rem .2rem; color: var(--apagado); }
@@ -157,10 +176,10 @@
   .estado span { color: var(--apagado); font-size: .95rem; }
 
   /* Pé */
-  footer { background: var(--tinta); color: #fff; padding-block: 3rem; }
+  footer { background: var(--negro); color: #fff; padding-block: 3rem; border-top: var(--borde); }
   footer .envoltorio { display: flex; flex-wrap: wrap; gap: 2rem; align-items: center; justify-content: space-between; }
   footer img { width: 72px; height: 72px; }
-  footer a:hover { background: var(--cian); color: var(--tinta); }
+  footer a:hover { background: var(--cian); color: var(--negro); }
   footer p { margin: .2rem 0; color: #ddd; }
   footer .esquerda { display: flex; gap: 1rem; align-items: center; }
 
@@ -184,7 +203,7 @@
 
 <header class="barra">
   <div class="envoltorio">
-    <a class="marca" href="#"><img src="logo.svg" alt="Syncply" width="100" height="100"></a>
+    <a class="marca" href="#"><picture><source srcset="logo-escuro.svg" media="(prefers-color-scheme: dark)"><img src="logo.svg" alt="Syncply" width="100" height="100"></picture></a>
     <nav aria-label="Seccións">
       <a href="#que-e">Que é</a>
       <a href="#avantaxes">Avantaxes</a>
@@ -208,7 +227,7 @@
         <a class="boton" href="#que-e">Que é Syncply?</a>
       </div>
     </div>
-    <img class="logo" src="logo.svg" alt="Logotipo de Syncply: unha nube cian cunha espiral e o texto Syncply" width="360" height="360">
+    <picture class="logo"><source srcset="logo-escuro.svg" media="(prefers-color-scheme: dark)"><img src="logo.svg" alt="Logotipo de Syncply: unha nube cian cunha espiral e o texto Syncply" width="360" height="360"></picture>
   </div>
 </section>
 
@@ -450,7 +469,7 @@
 <footer>
   <div class="envoltorio">
     <div class="esquerda">
-      <img src="logo.svg" alt="" width="72" height="72">
+      <img src="logo-escuro.svg" alt="" width="72" height="72">
       <div>
         <p><strong style="color:#fff">Syncply</strong> — a nube de ficheiros do teu grupo.</p>
         <p>Un proxecto de <a href="https://lindae.eu">lindæ</a>.</p>

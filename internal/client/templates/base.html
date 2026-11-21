@@ -4,67 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Syncply</title>
-<style>
-:root {
-  --bg: #f6f7f9; --card: #fff; --fg: #1d2330; --muted: #5d6677; --line: #dde1e8;
-  --accent: #2459c9; --accent-fg: #fff; --ok: #1f8a4c; --warn: #b26a00; --bad: #c0352b;
-  color-scheme: light;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #14171d; --card: #1c2028; --fg: #e6e9ef; --muted: #9aa3b2; --line: #2d3340;
-    --accent: #6d9bff; --accent-fg: #0b1020; --ok: #4cc27f; --warn: #e2a33b; --bad: #ff7b6e;
-    color-scheme: dark;
-  }
-}
-* { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--fg);
-  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-main { max-width: 52rem; margin: 0 auto; padding: 1.25rem 1rem 3rem; }
-header { display: flex; align-items: baseline; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 1rem; }
-header h1 { font-size: 1.35rem; margin: 0; }
-nav a { color: var(--muted); text-decoration: none; margin-right: 1rem; }
-nav a.on { color: var(--fg); font-weight: 600; }
-section { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 1rem 1.1rem; margin: 0 0 1rem; }
-h2 { font-size: 1.05rem; margin: 0 0 .6rem; }
-p { margin: .4rem 0; }
-.muted { color: var(--muted); }
-.row { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
-.item { border-top: 1px solid var(--line); padding: .75rem 0; }
-.item:first-of-type { border-top: 0; padding-top: .25rem; }
-.item .name { font-weight: 600; }
-.path { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .88em; color: var(--muted); word-break: break-all; }
-label { display: block; font-size: .9em; color: var(--muted); margin: .5rem 0 .2rem; }
-input[type=text] { width: 100%; padding: .5rem .6rem; border: 1px solid var(--line); border-radius: 6px;
-  background: var(--bg); color: var(--fg); font: inherit; }
-textarea.linktext { display: block; width: 100%; padding: .5rem .6rem; resize: vertical; border: 1px solid var(--line);
-  border-radius: 6px; background: var(--bg); color: var(--fg); word-break: break-all;
-  font: .85rem/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-input.otp { width: 9ch; letter-spacing: .15em; font-variant-numeric: tabular-nums; }
-button { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--fg);
-  padding: .45rem .9rem; border-radius: 6px; cursor: pointer; }
-button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
-button.danger { color: var(--bad); }
-form.inline { display: inline; }
-.flex { display: flex; gap: .5rem; align-items: end; flex-wrap: wrap; }
-.flex > .grow { flex: 1 1 16rem; }
-.dot { display: inline-block; width: .6em; height: .6em; border-radius: 50%; margin-right: .35em; vertical-align: .05em; }
-.ok { color: var(--ok); } .ok .dot, .dot.ok { background: var(--ok); }
-.warn { color: var(--warn); } .dot.warn { background: var(--warn); }
-.bad { color: var(--bad); } .dot.bad { background: var(--bad); }
-.msg { padding: .6rem .8rem; border-radius: 8px; margin-bottom: 1rem; border: 1px solid; }
-.msg.okmsg { border-color: var(--ok); color: var(--ok); }
-.msg.errmsg { border-color: var(--bad); color: var(--bad); }
-
-details summary { cursor: pointer; color: var(--muted); font-size: .9em; }
-details[open] summary { margin-bottom: .4rem; }
-</style>
+<link rel="stylesheet" href="/static/syncply.css">
+<link rel="icon" type="image/svg+xml" href="/static/logo.svg">
 </head>
 <body><main>
 {{end}}
 
 {{define "nav"}}
 <header>
+  <a class="marca" href="/"><img src="/static/logo.svg" alt="Syncply" width="56" height="56"></a>
   <h1>Syncply</h1>
   <nav>
     <a href="/" {{if eq . "index"}}class="on"{{end}}>Recursos</a>

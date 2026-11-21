@@ -71,6 +71,10 @@ O usuario entra na web do servidor co seu usuario e contrasinal e ve alí o cód
 - O que escribe Syncthing non pasa por SFTPGo: non se aplican cotas nin hooks, e as estatísticas de cota quedan desfasadas ata recalcular.
 - Os usuarios verán por SFTP `.stfolder`, temporais e `.sync-conflict-*`; filtrar en SFTPGo.
 
+## Migracións entre versións (obrigatorio desde v0.1.0)
+
+Hai instancias en produción (decisión do usuario, 2026-11-21): **cada versión ten que incluír as migracións necesarias** para que unha instalación da versión anterior siga funcionando ao actualizar, sen pasos manuais nin perder datos. Aplícase a todo o que persiste: estado de pairsrv (equipos, segredos TOTP…), `pairsrv.json`, estado do cliente `syncply` nos equipos dos usuarios, configuración que se aplica aos Syncthing, obxectos creados en SFTPGo (grupo `syncthing`, regra `pairsrv-sync`) e `deploy/` (`.env`, volumes, compose). Os clientes poden actualizarse despois ca o servidor: manter a compatibilidade da API pairsrv ↔ cliente. Probar a actualización desde a versión anterior e documentar nas notas da versión o que cambia.
+
 ## Contorno de desenvolvemento (decidido)
 
 - Todo en **Podman rootless** + `podman-compose` + `make`; non instalar nada máis no equipo (nin Go nin Syncthing). Ver [README.md](README.md).
@@ -177,8 +181,7 @@ Windows (`syncply.exe` autoinstalable, probado en Windows 11): `syncply.exe` aut
 
 ## Para futuras versións (pedidas polo usuario, sen deseñar)
 
-- **Web con modo escuro automático** (`prefers-color-scheme`).
-- **Levar a estética da web ás aplicacións** (web local do cliente `syncply`, instaladores…).
+- ~~Web con modo escuro automático~~ e ~~estética da web nas aplicacións~~ (feito): `docs/index.html` cambia de paleta con `prefers-color-scheme` (`docs/logo-escuro.svg` en escuro e no pé). As webs de pairsrv e do cliente usan `internal/brand` (`syncply.css` e `logo.svg` embebidos, servidos en `/static/`; o logo leva un `<style>` interno que aclara o contorno e «lindæ» en escuro). Ao cambiar a paleta, cambiala nos dous sitios. Pendente: instaladores (mensaxes de Windows) e a futura icona da bandexa.
 - **Panel de administración propio** para xestionar usuarios e recursos sen entrar en SFTPGo:
   - Crear usuarios e poñerlles contrasinal; cambiar contrasinais.
   - Crear grupos: cada grupo leva **un único recurso compartido** (cartafol virtual) creado co grupo.
@@ -186,6 +189,7 @@ Windows (`syncply.exe` autoinstalable, probado en Windows 11): `syncply.exe` aut
   - Os usuarios creados desde o panel **non teñen carpeta persoal** (só os recursos dos seus grupos).
   - Acceso coas **credenciais do administrador de SFTPGo**.
   - Notas sen verificar: facelo pola API REST de SFTPGo (`/api/v2/users`, `/groups`, `/folders`) co token do admin, non escribindo na BD; o cartafol do grupo ten que levar *virtual path* (trampa vista no hosting) e permiso de escritura completo para que se ofreza; SFTPGo esixe `home_dir`, así que «sen carpeta persoal» probablemente implique un directorio persoal sen permisos (ou sen escritura) para que pairsrv non o ofreza; os usuarios novos deben ir no grupo primario `syncthing`.
+- **A web e o lema** fan referencia a "simple", "pequenos equipos" e "pequenos servidores. Algo así como "Syncply, a nube simple para pequenos equipos con pequenos servidores". Tamén fai referencias ó decrecemento.
 
 ## Para o futuro: cambios en SFTPGo ao integrar (pedidos polo usuario)
 

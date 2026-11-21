@@ -1,0 +1,154 @@
+/* Estética común de Syncply (pairsrv e cliente), a mesma que a web do
+   proxecto (docs/index.html): cian, tinta grosa, sombras desprazadas e
+   botóns en pílula. Modo escuro automático segundo o sistema. */
+:root {
+  color-scheme: light;
+  --cian: #00ffff;
+  --cian-suave: #d9ffff;
+  --tinta: #000;
+  --negro: #000;
+  --texto: #1b1b1b;
+  --apagado: #4a4a4a;
+  --fondo: #f4fbfb;
+  --tarxeta: #fff;
+  --campo: #fff;
+  --ok: #157a3f;
+  --warn: #965800;
+  --bad: #b8291f;
+  --borde: 3px solid var(--tinta);
+  --borde-fino: 2px solid var(--tinta);
+  --sombra: 5px 5px 0 var(--tinta);
+  --raio: 16px;
+  --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --cian-suave: #0f3a3c;
+    --tinta: #e6f7f7;
+    --texto: #e3ecec;
+    --apagado: #a3b1b1;
+    --fondo: #0e1314;
+    --tarxeta: #141c1d;
+    --campo: #0e1314;
+    --ok: #4cd38a;
+    --warn: #f0b44a;
+    --bad: #ff8a7e;
+  }
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--fondo); color: var(--texto);
+  font: 1rem/1.55 system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", Ubuntu, Cantarell, sans-serif;
+}
+main { max-width: 52rem; margin: 0 auto; padding: 1rem 1rem 3rem; }
+a { color: inherit; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+a:hover { background: var(--cian); color: var(--negro); }
+h1, h2 { color: var(--tinta); line-height: 1.2; letter-spacing: -0.01em; }
+h2 { font-size: 1.2rem; font-weight: 850; margin: 0 0 .7rem; }
+p { margin: .45rem 0; }
+ul { margin: .3rem 0; padding-left: 1.2rem; }
+strong { color: var(--tinta); }
+.muted { color: var(--apagado); }
+
+/* Cabeceira */
+header {
+  display: flex; align-items: center; gap: .6rem 1.2rem; flex-wrap: wrap;
+  padding-bottom: .8rem; margin-bottom: 1.4rem; border-bottom: var(--borde);
+}
+header .marca { display: flex; align-items: center; gap: .6rem; text-decoration: none; }
+header .marca:hover { background: none; }
+header .marca img { width: 56px; height: 56px; display: block; }
+header h1 { font-size: 1.4rem; font-weight: 900; margin: 0; }
+header .who { margin-left: auto; color: var(--apagado); font-weight: 600; }
+nav { display: flex; gap: .3rem .6rem; flex-wrap: wrap; font-weight: 700; }
+header nav { margin-left: auto; }
+nav a { text-decoration: none; padding: .2rem .7rem; border: 2px solid transparent; border-radius: 999px; }
+nav a.on { border-color: var(--tinta); background: var(--cian); color: var(--negro); }
+
+/* Tarxetas */
+section {
+  background: var(--tarxeta); border: var(--borde); border-radius: var(--raio);
+  box-shadow: var(--sombra); padding: 1.1rem 1.3rem; margin: 0 0 1.4rem;
+}
+.item { border-top: var(--borde-fino); padding: .8rem 0; }
+.item:first-of-type { border-top: 0; padding-top: .2rem; }
+.item:last-child { padding-bottom: 0; }
+.item .name { font-weight: 800; color: var(--tinta); }
+.path { font-family: var(--mono); font-size: .88em; color: var(--apagado); word-break: break-all; }
+
+/* Formularios */
+label { display: block; font-size: .92em; font-weight: 700; margin: .7rem 0 .25rem; }
+input[type=text], input[type=password], textarea {
+  width: 100%; padding: .55rem .7rem; border: var(--borde-fino); border-radius: 10px;
+  background: var(--campo); color: var(--texto); font: inherit;
+}
+input:focus-visible, textarea:focus-visible, button:focus-visible, a:focus-visible {
+  outline: 3px solid var(--cian); outline-offset: 2px;
+}
+input.otp { width: 10ch; letter-spacing: .2em; font-family: var(--mono); font-weight: 700; font-variant-numeric: tabular-nums; }
+textarea.linktext { display: block; margin: .4rem 0; resize: vertical; word-break: break-all;
+  font: .85rem/1.4 var(--mono); }
+button {
+  font: inherit; font-weight: 800; cursor: pointer; padding: .45rem 1.1rem;
+  border: var(--borde-fino); border-radius: 999px; background: var(--tarxeta); color: var(--tinta);
+  box-shadow: 3px 3px 0 var(--tinta); transition: transform .1s, box-shadow .1s;
+}
+button:hover { transform: translate(1px, 1px); box-shadow: 2px 2px 0 var(--tinta); background: var(--cian); color: var(--negro); }
+button:active { transform: translate(3px, 3px); box-shadow: none; }
+button.primary { background: var(--cian); color: var(--negro); }
+button.danger { color: var(--bad); }
+button.danger:hover { background: var(--bad); color: var(--fondo); }
+form.inline { display: inline; }
+.row { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
+.flex { display: flex; gap: .6rem; align-items: end; flex-wrap: wrap; }
+.flex > .grow { flex: 1 1 16rem; }
+
+/* Estados */
+.dot { display: inline-block; width: .7em; height: .7em; border-radius: 50%; margin-right: .4em;
+  vertical-align: .02em; background: var(--apagado); border: 2px solid var(--tinta); }
+.ok { color: var(--ok); } .ok .dot, .dot.ok { background: var(--ok); }
+.warn { color: var(--warn); } .dot.warn { background: var(--warn); }
+.bad { color: var(--bad); } .dot.bad { background: var(--bad); }
+.msg { padding: .7rem 1rem; border-radius: 12px; margin-bottom: 1.2rem; font-weight: 600;
+  border: var(--borde-fino); border-left-width: 10px; border-color: var(--bad); color: var(--bad); background: var(--tarxeta); }
+.msg.okmsg { border-color: var(--ok); color: var(--ok); }
+.msg.errmsg { border-color: var(--bad); color: var(--bad); }
+
+/* Despregables */
+details { margin-top: .5rem; }
+details summary { cursor: pointer; color: var(--apagado); font-size: .92em; font-weight: 600; }
+details summary:hover { color: var(--tinta); }
+details[open] summary { margin-bottom: .4rem; }
+
+/* Código de vinculación (pairsrv) */
+.code {
+  display: table; margin: .5rem 0 .7rem; padding: .35rem .5rem .35rem .8rem; border-radius: 10px;
+  background: var(--negro); color: var(--cian); border: var(--borde-fino);
+  font: 800 2.4rem/1.1 var(--mono); letter-spacing: .22em; font-variant-numeric: tabular-nums;
+}
+.bar { height: 12px; max-width: 17rem; background: var(--tarxeta); border: var(--borde-fino); border-radius: 999px; overflow: hidden; }
+.bar > div { height: 100%; background: var(--cian); transform-origin: left; animation: drain linear forwards; }
+@keyframes drain { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+
+/* Pasos numerados (pairsrv) */
+ol.steps { list-style: none; margin: .3rem 0; padding: 0; counter-reset: paso; }
+ol.steps > li { counter-increment: paso; position: relative; padding-left: 3rem; margin: 0 0 1.3rem; }
+ol.steps > li:last-child { margin-bottom: 0; }
+ol.steps > li::before {
+  content: counter(paso); position: absolute; left: 0; top: -.1rem;
+  width: 2.1rem; height: 2.1rem; display: grid; place-items: center;
+  font-weight: 900; color: var(--negro); background: var(--cian); border: var(--borde-fino); border-radius: 50%;
+}
+ol.steps .muted { display: block; font-size: .92em; margin-top: .3rem; }
+
+@media (max-width: 34rem) {
+  header .marca img { width: 44px; height: 44px; }
+  header nav, header .who { margin-left: 0; }
+  section { padding: 1rem; box-shadow: 3px 3px 0 var(--tinta); }
+}
+@media (prefers-reduced-motion: reduce) {
+  button { transition: none; }
+  .bar > div { animation: none; }
+}
