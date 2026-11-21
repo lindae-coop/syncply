@@ -1,17 +1,68 @@
-# Imaxe de pairsrv para produción. Contexto: a raíz do repositorio
-# (deploy/compose.yaml xa o indica).
+# Imaxe de pairsrv para produción, cos paquetes do cliente dentro
+# (/descargas, servidos en https://DOMINIO/descargas/): os usuarios
+# descárganos do propio servidor. Cada versión da imaxe leva os clientes da
+# mesma versión.
+#
+# Contexto: a raíz do repositorio (deploy/compose.yaml xa o indica):
+#
+#   podman build -f deploy/Containerfile.pairsrv --build-arg VERSION=v0.1.0 .
+#
+# Os paquetes son os mesmos que `make dist` e `make dist-windows`: se cambian
+# alí (versión de Syncthing, contido), cambialos tamén aquí.
+
+# Syncthing de Linux para o paquete do cliente (sempre amd64, aínda que a
+# imaxe se constrúa noutra arquitectura).
+FROM --platform=linux/amd64 docker.io/syncthing/syncthing:2.1.7 AS syncthing
+
 FROM docker.io/library/golang:1.27.4-alpine AS build
+ARG VERSION=dev
+RUN apk add --no-cache curl unzip
 WORKDIR /src
+
+# Syncthing de Windows (embebido en syncply.exe): o zip oficial, verificado
+# co SHA-256 publicado en sha256sum.txt.asc da versión. Antes do código
+# para que quede na caché.
+ARG ST_VERSION=2.1.7
+ARG ST_WIN_SHA=3ce7da770f546a8d02b65b2e7ee31f2a3b8b7c3f990ede045590cca4172ecfe1
+RUN z=syncthing-windows-amd64-v$ST_VERSION.zip \
+ && curl -fsSL -o /tmp/$z https://github.com/syncthing/syncthing/releases/download/v$ST_VERSION/$z \
+ && echo "$ST_WIN_SHA  /tmp/$z" | sha256sum -c - \
+ && unzip -p /tmp/$z syncthing-windows-amd64-v$ST_VERSION/syncthing.exe | gzip -9 > /tmp/syncthing.exe.gz \
+ && rm /tmp/$z
+
 COPY go.mod go.sum ./
 RUN go mod download
-COPY cmd/pairsrv ./cmd/pairsrv
+COPY cmd ./cmd
 COPY internal ./internal
-RUN CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags "-s -w" -o /pairsrv ./cmd/pairsrv
+COPY packaging ./packaging
+
+ENV CGO_ENABLED=0
+RUN go build -trimpath -buildvcs=false -ldflags "-s -w" -o /pairsrv ./cmd/pairsrv
+
+# Linux: syncply + Syncthing + instalador (make dist).
+COPY --from=syncthing /bin/syncthing /out/syncply-linux-amd64/syncthing
+RUN d=/out/syncply-linux-amd64 \
+ && GOOS=linux GOARCH=amd64 go build -trimpath -buildvcs=false -ldflags "-s -w -X main.version=$VERSION" -o $d/syncply ./cmd/syncply \
+ && cp packaging/linux/install.sh packaging/linux/LICENZAS.txt $d/ \
+ && chmod 755 $d/syncply $d/syncthing $d/install.sh \
+ && mkdir -p /descargas \
+ && tar -C /out -czf /descargas/syncply-linux-amd64.tar.gz syncply-linux-amd64
+
+# Windows: syncply.exe autoinstalable con Syncthing dentro (make dist-windows).
+RUN mkdir -p cmd/syncply/embed \
+ && mv /tmp/syncthing.exe.gz cmd/syncply/embed/ \
+ && sed 's/$/\r/' packaging/linux/LICENZAS.txt > cmd/syncply/embed/LICENZAS.txt \
+ && GOOS=windows GOARCH=amd64 go build -tags embedsyncthing -trimpath -buildvcs=false \
+      -ldflags "-s -w -H windowsgui -X main.version=$VERSION" -o /descargas/syncply-windows-amd64.exe ./cmd/syncply
 
 FROM docker.io/library/alpine:3.22
+ARG VERSION=dev
+LABEL org.opencontainers.image.source="https://github.com/lindae-coop/syncply" \
+      org.opencontainers.image.version="$VERSION"
 # /state créase co dono 1000 para que un volume novo herde ese dono: pairsrv
 # corre co mesmo UID que SFTPGo e Syncthing.
 RUN mkdir -p /state && chown 1000:1000 /state
 COPY --from=build /pairsrv /usr/local/bin/pairsrv
+COPY --from=build /descargas /descargas
 USER 1000:1000
 ENTRYPOINT ["/usr/local/bin/pairsrv"]

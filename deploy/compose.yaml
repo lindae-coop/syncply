@@ -94,9 +94,12 @@ services:
     restart: unless-stopped
 
   pairsrv:
+    # Leva dentro os paquetes do cliente (/descargas).
     build:
       context: ..
       dockerfile: deploy/Containerfile.pairsrv
+      args:
+        VERSION: ${SYNCPLY_VERSION:-dev}
     image: localhost/syncply-pairsrv:latest
     command: ["-config", "/etc/pairsrv.json",
               "-state", "/state/state.json",
@@ -110,7 +113,6 @@ services:
       PAIRSRV_HOOK_TOKEN: ${PAIRSRV_HOOK_TOKEN:?falta PAIRSRV_HOOK_TOKEN en .env}
     volumes:
       - ./pairsrv.json:/etc/pairsrv.json:ro,z
-      - ../dist:/descargas:ro,z
       - pairsrv-state:/state
       - sftpgo-lib:/sftpgo:ro
       - syncthing:/st:ro

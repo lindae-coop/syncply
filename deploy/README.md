@@ -34,13 +34,20 @@ key. Os tres servizos usan o UID/GID 1000.
 ## Instalación
 
 ```sh
-git clone https://github.com/lindae-coop/syncply.git syncply && cd syncply
-make dist dist-windows        # paquetes do cliente en dist/ (a web ofréceos)
-cd deploy
+git clone https://github.com/lindae-coop/syncply.git syncply && cd syncply/deploy
 ./init.sh nube.example.org sftp.example.org   # crea .env e pairsrv.json
-make up                       # compila pairsrv e arranca todo
+make up                       # compila pairsrv cos paquetes do cliente e arranca todo
 make setup-sftpgo             # grupo "syncthing" e aviso de SFTPGo a pairsrv
 ```
+
+A imaxe de pairsrv leva dentro os paquetes do cliente (Linux e Windows,
+compilados en [Containerfile.pairsrv](Containerfile.pairsrv)): os usuarios
+descárganos do propio servidor, en `https://DOMINIO_SYNCPLY/descargas/`.
+
+Tamén hai unha imaxe xa compilada para cada versión,
+`ghcr.io/lindae-coop/syncply-pairsrv:<versión>` (CI en
+[.github/workflows/release.yml](../.github/workflows/release.yml)); úsaa o
+stack do hosting da cooperativa.
 
 `init.sh` xera segredos aleatorios en `.env` (permisos 600), entre eles o
 contrasinal do administrador de SFTPGo. Non sobrescribe ficheiros que xa
@@ -178,7 +185,7 @@ arranca de novo.
 ## Actualizar
 
 ```sh
-git pull && make dist dist-windows && cd deploy && make up
+git pull && cd deploy && make up
 ```
 
 Antes de cambiar a versión de SFTPGo, revisar `internal/sftpgo` (le a súa BD

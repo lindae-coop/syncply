@@ -1,0 +1,50 @@
+# Publica unha versión ao subir unha etiqueta vX.Y.Z:
+#  - imaxe ghcr.io/<propietario>/syncply-pairsrv:vX.Y.Z, cos paquetes do
+#    cliente dentro (deploy/Containerfile.pairsrv): o servidor sérveos aos
+#    usuarios, que non dependen de GitHub para descargalos;
+#  - versión de GitHub cos mesmos paquetes, como copia.
+#
+#   git tag v0.1.0 && git push origin v0.1.0
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write  # crear a versión
+  packages: write  # subir a imaxe
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/syncply-pairsrv
+      VERSION: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Test
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src docker.io/library/golang:1.27.4-alpine \
+            sh -c 'CGO_ENABLED=0 go vet ./... && CGO_ENABLED=0 go test ./...'
+
+      - name: Imaxe
+        run: |
+          docker build -f deploy/Containerfile.pairsrv --build-arg VERSION="$VERSION" -t "$IMAGE:$VERSION" .
+
+      - name: Subir a imaxe
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker push "$IMAGE:$VERSION"
+
+      - name: Versión de GitHub cos paquetes do cliente
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          id=$(docker create "$IMAGE:$VERSION")
+          docker cp "$id:/descargas" descargas
+          docker rm "$id"
+          (cd descargas && sha256sum * > SHA256SUMS)
+          gh release create "$VERSION" descargas/* --title "$VERSION" --generate-notes \
+            --notes "Imaxe do servidor: \`$IMAGE:$VERSION\`"

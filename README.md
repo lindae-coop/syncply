@@ -173,7 +173,7 @@ ese código. Dentro ve:
   actual xa se usou, mostra o seguinte, que xa se acepta;
 - as **descargas** do cliente (`web.downloads`; pairsrv serve os ficheiros
   dun directorio en `/descargas/` con `-downloads`; en desenvolvemento,
-  `./dist`). O cliente é **xenérico**: o mesmo binario para todos os
+  `./dist`; en produción, os que leva a propia imaxe de pairsrv). O cliente é **xenérico**: o mesmo binario para todos os
   servidores;
 - o **texto de vinculación** (`syncply1:` + base64url dun JSON
   `{"v":1,"url","user","server"}`), cun botón **Copiar** (único script da
