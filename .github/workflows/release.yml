@@ -4,6 +4,10 @@
 #    usuarios, que non dependen de GitHub para descargalos;
 #  - versión de GitHub cos mesmos paquetes, como copia.
 #
+# Os paquetes van cun manifesto asinado (update.json + .sig) para que os
+# clientes se actualicen desde o seu servidor: a clave privada está no
+# segredo SYNCPLY_UPDATE_KEY do repositorio (ver internal/update/keys.go).
+#
 #   git tag v0.1.0 && git push origin v0.1.0
 name: release
 
@@ -30,8 +34,12 @@ jobs:
             sh -c 'CGO_ENABLED=0 go vet ./... && CGO_ENABLED=0 go test ./...'
 
       - name: Imaxe
+        env:
+          SYNCPLY_UPDATE_KEY: ${{ secrets.SYNCPLY_UPDATE_KEY }}
         run: |
-          docker build -f deploy/Containerfile.pairsrv --build-arg VERSION="$VERSION" -t "$IMAGE:$VERSION" .
+          test -n "$SYNCPLY_UPDATE_KEY" || { echo "falta o segredo SYNCPLY_UPDATE_KEY"; exit 1; }
+          docker build -f deploy/Containerfile.pairsrv --build-arg VERSION="$VERSION" \
+            --secret id=update_key,env=SYNCPLY_UPDATE_KEY -t "$IMAGE:$VERSION" .
 
       - name: Subir a imaxe
         run: |
@@ -45,6 +53,7 @@ jobs:
           id=$(docker create "$IMAGE:$VERSION")
           docker cp "$id:/descargas" descargas
           docker rm "$id"
+          test -s descargas/update.json -a -s descargas/update.json.sig || { echo "a imaxe non leva o manifesto asinado"; exit 1; }
           (cd descargas && sha256sum * > SHA256SUMS)
           gh release create "$VERSION" descargas/* --title "$VERSION" --generate-notes \
             --notes "Imaxe do servidor: \`$IMAGE:$VERSION\`"

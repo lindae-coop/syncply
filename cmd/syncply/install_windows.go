@@ -16,6 +16,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -72,11 +73,35 @@ func defaultAction() error {
 	return install(nil)
 }
 
-func install(args []string) error {
+func install(args []string) (err error) {
 	fs := flag.NewFlagSet("install", flag.ExitOnError)
 	noOpen := fs.Bool("no-open", false, "non abrir a configuración ao rematar")
 	quiet := fs.Bool("quiet", false, "sen mensaxes nin navegador")
+	upd := fs.Bool("update", false, "actualización automática (o daemon executa a versión descargada): sen mensaxes; os erros van ao rexistro")
 	fs.Parse(args)
+	if *upd {
+		*quiet = true
+		silentErrors = true
+		if f, lerr := openLog(defaultLogFile(defaultStateDir())); lerr == nil {
+			defer f.Close()
+			log.SetOutput(f)
+			os.Stderr = f
+		}
+		log.Printf("syncply %s: actualizando", version)
+		defer func() {
+			if err == nil {
+				return
+			}
+			// Que o equipo non quede sen sincronizar: volver arrancar o
+			// daemon instalado (o novo, se xa se copiou; senón, o anterior).
+			if dst, derr := installDir(); derr == nil {
+				exe := filepath.Join(dst, "syncply.exe")
+				if !daemonRunning(defaultStateDir()) {
+					startDetached(exe, "daemon")
+				}
+			}
+		}()
+	}
 
 	dst, err := installDir()
 	if err != nil {

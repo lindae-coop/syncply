@@ -117,6 +117,9 @@ func (w *Web) Handler() http.Handler {
 	mux.HandleFunc("POST /start", w.action(func(r *http.Request) (string, error) {
 		return "Sincronización arrancada.", w.app.Start(r.Context())
 	}))
+	mux.HandleFunc("POST /update", w.action(func(r *http.Request) (string, error) {
+		return "Buscando actualizacións no servidor; o resultado aparecerá aquí.", w.app.StartUpdateCheck()
+	}))
 	mux.HandleFunc("POST /revoke", w.action(func(r *http.Request) (string, error) {
 		return "Equipo revogado.", w.app.Revoke(r.Context(), r.FormValue("id"), r.FormValue("otp"))
 	}))
@@ -163,6 +166,15 @@ func (w *Web) handleControl(rw http.ResponseWriter, r *http.Request) {
 	case "login-url":
 		rw.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(rw).Encode(map[string]string{"url": w.LoginURL()})
+	case "update":
+		// `syncply update`: comprobar agora (agarda á descarga).
+		msg, err := w.app.CheckUpdate(r.Context())
+		res := map[string]string{"message": msg}
+		if err != nil {
+			res = map[string]string{"error": err.Error()}
+		}
+		rw.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(rw).Encode(res)
 	case "shutdown":
 		if w.OnShutdown == nil {
 			http.NotFound(rw, r)
@@ -223,6 +235,7 @@ type pageData struct {
 	Devices    any
 	DeviceErr  string
 	ServerHost string
+	Update     UpdateStatus
 }
 
 func (w *Web) page(h func(*http.Request, *pageData) (string, error)) http.HandlerFunc {
@@ -350,6 +363,7 @@ func (w *Web) handleIndex(r *http.Request, d *pageData) (string, error) {
 }
 
 func (w *Web) handleDevices(r *http.Request, d *pageData) (string, error) {
+	d.Update = w.app.UpdateStatus()
 	if w.app.snapshotState().paired() {
 		devs, err := w.app.Devices(r.Context())
 		if err != nil {

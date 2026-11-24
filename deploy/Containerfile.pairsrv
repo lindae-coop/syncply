@@ -9,6 +9,13 @@
 #
 # Os paquetes son os mesmos que `make dist` e `make dist-windows`: se cambian
 # alí (versión de Syncthing, contido), cambialos tamén aquí.
+#
+# Actualizacións dos clientes (internal/update): nas versións publicadas
+# (vX.Y.Z) e co segredo update_key (clave privada do proxecto), a imaxe leva
+# tamén /descargas/update.json e update.json.sig. Sen eles os clientes non se
+# actualizan desde este servidor:
+#
+#   podman build ... --secret id=update_key,src=.keys/syncply-update.key .
 
 # Syncthing de Linux para o paquete do cliente (sempre amd64, aínda que a
 # imaxe se constrúa noutra arquitectura).
@@ -54,6 +61,17 @@ RUN mkdir -p cmd/syncply/embed \
  && sed 's/$/\r/' packaging/linux/LICENZAS.txt > cmd/syncply/embed/LICENZAS.txt \
  && GOOS=windows GOARCH=amd64 go build -tags embedsyncthing -trimpath -buildvcs=false \
       -ldflags "-s -w -H windowsgui -X main.version=$VERSION" -o /descargas/syncply-windows-amd64.exe ./cmd/syncply
+
+# Manifesto asinado das actualizacións (ver a cabeceira).
+RUN --mount=type=secret,id=update_key \
+    if ! echo "$VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then \
+      echo "sen manifesto de actualizacións: $VERSION non é unha versión publicada"; \
+    elif [ ! -s /run/secrets/update_key ]; then \
+      echo "AVISO: sen o segredo update_key: os clientes non se actualizarán desde esta imaxe"; \
+    else \
+      go run ./cmd/relsign manifest -key /run/secrets/update_key -version "$VERSION" \
+        /descargas/syncply-linux-amd64.tar.gz /descargas/syncply-windows-amd64.exe; \
+    fi
 
 FROM docker.io/library/alpine:3.22
 ARG VERSION=dev

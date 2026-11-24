@@ -7,7 +7,7 @@ ARGS     ?= status
 C        ?= 1
 RUN      := $(COMPOSE) run --rm tools
 
-.PHONY: help up down restart logs proto demo fresh ui web otp blob dist dist-windows installtest winvm-install wintest status test clean
+.PHONY: help up down restart logs proto demo fresh ui web otp blob dist dist-windows installtest updatetest update-key winvm-install wintest winupdatetest status test clean
 
 # Paquete de Linux: cliente xenérico, o mesmo para todos os servidores (o
 # servidor indícao o texto de vinculación).
@@ -33,8 +33,11 @@ help:
 	@echo "make dist     - paquete de Linux (dist/syncply-linux-amd64.tar.gz) co instalador"
 	@echo "make dist-windows - instalador de Windows (dist/syncply-windows-amd64.exe, autoinstalable)"
 	@echo "make installtest - proba o paquete nun Debian con systemd (require make up e SFTPGo preparado)"
+	@echo "make updatetest  - proba a actualización automática do cliente de Linux (v0.0.1 → v0.0.2) nun Debian"
+	@echo "make update-key  - xera a clave do proxecto para asinar as actualizacións (.keys/, unha vez)"
 	@echo "make winvm-install WIN_ISO=... - instala Windows 11 (desatendido) na VM de probas (.winvm)"
 	@echo "make wintest  - proba o instalador de Windows na VM (require make up, SFTPGo preparado e make dist-windows)"
+	@echo "make winupdatetest - proba a actualización automática do cliente de Windows na VM (v0.0.1 → v0.0.2)"
 	@echo "make status   - estado de dispositivos, carpetas e conexións"
 	@echo "make test     - tests unitarios"
 	@echo "make proto ARGS='...' - executa cmd/stproto con argumentos"
@@ -112,6 +115,16 @@ dist-windows:
 installtest: dist
 	dev/installtest.sh
 
+updatetest:
+	dev/updatetest.sh
+
+# Clave privada coa que a CI asina as actualizacións dos clientes (segredo
+# SYNCPLY_UPDATE_KEY). A pública vai en internal/update/keys.go.
+update-key:
+	@test ! -e .keys/syncply-update.key || { echo ".keys/syncply-update.key xa existe"; exit 1; }
+	@$(RUN) go run ./cmd/relsign keygen -out .keys/syncply-update.key 2>/dev/null | tail -1 | \
+	  sed 's/^/Clave pública (engádea a internal\/update\/keys.go): /'
+
 # VM de Windows (dev/winvm): QEMU/KVM nun contedor. A ISO non se distribúe:
 # indica a túa (p. ex. Windows 11 Enterprise de avaliación).
 WIN_ISO ?=
@@ -127,6 +140,9 @@ winvm-install:
 
 wintest:
 	dev/wintest.sh
+
+winupdatetest:
+	dev/winupdatetest.sh
 
 status:
 	$(RUN) go run ./cmd/stproto status

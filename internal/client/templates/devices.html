@@ -54,4 +54,26 @@
   </details>
 </section>
 {{end}}
+
+<section id="versions" data-rexion="actualizacions">
+  <h2>Versión</h2>
+  {{with .Update}}
+  <p>Syncply <strong>{{.Version}}</strong>.</p>
+  {{if .Disabled}}
+  <p class="muted">Este equipo non se actualiza só: {{.Disabled}}.</p>
+  {{else if .Applying}}
+  <p>Instalando a versión <strong>{{.Applying}}</strong>; a sincronización reiníciase nuns segundos.</p>
+  {{else}}
+  <p class="muted">Actualízase só desde o servidor ao que está vinculado.
+    {{if not .LastCheck.IsZero}}Última comprobación: {{localt .LastCheck}}{{if .Latest}} (versión publicada: {{.Latest}}){{end}}.{{end}}</p>
+  {{if .Err}}<p class="bad">{{.Err}}</p>{{end}}
+  {{if $.Overview.Paired}}
+  <form method="post" action="/update">
+    <input type="hidden" name="back" value="/devices">
+    <button>Buscar actualizacións agora</button>
+  </form>
+  {{end}}
+  {{end}}
+  {{end}}
+</section>
 {{template "foot"}}

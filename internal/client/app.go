@@ -63,6 +63,7 @@ type App struct {
 
 	sup *Supervisor // nil se Syncthing é externo (non o arranca syncply)
 	hub *Hub        // avisos de cambio para a web (ver live.go)
+	upd updateState // actualizacións automáticas (ver update.go)
 
 	mu    sync.Mutex
 	state State

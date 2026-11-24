@@ -8,6 +8,8 @@
 //	syncply install   instálase para o usuario (Windows; sen argumentos, o dobre
 //	              clic instala ou, se xa está instalado, abre a web)
 //	syncply uninstall desinstala (Windows)
+//	syncply update    pídelle ao daemon que busque agora unha versión nova no
+//	              servidor e a instale
 package main
 
 import (
@@ -29,11 +31,13 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
 	"github.com/lindae-coop/syncply/internal/client"
 	"github.com/lindae-coop/syncply/internal/stapi"
+	"github.com/lindae-coop/syncply/internal/update"
 )
 
 // version gravase ao compilar: -ldflags "-X main.version=..."
@@ -54,10 +58,16 @@ func main() {
 		err = uninstall(os.Args[2:])
 	case "daemon":
 		err = daemon(os.Args[2:])
+		if exe := restartExe.Load(); err == nil && exe != nil {
+			// Actualizado: volver arrancar co binario novo.
+			err = reexec(*exe)
+		}
 	case "open":
 		err = open(os.Args[2:])
 	case "shortcut":
 		err = shortcut(os.Args[2:])
+	case "update":
+		err = updateCmd(os.Args[2:])
 	case "version":
 		fmt.Println("syncply", version)
 	default:
@@ -69,12 +79,22 @@ func main() {
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "syncply:", err)
-		reportError(err)
+		if !silentErrors {
+			reportError(err)
+		}
 		os.Exit(1)
 	}
 }
 
 var errAlreadyRunning = errors.New("o servizo xa está en marcha")
+
+// restartExe: o daemon remata para volver arrancar con este binario (tras
+// unha actualización).
+var restartExe atomic.Pointer[string]
+
+// silentErrors: os erros só van á saída de erros (no rexistro), sen diálogo
+// (actualización en segundo plano en Windows).
+var silentErrors bool
 
 func hashString(s string) string {
 	h := sha256.Sum256([]byte(s))
@@ -82,7 +102,7 @@ func hashString(s string) string {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "uso: syncply daemon|open|shortcut|install|uninstall|version [opcións]  (-h para axuda)")
+	fmt.Fprintln(os.Stderr, "uso: syncply daemon|open|shortcut|install|uninstall|update|version [opcións]  (-h para axuda)")
 	os.Exit(2)
 }
 
@@ -108,6 +128,8 @@ func daemon(args []string) error {
 	stGUI := fs.String("st-gui", "", "enderezo da API de Syncthing (por defecto, socket Unix en <st-home>; en Windows, porto libre en 127.0.0.1)")
 	foldersBase := fs.String("folders-base", "", "onde se suxire crear as carpetas (por defecto ~/syncply)")
 	logFile := fs.String("log", "", "ficheiro de rexistro (por defecto stderr; en Windows <dir>\\syncply.log)")
+	noUpdate := fs.Bool("no-update", false, "non instalar as versións novas que publique o servidor")
+	updateEvery := fs.Duration("update-every", 6*time.Hour, "cada canto se buscan versións novas no servidor")
 	fs.Parse(args)
 
 	if *foldersBase == "" {
@@ -142,6 +164,29 @@ func daemon(args []string) error {
 	if err != nil {
 		return err
 	}
+	if *stURL == "" && *stBin == "" {
+		if *stBin, err = findSyncthing(); err != nil {
+			return err
+		}
+	}
+	exe, err := os.Executable()
+	if err == nil {
+		exe, err = filepath.EvalSymlinks(exe)
+	}
+	if err != nil {
+		return err
+	}
+	upd := &updater{app: app, dir: filepath.Join(*dir, "update"), exe: exe,
+		uc: &update.Client{HTTP: client.PairsrvHTTPClient(15 * time.Minute),
+			Keys: update.TrustedKeys(), Platform: update.Platform()},
+		restart: func() {
+			log.Printf("syncply: reiniciando coa versión nova")
+			restartExe.Store(&exe)
+			stop()
+		}}
+	disabled := updateDisabled(*noUpdate, *stURL, *stBin, exe)
+	app.SetUpdater(version, disabled, upd.check)
+	upd.cleanup()
 	var supDone chan struct{}
 	if *stURL != "" {
 		// Syncthing externo (p. ex. xa instalado como servizo).
@@ -183,6 +228,11 @@ func daemon(args []string) error {
 	defer os.Remove(uiPath(*dir))
 
 	go app.WatchEvents(ctx)
+	if disabled == "" {
+		go upd.run(ctx, *updateEvery)
+	} else {
+		log.Printf("syncply: actualizacións automáticas desactivadas: %s", disabled)
+	}
 	go func() {
 		t := time.NewTicker(15 * time.Second)
 		defer t.Stop()
@@ -366,6 +416,10 @@ func loginURL(dir string) (string, error) {
 // controlCall fala co daemon pola súa canle de control (porto e clave en
 // ui.json, só lexible polo usuario).
 func controlCall(dir, action string, out any) error {
+	return controlCallTimeout(dir, action, out, 10*time.Second)
+}
+
+func controlCallTimeout(dir, action string, out any, timeout time.Duration) error {
 	b, err := os.ReadFile(uiPath(dir))
 	if err != nil {
 		return fmt.Errorf("o servizo syncply non está en marcha (%w)", err)
@@ -379,7 +433,7 @@ func controlCall(dir, action string, out any) error {
 		return err
 	}
 	req.Header.Set("X-Syncply-Control", info.ControlKey)
-	resp, err := (&http.Client{Timeout: 10 * time.Second}).Do(req)
+	resp, err := (&http.Client{Timeout: timeout}).Do(req)
 	if err != nil {
 		return fmt.Errorf("o servizo syncply non responde: %w", err)
 	}

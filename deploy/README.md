@@ -47,7 +47,11 @@ descárganos do propio servidor, en `https://DOMINIO_SYNCPLY/descargas/`.
 Tamén hai unha imaxe xa compilada para cada versión,
 `ghcr.io/lindae-coop/syncply-pairsrv:<versión>` (CI en
 [.github/workflows/release.yml](../.github/workflows/release.yml)); úsaa o
-stack do hosting da cooperativa.
+stack do hosting da cooperativa. Esa imaxe leva tamén o **manifesto asinado
+das actualizacións** (`/descargas/update.json`): ao actualizar o servidor a
+unha versión nova, os clientes vinculados actualízanse sós en menos de 6 h.
+Unha imaxe compilada aquí (`make up`) non o leva (fai falta a clave do
+proxecto): os clientes seguen funcionando pero non se actualizan sós.
 
 `init.sh` xera segredos aleatorios en `.env` (permisos 600), entre eles o
 contrasinal do administrador de SFTPGo. Non sobrescribe ficheiros que xa

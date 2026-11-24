@@ -451,6 +451,54 @@ Visto a man co dobre clic (ficheiro marcado como descargado de Internet):
 Pendente: asinar o `.exe`; icona e metadatos (recurso `.syso`); arm64;
 decidir que facer co aviso do Firewall; avisar na web dun equipo revogado.
 
+## Actualizacións do cliente
+
+Os clientes **actualízanse sós desde o servidor ao que están vinculados**
+([internal/update](internal/update/update.go),
+[cmd/syncply/update.go](cmd/syncply/update.go)):
+
+- Cada versión publicada (`vX.Y.Z`) leva en `/descargas/`, xunto aos paquetes,
+  un **manifesto asinado** (`update.json`: versión, ficheiro, SHA-256 e tamaño
+  de cada plataforma; `update.json.sig`: Ed25519). A **clave é do proxecto,
+  non do operador**: a privada só está no segredo `SYNCPLY_UPDATE_KEY` da CI
+  e as públicas van compiladas no cliente
+  ([keys.go](internal/update/keys.go)). Un servidor comprometido non pode
+  instalar binarios propios: só reter actualizacións. O cliente **nunca baixa
+  de versión** e as compilacións de desenvolvemento non se actualizan.
+- O daemon comproba o manifesto 2 min despois de arrancar e cada 6 h (±20 %;
+  `-update-every`, `-no-update`). Se hai unha versión maior: descarga o
+  paquete, comproba tamaño e SHA-256, executa `syncply version` do novo e
+  instala:
+  - **Linux**: substitúe `syncply` e `syncthing` no directorio de instalación
+    (gardando `*.old`), pecha Syncthing limpamente e **reexecútase** (mesmo
+    PID: systemd non o ve caer). Só se `syncthing` está xunto a `syncply` e o
+    directorio é escribible (o que fai `install.sh`).
+  - **Windows**: executa o `syncply.exe` novo como `install -update`: o mesmo
+    camiño ca unha instalación a man por riba (pecha o daemon pola canle de
+    control, substitúe os binarios, actualiza «Aplicacións instaladas» e
+    arranca o daemon novo). Sen diálogos; os erros van a `syncply.log` e, se
+    falla, volve arrancar o daemon instalado. O ficheiro descargado non leva
+    marca de Internet, así que SmartScreen non intervén.
+- `syncply update` (ou «Buscar actualizacións agora» en «Os meus equipos»)
+  comproba agora; a web local mostra a versión, a última comprobación e os
+  erros.
+- `make update-key` xerou a clave (`.keys/`, fóra de git). Para cambiala:
+  engadir a pública nova a `keys.go`, publicar polo menos unha versión
+  asinada coa vella e despois retirala. `relsign` ([cmd/relsign](cmd/relsign/main.go))
+  xera claves e asina; a imaxe asina se recibe o segredo `update_key`
+  (`podman build --secret id=update_key,src=.keys/syncply-update.key …`);
+  sen el (compilación local), sae sen manifesto e os clientes dese servidor
+  non se actualizan.
+- Probas: `make updatetest` (Linux, Debian con systemd) e `make winupdatetest`
+  (VM de Windows): instalan v0.0.1, vinculan, publican v0.0.2 asinada cunha
+  clave de desenvolvemento (`.dev/update-dev.key`, aceptada só con
+  `SYNCPLY_DEV=1` e `SYNCPLY_UPDATE_PUBKEY`) e comproban que o cliente se
+  actualiza, segue vinculado e sincronizando, e rexeita un manifesto
+  manipulado.
+- **Migración desde v0.1.0**: os clientes v0.1.0 non teñen actualizador; hai
+  que reinstalalos unha vez a man (descarga da web do servidor por riba da
+  instalación: consérvanse vinculación e carpetas). Desde aí, sós.
+
 ## Pasos solos
 
 ```sh
