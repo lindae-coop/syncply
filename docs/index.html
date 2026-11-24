@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Syncply — a nube de ficheiros do teu grupo</title>
-<meta name="description" content="Syncply é unha nube de ficheiros lixeira para grupos pequenos de confianza: as vosas carpetas, no voso servidor e en todos os vosos ordenadores.">
+<title>Syncply — a nube simple para pequenos equipos</title>
+<meta name="description" content="Syncply é unha nube de ficheiros simple para pequenos equipos, pensada para funcionar en servidores pequenos: as vosas carpetas en todos os vosos ordenadores, sen grandes plataformas nin grandes centros de datos.">
 <link rel="icon" type="image/svg+xml" href="logo.svg">
 <link rel="icon" type="image/png" href="logo.png">
-<meta property="og:title" content="Syncply — a nube de ficheiros do teu grupo">
-<meta property="og:description" content="As vosas carpetas, no voso servidor e en todos os vosos ordenadores.">
+<meta property="og:title" content="Syncply — a nube simple para pequenos equipos">
+<meta property="og:description" content="Pequenos equipos, pequenos servidores. Unha nube que fai só o necesario, con poucos recursos.">
 <meta property="og:image" content="logo.png">
 <style>
   :root {
@@ -175,6 +175,17 @@
   .estado .pendente b::before { content: "○ "; }
   .estado span { color: var(--apagado); font-size: .95rem; }
 
+  /* Pequeno a propósito */
+  .manifesto { font-size: clamp(1.35rem, 3vw, 1.75rem); font-weight: 800; line-height: 1.35; color: var(--tinta); max-width: 50rem; margin: 0 0 1.5rem; }
+  .manifesto mark { background: var(--cian); color: var(--negro); padding: 0 .15em; border-radius: 6px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+  .contraste { display: grid; grid-template-columns: 1fr 1fr; gap: 1.4rem; margin-top: 2rem; }
+  .contraste .tarxeta h3 { margin-bottom: .8rem; }
+  .contraste ul { margin: 0; padding-left: 1.2rem; color: var(--apagado); }
+  .contraste li { margin-bottom: .4rem; }
+  .contraste .nos { background: var(--cian-suave); }
+  .contraste .nos li { color: var(--texto); }
+  @media (max-width: 52rem) { .contraste { grid-template-columns: 1fr; } }
+
   /* Pé */
   footer { background: var(--negro); color: #fff; padding-block: 3rem; border-top: var(--borde); }
   footer .envoltorio { display: flex; flex-wrap: wrap; gap: 2rem; align-items: center; justify-content: space-between; }
@@ -206,7 +217,7 @@
     <a class="marca" href="#"><picture><source srcset="logo-escuro.svg" media="(prefers-color-scheme: dark)"><img src="logo.svg" alt="Syncply" width="100" height="100"></picture></a>
     <nav aria-label="Seccións">
       <a href="#que-e">Que é</a>
-      <a href="#avantaxes">Avantaxes</a>
+      <a href="#pequeno">Pequeno a propósito</a>
       <a href="#empezar">Como empezar</a>
       <a href="#dia-a-dia">Día a día</a>
       <a href="#preguntas">Preguntas</a>
@@ -220,11 +231,11 @@
 <section class="portada">
   <div class="envoltorio">
     <div>
-      <h1>A nube de ficheiros <mark>do teu grupo</mark>, no teu servidor.</h1>
-      <p class="entradilla">Syncply sincroniza automáticamente carpetas compartidas para todas as persoas do equipo. En segundos, automáticamente e sen necesidade de poñelos en man dunha grande corporación.</p>
+      <h1>A nube simple para <mark>pequenos equipos</mark> con pequenos servidores.</h1>
+      <p class="entradilla">Syncply mantén as carpetas do voso grupo iguais en todos os vosos ordenadores. Fai iso, e faino ben. Non necesita unha gran plataforma, nin un gran centro de datos, nin medrar para funcionar: chega cun servidor modesto e voso.</p>
       <div class="botons">
         <a class="boton principal" href="#empezar">Como empezar</a>
-        <a class="boton" href="#que-e">Que é Syncply?</a>
+        <a class="boton" href="#pequeno">Por que pequeno?</a>
       </div>
     </div>
     <picture class="logo"><source srcset="logo-escuro.svg" media="(prefers-color-scheme: dark)"><img src="logo.svg" alt="Logotipo de Syncply: unha nube cian cunha espiral e o texto Syncply" width="360" height="360"></picture>
@@ -233,31 +244,87 @@
 
 <section id="que-e" class="alt">
   <div class="envoltorio">
-    <div>
-      <h2>Que é Syncply</h2>
-      <p>As carpetas compartidas do grupo viven <strong>no voso servidor</strong> e sincronízanse en todos os vosos ordenadores. Cando alguén garda ou modifica un documento, o cambio chegan automáticamente ós ordenadores quenes teñen acceso a esa carpeta.</p>
-      <p>Os cambios envíanse á vez ao servidor e directamente aos ordenadores dos compañeiros que estean conectados. Se estades na mesma oficina, pasan <strong>directamente dun equipo a outro</strong>: chegan antes e dependen menos da velocidade de Internet.</p>
-      <p>E cando non estás no teu ordenador, podes entrar desde o <strong>navegador</strong> para consultar ou subir ficheiros desde calquera sitio.</p>
-      <h3 style="margin-top:1.6rem">Para quen é</h3>
-      <p>Para grupos pequenos de persoas que se coñecen e confían entre si, e que queren gardar os seus ficheiros nun servidor propio, sen manter unha plataforma pesada.</p>
-      <ul class="publico">
-        <li>Colectivos informais</li><li>Asociacións</li><li>Cooperativas</li><li>Familias</li><li>Equipos de traballo</li><li>Micro PEMES</li>
-      </ul>
+    <h2>Que é Syncply</h2>
+    <p>As carpetas compartidas do grupo están <strong>no voso servidor</strong> e tamén en cada un dos vosos ordenadores. Cando alguén garda ou modifica un documento, o cambio chega só aos ordenadores de quen ten acceso a esa carpeta.</p>
+    <p>Os ordenadores non dependen do servidor para todo: <strong>pásanse os cambios directamente entre eles</strong>. Se estades na mesma oficina ou na mesma casa, os ficheiros van dun equipo a outro sen saír de alí.</p>
+    <p>E cando non estás no teu ordenador, podes entrar desde o <strong>navegador</strong> para consultar ou subir ficheiros.</p>
+    <h3 style="margin-top:1.6rem">Para quen é</h3>
+    <p>Para grupos de persoas que se coñecen e confían entre si, e que queren ter os seus ficheiros nun sitio propio sen manter unha plataforma pesada.</p>
+    <ul class="publico">
+      <li>Colectivos</li><li>Asociacións</li><li>Cooperativas</li><li>Familias</li><li>Equipos de traballo</li><li>Pequenos negocios</li>
+    </ul>
+  </div>
+</section>
+
+<section id="pequeno">
+  <div class="envoltorio">
+    <h2>Pequeno a propósito</h2>
+    <p class="manifesto">A tecnoloxía que usamos a diario empúxanos a querer <mark>máis</mark>: máis espazo, máis funcións, máis subscricións, centros de datos cada vez máis grandes. Syncply vai polo camiño contrario: <mark>o suficiente</mark>, ben feito e con poucos recursos.</p>
+    <p class="entradilla">Inspirámonos no <strong>decrecemento</strong>: a idea de que se pode vivir ben consumindo menos enerxía e menos materiais, e de que as ferramentas deberían ter un tamaño acorde coas persoas que as usan.</p>
+
+    <div class="contraste">
+      <article class="tarxeta">
+        <h3>A nube das grandes empresas</h3>
+        <ul>
+          <li>Os ficheiros de millóns de persoas en enormes centros de datos.</li>
+          <li>Cada cambio viaxa lonxe e volve, aínda que a compañeira estea na mesa do lado.</li>
+          <li>Unha subscrición por persoa, que adoita subir co tempo.</li>
+          <li>Funcións novas cada mes, as necesites ou non.</li>
+          <li>O negocio depende de que medres e de que non marches.</li>
+        </ul>
+      </article>
+      <article class="tarxeta nos">
+        <h3>Syncply</h3>
+        <ul>
+          <li>Os ficheiros dun grupo, nun servidor pequeno e nos ordenadores que xa tedes.</li>
+          <li>Os cambios van polo camiño máis curto, directamente entre os equipos.</li>
+          <li>Sen subscricións: software libre que podedes instalar vós.</li>
+          <li>Só fai unha cousa: sincronizar carpetas.</li>
+          <li>Ninguén gaña nada con que medredes. Podedes marchar cando queirades: os ficheiros xa están nos vosos ordenadores.</li>
+        </ul>
+      </article>
+    </div>
+
+    <div class="grella">
+      <article class="tarxeta">
+        <span class="icona" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="1.5"/><path d="M7 7.5h.01M3 15h18M3 19h12"/></svg></span>
+        <h3>Un servidor pequeno chega</h3>
+        <p>Como os ordenadores se reparten o traballo entre eles, o servidor non ten que mover todos os ficheiros de todas as persoas. Un servidor alugado barato ou un ordenador que xa tiñades é suficiente para un grupo.</p>
+      </article>
+      <article class="tarxeta">
+        <span class="icona" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="6" r="2.5"/><circle cx="19" cy="18" r="2.5"/><path d="M7.3 11 16.7 7M7.3 13l9.4 4M19 8.5v7"/></svg></span>
+        <h3>O camiño máis curto</h3>
+        <p>Un ficheiro que vai dun ordenador a outro da mesma oficina non ten por que dar a volta polo mundo. Menos tráfico, menos espera e menos dependencia da conexión a Internet.</p>
+      </article>
+      <article class="tarxeta">
+        <span class="icona" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>
+        <h3>Só o que fai falta</h3>
+        <p>Carpetas sincronizadas e acceso desde o navegador. Sen chat, sen anuncios, sen ofimática en liña. Menos funcións significa menos que manter, menos que aprender e menos que se poida romper.</p>
+      </article>
+      <article class="tarxeta">
+        <span class="icona" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/><path d="M13 7h4a2 2 0 0 1 2 2v2M11 17H7a2 2 0 0 1-2-2v-2"/></svg></span>
+        <h3>Feito con pezas que xa existen</h3>
+        <p>Non reinventamos nada: Syncply une dous proxectos libres e veteranos, <a href="https://github.com/drakkan/sftpgo">SFTPGo</a> e <a href="https://syncthing.net/">Syncthing</a>, e engade só o que faltaba para que sexa doado de usar.</p>
+      </article>
+      <article class="tarxeta">
+        <span class="icona" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.3"/><path d="M3 20a6 6 0 0 1 12 0M15 20a5 5 0 0 1 6.5-4.8"/></svg></span>
+        <h3>A escala das persoas</h3>
+        <p>Está pensado para grupos que se coñecen. Se sodes moitos máis, a resposta non é un servidor enorme, senón varios pequenos: un para cada grupo.</p>
+      </article>
+      <article class="tarxeta">
+        <span class="icona" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z"/></svg></span>
+        <h3>Sen modelo de crecemento</h3>
+        <p>Non hai plans prémium, nin persoas usuarias que captar, nin datos que vender. Syncply é un proxecto da cooperativa <a href="https://lindae.eu">lindæ</a> e o seu código é libre.</p>
+      </article>
     </div>
   </div>
 </section>
 
-<section id="avantaxes">
+<section id="avantaxes" class="alt">
   <div class="envoltorio">
-    <h2>Por que Syncply</h2>
-    <p class="entradilla">Todo o cómodo dunha nube, pero vosa.</p>
-    <div class="grella catro">
-      <article class="tarxeta">
-        <span class="icona" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span>
-        <h3>Os teus ficheiros, no teu servidor</h3>
-        <p>Sen subscricións por persoa e sen depender dunha gran empresa.</p>
-        <p>Accede ós ficheiros no servidor desde o navegador de Internet.</p>
-      </article>
+    <h2>Simple de usar</h2>
+    <p class="entradilla">Pequeno non quere dicir incómodo. Todo o práctico dunha nube, pero vosa.</p>
+    <div class="grella">
       <article class="tarxeta">
         <span class="icona" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>
         <h3>Traballas coma sempre</h3>
@@ -265,51 +332,46 @@
       </article>
       <article class="tarxeta">
         <span class="icona" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3 5 14h6l-1 7 8-11h-6z"/></svg></span>
-        <h3>Fácil de poñer en marcha</h3>
-        <p>Descargas o programa, pegas un texto e escribes un código que ves na web do servidor. Non hai que configurar nada máis.</p>
+        <h3>Listo en cinco minutos</h3>
+        <p>Descargas o programa, pegas un texto e escribes un código que ves na web do servidor. Non hai nada máis que configurar.</p>
       </article>
       <article class="tarxeta">
         <span class="icona" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/></svg></span>
-        <h3>Cada quen ve só o que lle toca</h3>
-        <p>Os permisos que xa tedes no servidor deciden que carpetas recibe cada persoa, e os cambios aplícanse axiña.</p>
+        <h3>Cada quen ve o que lle toca</h3>
+        <p>Os permisos do servidor deciden que carpetas recibe cada persoa, e os cambios aplícanse axiña.</p>
       </article>
       <article class="tarxeta">
         <span class="icona" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="14" height="10" rx="1.5"/><path d="M1 17h16"/><rect x="18" y="8" width="5" height="11" rx="1.2"/></svg></span>
-        <h3>Todos os teus equipos, baixo control</h3>
+        <h3>Todos os teus equipos</h3>
         <p>Úsao no portátil e no ordenador de casa, mira que equipos tes vinculados e retira o acceso a un que perdiches ou xa non usas.</p>
       </article>
       <article class="tarxeta">
-        <span class="icona" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="6" r="2.5"/><circle cx="19" cy="18" r="2.5"/><path d="M7.3 11 16.7 7M7.3 13l9.4 4M19 8.5v7"/></svg></span>
-        <h3>Rápido e económico</h3>
-        <p>Os equipos do grupo intercambian os ficheiros directamente entre eles, sen pasar sempre polo servidor: as copias chegan antes e o servidor pode ser pequeno e barato.</p>
-      </article>
-      <article class="tarxeta">
         <span class="icona" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="7" rx="1.5"/><rect x="3" y="14" width="18" height="7" rx="1.5"/><path d="M7 6.5h.01M7 17.5h.01"/><path d="M2 2l20 20"/></svg></span>
-        <h3>Fallou o servidor? Non pasa nada!</h3>
-        <p>Os ordenadores seguen sincronizando os cambios entre eles do mesmo xeito. Cando o servidor estea de volta, ponse ao día cos ordenadores. <a href="#servizos-publicos">Como?</a></p>
+        <h3>Fallou o servidor? Non pasa nada</h3>
+        <p>Os ordenadores seguen sincronizando entre eles. Cando o servidor volve, ponse ao día. <a href="#servizos-publicos">Como?</a></p>
       </article>
       <article class="tarxeta">
-        <span class="icona" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.3"/><path d="M3 20a6 6 0 0 1 12 0M15 20a5 5 0 0 1 6.5-4.8"/></svg></span>
-        <h3>Igual de eficiente con dúas persoas que cunha ducia</h3>
-        <p>Syncply usa <a href="https://syncthing.net/">Syncthing</a> como motor de sincronización. A súa maxia fai que os cambios dun ficheiro só se teñan que enviar unha vez, e tarda o mesmo aínda que interveñan doce ordenadores.</p>
+        <span class="icona" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span>
+        <h3>Os vosos ficheiros son vosos</h3>
+        <p>Non hai unha empresa no medio. As conexións entre equipos van cifradas e só entran os equipos que vinculastes.</p>
       </article>
     </div>
   </div>
 </section>
 
-<section id="empezar" class="alt">
+<section id="empezar">
   <div class="envoltorio">
     <h2>Como empezar</h2>
     <p class="entradilla">Necesitas un usuario no servidor do teu grupo. Se aínda non o tes, pídello a quen o administra.</p>
     <ol class="pasos">
       <li>
         <h3>Entra na web do servidor</h3>
-        <p>Abre a páxina de Syncply que che indicou o teu grupo e entra co teu <strong>usuario e contrasinal</strong> de sempre. Alí verás todo o necesario para os pasos seguintes.</p>
+        <p>Abre a páxina de Syncply que che indicou o teu grupo e entra co teu <strong>usuario e contrasinal</strong>. Alí verás todo o necesario para os pasos seguintes.</p>
       </li>
       <li>
         <h3>Descarga e instala o programa</h3>
-        <p>Descarga o programa desde esa mesma web e ábreo. Instálase, <strong>sen permisos de administración</strong>, e arranca automáticamente cada vez que acendes o ordenador.</p>
-        <p>Cando remates a instalación, ábrese o navegador na páxina «Vincular este equipo».</p>
+        <p>Descarga o programa desde esa mesma web e ábreo. Instálase <strong>sen permisos de administración</strong> e arranca só cada vez que acendes o ordenador.</p>
+        <p>Cando remata a instalación, ábrese o navegador na páxina «Vincular este equipo».</p>
         <div class="plataformas" aria-label="Sistemas compatibles">
           <span class="plataforma">Windows<small>probado en Windows 11</small></span>
           <span class="plataforma">Linux<small>64 bits</small></span>
@@ -318,34 +380,34 @@
         <div class="aviso windows" id="windows">
           <p class="titulo-aviso">Se usas Windows, durante a instalación poden aparecer dous avisos:</p>
           <h4>«Windows protexeu o teu PC»</h4>
-          <p>Windows pode mostrar unha xanela azul co aviso «Editor descoñecido». Syncply é unha ferramenta moi noviña e aínda non está asinada dixitalmente. Se descargaches o programa nu servidor do teu grupo, podes seguir adiante.</p>
-          <p> Para continuar preme <strong>«Máis información»</strong> e o botón <strong>«Executar de todos os xeitos»</strong>.</p>
+          <p>Windows pode mostrar unha xanela azul co aviso «Editor descoñecido». Syncply é unha ferramenta moi nova e aínda non está asinada dixitalmente. Se descargaches o programa do servidor do teu grupo, podes seguir adiante.</p>
+          <p>Para continuar, preme <strong>«Máis información»</strong> e o botón <strong>«Executar de todos os xeitos»</strong>.</p>
           <h4>O cortalumes de Windows</h4>
-          <p>Windows pode preguntar se permites o acceso a <strong>«Syncthing»</strong>, é o motor de sincronización que usa Syncply.</p>
-          <p>Permite o acceso. Se non tes permisos no ordenador para facelo, Syncply funciona igual, aínda que os cambios non poderán sincronizarse directamente a ordenadores na mesma rede e terán que pasar polo servidor.</p>
+          <p>Windows pode preguntar se permites o acceso a <strong>«Syncthing»</strong>: é o motor de sincronización que usa Syncply.</p>
+          <p>Permite o acceso. Se non tes permisos no ordenador para facelo, Syncply funciona igual, aínda que os cambios non poderán ir directamente a ordenadores da mesma rede e terán que pasar polo servidor.</p>
         </div>
       </li>
       <li>
         <h3>Pega o texto de vinculación</h3>
-        <p>Na páxina desde onde descargaches hai un <strong>código máxico</strong> que empeza por <code>syncply1:</code>. Cópiao e pégao no programa. Syncply comprobará que o servidor responde e preguntarache se queres vincular con ese servidor co teu usuario.</p>
+        <p>Na páxina desde onde descargaches o programa hai un <strong>texto de vinculación</strong> que empeza por <code>syncply1:</code>. Cópiao e pégao no programa. Syncply comproba que o servidor responde e pregúntache se queres vincular con ese servidor co teu usuario.</p>
       </li>
       <li>
-        <h3>Proporciona o PIN de verificación</h3>
-        <p>Na mesma web verás un <strong>PIN temporal de 6 cifras</strong>, por exemplo <span class="codigo">482 916</span>, que cambia cada 30 segundos. Escríbeo no programa e dálle un nome ao equipo (por exemplo, «Portátil de Ana»).</p>
-        <p>Este PIN protexe o código máxico para que ninguén sin acceso á tua conta poda usalo.</p>
+        <h3>Escribe o código de verificación</h3>
+        <p>Na mesma web verás un <strong>código temporal de 6 cifras</strong>, por exemplo <span class="codigo">482 916</span>, que cambia cada 30 segundos. Escríbeo no programa e dálle un nome ao equipo (por exemplo, «Portátil de Ana»).</p>
+        <p>Este código garante que só quen pode entrar na túa conta pode vincular equipos a ela.</p>
       </li>
       <li>
         <h3>Escolle onde gardar cada carpeta</h3>
-        <p>Ao momento aparecen as carpetas que o servidor che ofrece. Para cada unha, escolle en que carpeta do teu ordenador queres sincronizala. Listo: a partir de aquí, os ficheiros sincronízanse sos.</p>
+        <p>Ao momento aparecen as carpetas que o servidor che ofrece. Para cada unha, escolle en que carpeta do teu ordenador queres sincronizala. Listo: a partir de aquí, os ficheiros sincronízanse sós.</p>
       </li>
     </ol>
   </div>
 </section>
 
-<section id="dia-a-dia">
+<section id="dia-a-dia" class="alt">
   <div class="envoltorio">
     <h2>No día a día</h2>
-    <p class="entradilla">Manexa as carpetas sincronizadas de xeito normal. Se queres ver como está a funcionar a sincronización, abre <strong>Syncply</strong> no menú de aplicacións e verás a páxina de configuración no teu navegador. Desde alí podes:</p>
+    <p class="entradilla">Usa as carpetas sincronizadas coma calquera outra. Se queres ver como vai a sincronización, abre <strong>Syncply</strong> no menú de aplicacións e verás a súa páxina no navegador. Desde alí podes:</p>
     <div class="grella catro">
       <article class="tarxeta">
         <h3>Ver as túas carpetas</h3>
@@ -353,7 +415,7 @@
       </article>
       <article class="tarxeta">
         <h3>Pausar un momento</h3>
-        <p>Pausa durante 1 ou 8 horas (por exemplo, cunha conexión lenta) e retómase só. Ou detén a sincronización ata que a volvas arrancar.</p>
+        <p>Pausa durante 1 ou 8 horas (por exemplo, cunha conexión lenta) e retómase soa. Ou detén a sincronización ata que a volvas arrancar.</p>
       </article>
       <article class="tarxeta">
         <h3>Deixar de sincronizar</h3>
@@ -361,33 +423,38 @@
       </article>
       <article class="tarxeta">
         <h3>Os meus equipos</h3>
-        <p>Mira cantos equipos tes vinculados e cales están conectados. Se perdiches un, retíralle o acceso desde calquera dos outros co código da web.</p>
+        <p>Mira cantos equipos tes vinculados e cales están conectados. Se perdiches un, retíralle o acceso desde calquera dos outros ou desde a web do servidor.</p>
       </article>
     </div>
     <div class="aviso">
-      <p><strong>A páxina de configuración só a ves ti.</strong> Funciona dentro do teu propio ordenador e ábrese co acceso directo, sen contrasinais nin enderezos que lembrar.</p>
+      <p><strong>Esta páxina só a ves ti.</strong> Funciona dentro do teu propio ordenador e ábrese co acceso directo, sen contrasinais nin enderezos que lembrar.</p>
     </div>
   </div>
 </section>
 
-<section id="saber" class="alt">
+<section id="saber">
   <div class="envoltorio">
     <h2>O que convén saber</h2>
-    <p class="entradilla">Syncply é sinxelo a propósito. Estas son as súas regras:</p>
+    <p class="entradilla">Syncply é simple a propósito, e iso ten as súas regras:</p>
     <ul class="lista">
       <li><strong>Só recibes carpetas nas que podes escribir.</strong> As carpetas nas que só tes permiso de lectura consúltanse desde o navegador, pero non se sincronizan.</li>
-      <li><strong>Se dúas persoas cambian o mesmo ficheiro á vez</strong>, gárdanse as dúas versións: unha delas co nome <code>.sync-conflict-…</code>. Revísaas e quedade coa boa.</li>
+      <li><strong>Se dúas persoas cambian o mesmo ficheiro á vez</strong>, gárdanse as dúas versións: unha delas co nome <code>.sync-conflict-…</code>. Revisádeas e quedade coa boa.</li>
       <li><strong>Os cambios tardan uns segundos</strong> en chegar aos demais equipos.</li>
-      <li><strong>Retirar un equipo non é instantáneo</strong> para os ordenadores que nese momento estean desconectados do servidor: o deixarán de coñecer cando se conecten a el novamente.</li>
+      <li><strong>Retirar un equipo non é instantáneo</strong> para os ordenadores que nese momento estean desconectados do servidor: deixarano de coñecer cando se conecten de novo.</li>
       <li><strong>Os compañeiros ven os nomes dos teus equipos</strong> se compartides carpetas. Escolle nomes que non che importe que vexan.</li>
-      <li><strong>Está pensado para grupos de confianza</strong> e de poucas persoas: todos os equipos conectan con todos, e quen administra o servidor decide quen entra.</li>
+      <li><strong>É para grupos pequenos e de confianza</strong>: todos os equipos conectan con todos, e quen administra o servidor decide quen entra.</li>
     </ul>
   </div>
 </section>
 
-<section id="preguntas">
+<section id="preguntas" class="alt">
   <div class="envoltorio">
     <h2>Preguntas frecuentes</h2>
+
+    <details>
+      <summary>Que servidor necesitamos?</summary>
+      <div><p>Un pequeno. Como os ordenadores do grupo se pasan os cambios entre eles, o servidor só ten que gardar unha copia e axudar aos equipos a atoparse. Un servidor alugado modesto ou un ordenador que xa teñades acendido abonda; o que máis importa é que teña disco dabondo para os vosos ficheiros. Quen o administre ten as instrucións na <a href="https://github.com/lindae-coop/syncply/blob/main/deploy/README.md">guía de despregamento</a>.</p></div>
+    </details>
 
     <details>
       <summary>Podo traballar sen Internet?</summary>
@@ -396,7 +463,7 @@
 
     <details>
       <summary>Perdín o portátil. Que fago?</summary>
-      <div><p>Desde outro dos teus equipos, abre Syncply e vai a «Os meus equipos». Retira o portátil perdido escribindo o código que ves na web do servidor. Se non tes outro equipo, pídello a quen administra o servidor.</p></div>
+      <div><p>Entra na web do servidor co teu usuario e preme «Revogar…» xunto ao portátil perdido. Tamén podes facelo desde outro dos teus equipos, en «Os meus equipos» do programa, co código que ves na web.</p></div>
     </details>
 
     <details>
@@ -427,6 +494,11 @@
     </details>
 
     <details>
+      <summary>Por que non ten máis funcións?</summary>
+      <div><p>Porque cada función nova pide máis servidor, máis mantemento e máis atención das persoas que o usan. Preferimos unha ferramenta que fai unha cousa e a fai ben, e que poida funcionar durante anos nun equipo modesto. Para editar documentos, seguide usando os programas que xa tedes no ordenador.</p></div>
+    </details>
+
+    <details>
       <summary>Con que está feito?</summary>
       <div><p>Syncply une dous proxectos libres e consolidados: <a href="https://github.com/drakkan/sftpgo">SFTPGo</a>, o servidor de ficheiros que xestiona usuarios, permisos e o acceso web, e <a href="https://syncthing.net/">Syncthing</a>, que sincroniza as carpetas entre equipos.</p></div>
     </details>
@@ -438,7 +510,7 @@
         <p>Como apoio para cando o voso servidor non está dispoñible, quen o administra pode activar os servizos públicos que mantén a <a href="https://syncthing.net/">Syncthing Foundation</a>, unha fundación sen ánimo de lucro. É unha opción de configuración do servidor:</p>
         <ul>
           <li><strong>Descubrimento público</strong> (activado por defecto nas instalacións novas): os equipos séguense atopando aínda que o servidor caia. Eses servidores públicos coñecen os identificadores dos equipos e as súas IP, pero nunca os ficheiros, os seus nomes nin as persoas usuarias.</li>
-          <li><strong>Relays públicos</strong> (desactivados por defecto): permiten conectar a equipos que non o conseguen directamente. Os datos que pasan por eles van <strong>cifrados de extremo a extremo</strong>: o relay non os pode ler. Pero poden usarse aínda que o voso servidor funcione, e adoitan ser máis lentos.</li>
+          <li><strong>Relays públicos</strong> (desactivados por defecto): permiten conectar equipos que non o conseguen directamente. Os datos que pasan por eles van <strong>cifrados de extremo a extremo</strong>: o relay non os pode ler. Pero poden usarse aínda que o voso servidor funcione, e adoitan ser máis lentos.</li>
         </ul>
         <p>Se o grupo prefire non depender de ninguén máis, pódense desactivar os dous. Os cambios nesta configuración chegan a cada equipo cando a persoa usa «Actualizar a conexión» en «Os meus equipos».</p>
       </div>
@@ -446,15 +518,16 @@
   </div>
 </section>
 
-<section id="estado" class="alt">
+<section id="estado">
   <div class="envoltorio">
     <h2>Estado do proxecto</h2>
-    <p class="entradilla">Syncply é un <strong>prototipo funcional en desenvolvemento</strong>. Aínda non o recomendamos para datos dos que non teñas outra copia.</p>
+    <p class="entradilla">Syncply é un proxecto novo e <strong>en desenvolvemento</strong>. Aínda non o recomendamos para datos dos que non teñas outra copia.</p>
     <ul class="estado">
       <li class="feito"><b>Vincular, sincronizar e retirar equipos</b><span>Verificado de punta a punta.</span></li>
+      <li class="feito"><b>Servidor</b><span>Funcionando no servidor da cooperativa.</span></li>
+      <li class="feito"><b>Panel de administración</b><span>Usuarios, contrasinais e grupos desde a web.</span></li>
       <li class="feito"><b>Programa para Linux</b><span>Probado en Debian 13.</span></li>
       <li class="proba"><b>Programa para Windows</b><span>Probado en Windows 11; falta asinalo.</span></li>
-      <li class="proba"><b>Servidor de produción</b><span>Probado en local; aínda non nun servidor real.</span></li>
       <li class="pendente"><b>macOS</b><span>Pendente.</span></li>
       <li class="pendente"><b>Integración en SFTPGo</b><span>Plan a medio prazo: todo nunha soa web.</span></li>
     </ul>
@@ -471,8 +544,8 @@
     <div class="esquerda">
       <img src="logo-escuro.svg" alt="" width="72" height="72">
       <div>
-        <p><strong style="color:#fff">Syncply</strong> — a nube de ficheiros do teu grupo.</p>
-        <p>Un proxecto de <a href="https://lindae.eu">lindæ</a>.</p>
+        <p><strong style="color:#fff">Syncply</strong> — a nube simple para pequenos equipos.</p>
+        <p>Un proxecto da cooperativa <a href="https://lindae.eu">lindæ</a>.</p>
       </div>
     </div>
     <p><a href="https://github.com/lindae-coop/syncply">Código fonte en GitHub</a></p>
