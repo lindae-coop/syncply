@@ -199,6 +199,46 @@ incorrectos seguidos bloquean o usuario 5 min nesta web.
 - Un equipo vinculado a un usuario non pode vinculalo outro.
 - O estado garda en `./.dev/pairsrv/state.json` (só o hash dos tokens).
 
+### Panel de administración (`/admin/`)
+
+Para xestionar usuarios e recursos sen entrar en SFTPGo (en
+desenvolvemento `http://127.0.0.1:8090/admin/`; na web dos usuarios hai unha
+ligazón ao pé). Entra un **administrador de SFTPGo** coas súas credenciais
+(e o seu 2FA se o ten). Cada operación faise coa **API REST de SFTPGo co
+token dese administrador** (`internal/sftpgo/panel.go`), non escribindo na
+BD, así que valen os seus permisos e as validacións de SFTPGo; os cambios
+chegan a Syncthing co aviso do xestor de eventos (~1 s).
+
+- **Usuarios:** listaxe con estado, grupos, recursos que sincroniza e número
+  de equipos; crear, cambiar o contrasinal, cambiar os grupos e borrar
+  (escribindo o nome para confirmar). Os creados no panel **non teñen
+  carpeta persoal**: directorio persoal `<admin.homesDir>/<usuario>` con
+  só `list` e `download` en `/` (pairsrv non o ofrece), grupo primario
+  `syncthing` e os grupos escollidos como secundarios. O panel só cambia os
+  grupos **secundarios**; os primarios e os de pertenza vense pero
+  cámbianse en SFTPGo.
+- **Grupos:** cada grupo creado no panel leva **un único recurso**: un
+  cartafol virtual co mesmo nome en `<admin.groupsDir>/<grupo>`, montado en
+  `/<grupo>` con todos os permisos (así os membros recíbeno en Syncthing).
+  Só se poden borrar desde o panel os grupos con ese formato e sen membros;
+  bórranse o grupo e o cartafol en SFTPGo, os ficheiros quedan no disco.
+- Ao **borrar un usuario** desde o panel, pairsrv esquece tamén os seus
+  equipos e o segredo do código; ao crear un usuario, igual (por se houbo
+  antes outro co mesmo nome borrado directamente en SFTPGo, que si deixa o
+  rexistro en pairsrv).
+- Nomes: letras e números ASCII, `.`, `_` e `-` (ata 64; van en rutas do
+  disco). Contrasinais de polo menos 8 caracteres (e as regras de SFTPGo).
+- Seguridade: cookie propia (`Path=/admin/`) coas mesmas protección ca a web
+  dos usuarios; a sesión remata cando caduca o token de SFTPGo (20 min) ou
+  tras 15 min sen uso; 5 contrasinais incorrectos bloquean ese
+  administrador 5 min no panel. As restricións de IP dos administradores de
+  SFTPGo aplícanse á IP de pairsrv.
+- Configuración opcional en `pairsrv.json`:
+  `"admin": {"disabled": false, "homesDir": "/srv/sftpgo/data/usuarios", "groupsDir": "/srv/sftpgo/data/grupos"}`
+  (estes son os valores por defecto; as rutas teñen que estar no disco que
+  comparten SFTPGo e o Syncthing do servidor). Syncthing crea o directorio
+  do recurso se aínda non existe; SFTPGo, cando entra un usuario.
+
 ## Ficheiros de Syncthing en SFTPGo
 
 Un grupo **primario** `syncthing` oculta en SFTPGo (`deny_policy` 1) os

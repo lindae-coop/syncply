@@ -134,6 +134,17 @@ func main() {
 	if pairing.DevMode() {
 		log.Printf("aviso: modo de desenvolvemento (SYNCPLY_DEV=1): permítese http e as cookies van sen Secure")
 	}
+	if cfg.Admin.Disabled {
+		log.Printf("panel de administración desactivado (admin.disabled)")
+	} else {
+		panel, err := sftpgo.NewPanel(sftpgo.PanelConfig{APIURL: cfg.SFTPGo.APIURL,
+			HomesDir: cfg.Admin.HomesDir, GroupsDir: cfg.Admin.GroupsDir})
+		if err != nil {
+			log.Fatal(err)
+		}
+		web.EnableAdmin(panel)
+		log.Printf("panel de administración en /admin/ (usuarios en %s, grupos en %s)", cfg.Admin.HomesDir, cfg.Admin.GroupsDir)
+	}
 	mux.Handle("/", web.Handler())
 	if *downloads != "" {
 		mux.Handle("GET /descargas/", http.StripPrefix("/descargas/", filesOnly(http.FileServer(http.Dir(*downloads)))))
@@ -163,9 +174,19 @@ type config struct {
 	// /rest/config/options): descubrimento, relays, informes de uso...
 	ServerSyncthingOptions stapi.Obj `json:"serverSyncthingOptions,omitempty"`
 	// Servidores propios de descubrimento e relay para o P2P dos clientes.
-	P2P *pairing.P2POptions `json:"p2p,omitempty"`
-	SFTPGo sftpgo.Config      `json:"sftpgo"`
-	Web    pairing.WebOptions `json:"web"`
+	P2P    *pairing.P2POptions `json:"p2p,omitempty"`
+	SFTPGo sftpgo.Config       `json:"sftpgo"`
+	Web    pairing.WebOptions  `json:"web"`
+	Admin  adminConfig         `json:"admin"`
+}
+
+// adminConfig é o panel de administración (/admin/). Activo por defecto; as
+// rutas por defecto están no volume de datos de SFTPGo de deploy/ e do
+// contorno de desenvolvemento.
+type adminConfig struct {
+	Disabled  bool   `json:"disabled,omitempty"`
+	HomesDir  string `json:"homesDir,omitempty"`  // directorios persoais dos usuarios do panel
+	GroupsDir string `json:"groupsDir,omitempty"` // recursos dos grupos do panel
 }
 
 func loadConfig(path string) (*config, error) {
@@ -176,6 +197,12 @@ func loadConfig(path string) (*config, error) {
 	var c config
 	if err := json.Unmarshal(b, &c); err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	if c.Admin.HomesDir == "" {
+		c.Admin.HomesDir = "/srv/sftpgo/data/usuarios"
+	}
+	if c.Admin.GroupsDir == "" {
+		c.Admin.GroupsDir = "/srv/sftpgo/data/grupos"
 	}
 	return &c, nil
 }

@@ -55,8 +55,15 @@ existan. `make setup-sftpgo` pódese repetir: non toca o que xa existe.
 
 ## Dar de alta usuarios
 
-En `https://DOMINIO_SFTPGO/web/admin` (usuario `admin`, contrasinal en
-`.env`):
+O máis doado: o **panel de administración** de pairsrv,
+`https://DOMINIO_SYNCPLY/admin/` (credenciais dun administrador de SFTPGo,
+p. ex. `admin` co contrasinal de `.env`). Crea usuarios sen carpeta
+persoal, grupos cun recurso compartido cada un (en
+`/srv/sftpgo/data/grupos/<grupo>`) e decide quen está en cada grupo. Ver o
+README principal (§ Panel de administración); desactívase con
+`"admin": {"disabled": true}` en `pairsrv.json`.
+
+Tamén se pode facer a man en `https://DOMINIO_SFTPGO/web/admin`:
 
 1. Usuario con almacenamento **disco local**.
 2. **Grupo primario `syncthing`** (oculta en SFTPGo os ficheiros internos de

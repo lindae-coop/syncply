@@ -34,6 +34,7 @@ const HookName = "pairsrv-sync"
 type Admin struct {
 	base string // p. ex. http://sftpgo:8080/api/v2
 	auth string // Authorization
+	otp  string // X-SFTPGO-OTP (só ao pedir o token)
 	http *http.Client
 }
 
@@ -45,6 +46,20 @@ type APIError struct {
 
 func (e *APIError) Error() string { return fmt.Sprintf("sftpgo %d: %s", e.Code, e.Msg) }
 
+// StatusCode é o código HTTP da resposta.
+func (e *APIError) StatusCode() int { return e.Code }
+
+// PublicMessage é a explicación que dá SFTPGo (campos "message" e "error"
+// da resposta), para mostrala no panel.
+func (e *APIError) PublicMessage() string {
+	_, body, _ := strings.Cut(e.Msg, ": ")
+	var v struct{ Message, Error string }
+	if json.Unmarshal([]byte(body), &v) != nil {
+		return ""
+	}
+	return strings.TrimSpace(strings.TrimSuffix(v.Message, ".") + ": " + v.Error)
+}
+
 // IsStatus indica se err é unha resposta da API con ese código.
 func IsStatus(err error, code int) bool {
 	var e *APIError
@@ -54,16 +69,30 @@ func IsStatus(err error, code int) bool {
 // NewAdmin inicia sesión como administrador. apiURL é a URL base do servidor
 // HTTP de SFTPGo (a mesma que Config.APIURL).
 func NewAdmin(ctx context.Context, apiURL, user, pass string) (*Admin, error) {
+	a, _, err := newAdmin(ctx, apiURL, user, pass, "")
+	return a, err
+}
+
+// newAdmin inicia sesión (otp: segundo factor do administrador, se o ten) e
+// devolve tamén a caducidade do token.
+func newAdmin(ctx context.Context, apiURL, user, pass, otp string) (*Admin, time.Time, error) {
 	a := &Admin{base: strings.TrimRight(apiURL, "/") + "/api/v2", http: &http.Client{Timeout: 30 * time.Second}}
 	var t struct {
-		AccessToken string `json:"access_token"`
+		AccessToken string    `json:"access_token"`
+		ExpiresAt   time.Time `json:"expires_at"`
 	}
 	a.auth = "Basic " + base64.StdEncoding.EncodeToString([]byte(user+":"+pass))
-	if err := a.Call(ctx, http.MethodGet, "/token", nil, &t); err != nil {
-		return nil, err
+	a.otp = otp
+	err := a.Call(ctx, http.MethodGet, "/token", nil, &t)
+	a.otp = ""
+	if err != nil {
+		return nil, time.Time{}, err
+	}
+	if t.AccessToken == "" {
+		return nil, time.Time{}, errors.New("sftpgo: resposta sen token")
 	}
 	a.auth = "Bearer " + t.AccessToken
-	return a, nil
+	return a, t.ExpiresAt, nil
 }
 
 // Call fai unha petición á API (path relativo a /api/v2).
@@ -81,6 +110,9 @@ func (a *Admin) Call(ctx context.Context, method, path string, in, out any) erro
 		return err
 	}
 	req.Header.Set("Authorization", a.auth)
+	if a.otp != "" {
+		req.Header.Set("X-SFTPGO-OTP", a.otp)
+	}
 	if in != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}

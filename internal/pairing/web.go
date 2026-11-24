@@ -98,8 +98,11 @@ type Web struct {
 	opts WebOptions
 	now  func() time.Time
 
+	admin AdminBackend // nil: sen panel de administración
+
 	mu       sync.Mutex
 	sessions map[string]*session
+	admins   map[string]*adminSession
 	fails    map[string]*loginFails
 }
 
@@ -118,8 +121,12 @@ func NewWeb(svc *Service, auth PasswordChecker, opts WebOptions) (*Web, error) {
 		return nil, err
 	}
 	return &Web{svc: svc, auth: auth, opts: opts, now: time.Now,
-		sessions: map[string]*session{}, fails: map[string]*loginFails{}}, nil
+		sessions: map[string]*session{}, admins: map[string]*adminSession{}, fails: map[string]*loginFails{}}, nil
 }
+
+// EnableAdmin activa o panel de administración en /admin/. Hai que chamala
+// antes de Handler.
+func (w *Web) EnableAdmin(b AdminBackend) { w.admin = b }
 
 func (w *Web) Handler() http.Handler {
 	mux := http.NewServeMux()
@@ -130,6 +137,9 @@ func (w *Web) Handler() http.Handler {
 		rw.Header().Set("Content-Type", "text/javascript; charset=utf-8")
 		rw.Write(copyJS)
 	})
+	if w.admin != nil {
+		w.adminHandler(mux)
+	}
 	brand.Register(mux)
 	return w.guard(mux)
 }
@@ -177,6 +187,7 @@ type pageData struct {
 	Account   *Account
 	Downloads []Download
 	LinkText  string // texto de vinculación para pegar no cliente
+	AdminLink bool   // hai panel de administración
 }
 
 func (w *Web) handleIndex(rw http.ResponseWriter, r *http.Request) {
@@ -314,9 +325,12 @@ func (w *Web) failed(user string) {
 	}
 }
 
-func (w *Web) render(rw http.ResponseWriter, code int, name string, d *pageData) {
+func (w *Web) render(rw http.ResponseWriter, code int, name string, d any) {
 	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
 	rw.WriteHeader(code)
+	if p, ok := d.(*pageData); ok {
+		p.AdminLink = w.admin != nil
+	}
 	if err := webTmpl.ExecuteTemplate(rw, name, d); err != nil {
 		log.Printf("web: plantilla %s: %v", name, err)
 	}

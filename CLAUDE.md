@@ -123,7 +123,7 @@ Hai instancias en produción (decisión do usuario, 2026-11-21): **cada versión
 - Verificado en local: dous clientes sen descubrimento local e sen conexión directa posible atópanse no noso discosrv e conectan polo noso relay (`relay-client`/`relay-server`).
 - **Apoio público (decisión do usuario, opción de configuración):** `p2p.publicDiscovery` engade `"default"` a `globalAnnounceServers` (despois do noso; `true` en `init.sh`) e `p2p.publicRelays` engade `dynamic+https://relays.syncthing.net/endpoint` a `listenAddresses` (`false` en `init.sh`: cada relay é unha escoita á parte coa mesma prioridade, así que un par pode usar o público aínda que o noso funcione). Verificado en local (cos nosos inaccesibles e escoita só en relays): os clientes anúncianse en `discovery-announce-v4`, atópanse con `discovery-lookup` e conectan por un relay público. Explicado na FAQ da web (`#servizos-publicos`).
 - `stproto pair` (o que usa `make demo`) non aplica as `syncthingOptions` de pairsrv; só as aplica `syncply`. Para probar opcións nos clientes da demo, `PATCH /rest/config/options` **sen reiniciar** Syncthing: o daemon `syncply` volve aplicar as súas ao arrancalo.
-- Achados: un volume novo compartido (`data`) pode quedar de root aínda que a imaxe de SFTPGo o teña de 1000 → SFTPGo non crea os directorios persoais; a entrada do contedor de Syncthing fai `chown 1000:1000` da raíz de datos. SFTPGo crea o directorio persoal ao entrar (SFTP/web), non co token da API REST. A imaxe de Syncthing non define healthcheck en formato OCI; desactívase igualmente.
+- Achados: un volume novo compartido (`data`) pode quedar de root aínda que a imaxe de SFTPGo o teña de 1000 → SFTPGo non crea os directorios persoais; a entrada do contedor de Syncthing fai `chown 1000:1000` da raíz de datos. SFTPGo crea o directorio persoal ao entrar (SFTP/web). Nota anterior: «non co token da API REST»; pero en 2.7.6 viuse que `GET /api/v2/user/token` (o que usa a web de pairsrv) si crea o persoal e os cartafoles (ver o panel de administración). A imaxe de Syncthing non define healthcheck en formato OCI; desactívase igualmente.
 - Verificado con `*.localhost` e a CA interna de Caddy (cliente con `SSL_CERT_FILE`, sen `SYNCPLY_DEV`): vincular por HTTPS, aviso SFTPGo → pairsrv (202), sincronización nos dous sentidos (~16 s).
 
 ## Web de pairsrv: código de vinculación (verificado con `make demo`)
@@ -132,6 +132,15 @@ Hai instancias en produción (decisión do usuario, 2026-11-21): **cada versión
 - O código é un TOTP (SHA1, 6 díxitos, 30 s, ±1 paso) cun **segredo por usuario xerado por pairsrv** e gardado no seu estado; créase a primeira vez que se mostra. Se o código actual xa se usou, a web mostra o do seguinte paso (xa aceptado), así que sempre mostra un código válido.
 - O mesmo código serve para vincular e para revogar. Os usuarios xa non necesitan activar o 2FA de SFTPGo; se o teñen, a web pídeo para entrar.
 - En desenvolvemento: `make web` (`127.0.0.1:8090`); `make otp U=alice` e `make blob U=alice` entran na web co contrasinal de proba e devolven o mesmo código e texto.
+
+## Panel de administración de pairsrv (`/admin/`, verificado contra SFTPGo 2.7.6)
+
+- Pedido polo usuario: crear usuarios e contrasinais, cambiar contrasinais, crear grupos cun **único recurso** cada un, asignar usuarios a grupos e cambiar a pertenza; usuarios **sen carpeta persoal**; acceso coas **credenciais do administrador de SFTPGo**.
+- Implementado: `internal/pairing/admin.go` (web, `AdminBackend`/`AdminSession`) + `internal/sftpgo/panel.go` (API REST de SFTPGo co token do admin, non a BD). Engadido tamén: borrar usuarios e grupos (confirmando co nome), listaxe con recursos e número de equipos, e `Service.ForgetUser` (ao borrar ou crear un usuario no panel, pairsrv esquece os seus equipos e segredo: senón, un usuario novo co mesmo nome herdaría os equipos do borrado; borrar en SFTPGo directamente segue deixando o rexistro).
+- Usuario do panel: `home_dir` `<admin.homesDir>/<nome>` con `/`: `list`, `download`; primario `syncthing`; grupos secundarios. Grupo do panel: cartafol co mesmo nome en `<admin.groupsDir>/<nome>`, montado en `/<nome>` con `virtual_path` e `user_settings.permissions` `{"/<nome>": ["*"]}`. Só se borran desde o panel os grupos con ese formato e sen membros. O panel só cambia grupos secundarios.
+- `admin` en `pairsrv.json` é opcional (activo por defecto; `homesDir` `/srv/sftpgo/data/usuarios`, `groupsDir` `/srv/sftpgo/data/grupos`): as instalacións anteriores reciben o panel sen tocar nada.
+- Verificado en `make fresh` contra SFTPGo real: entrar (token de admin con `expires_at`, 20 min), crear grupo e usuario (só se lle ofrece o recurso do grupo, non o persoal), cambio de contrasinal (o vello dá 401), cambiar grupos dun usuario con equipo (o servidor engade/quita a carpeta en ~1 s polo aviso de eventos), negativas (grupo con membros, grupo non creado polo panel), borrar grupo e usuario (o equipo sae do Syncthing do servidor). O `PUT /users/{nome}` co obxecto que devolve o `GET` funciona (sen `password` mantén o actual).
+- SFTPGo crea os directorios do usuario e dos seus cartafoles cando entra (tamén co `GET /api/v2/user/token` da web de pairsrv). Se un recurso se comparte antes de que exista no disco, **o Syncthing do servidor crea a ruta** (visto con 2.1.7).
 
 ## Cliente `syncply` (prototipo)
 
@@ -182,13 +191,7 @@ Windows (`syncply.exe` autoinstalable, probado en Windows 11): `syncply.exe` aut
 ## Para futuras versións (pedidas polo usuario, sen deseñar)
 
 - ~~Web con modo escuro automático~~ e ~~estética da web nas aplicacións~~ (feito): `docs/index.html` cambia de paleta con `prefers-color-scheme` (`docs/logo-escuro.svg` en escuro e no pé). As webs de pairsrv e do cliente usan `internal/brand` (`syncply.css` e `logo.svg` embebidos, servidos en `/static/`; o logo leva un `<style>` interno que aclara o contorno e «lindæ» en escuro). Ao cambiar a paleta, cambiala nos dous sitios. Pendente: instaladores (mensaxes de Windows) e a futura icona da bandexa.
-- **Panel de administración propio** para xestionar usuarios e recursos sen entrar en SFTPGo:
-  - Crear usuarios e poñerlles contrasinal; cambiar contrasinais.
-  - Crear grupos: cada grupo leva **un único recurso compartido** (cartafol virtual) creado co grupo.
-  - Asignar usuarios a grupos e cambiar a pertenza.
-  - Os usuarios creados desde o panel **non teñen carpeta persoal** (só os recursos dos seus grupos).
-  - Acceso coas **credenciais do administrador de SFTPGo**.
-  - Notas sen verificar: facelo pola API REST de SFTPGo (`/api/v2/users`, `/groups`, `/folders`) co token do admin, non escribindo na BD; o cartafol do grupo ten que levar *virtual path* (trampa vista no hosting) e permiso de escritura completo para que se ofreza; SFTPGo esixe `home_dir`, así que «sen carpeta persoal» probablemente implique un directorio persoal sen permisos (ou sen escritura) para que pairsrv non o ofreza; os usuarios novos deben ir no grupo primario `syncthing`.
+- ~~**Panel de administración propio**~~ (feito, ver abaixo).
 - **A web e o lema** fan referencia a "simple", "pequenos equipos" e "pequenos servidores. Algo así como "Syncply, a nube simple para pequenos equipos con pequenos servidores". Tamén fai referencias ó decrecemento.
 
 ## Para o futuro: cambios en SFTPGo ao integrar (pedidos polo usuario)

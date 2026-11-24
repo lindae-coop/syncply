@@ -1,0 +1,133 @@
+{{define "admin_head"}}{{template "head"}}
+</head>
+<body><main>
+<header>
+  <a class="marca" href="/admin/"><img src="/static/logo.svg" alt="Syncply" width="56" height="56"></a>
+  <h1>Administración</h1>
+  {{if .Admin}}<span class="who">{{.Admin}}</span>
+  <form method="post" action="/admin/logout" class="inline"><button>Saír</button></form>{{end}}
+</header>
+{{if .Error}}<div class="msg errmsg">{{.Error}}</div>{{end}}
+{{if .Flash}}<div class="msg {{if .FlashOK}}okmsg{{else}}errmsg{{end}}">{{.Flash}}</div>{{end}}
+{{end}}
+
+{{define "admin_login"}}{{template "admin_head" .}}
+<section>
+  <h2>Entrar como administrador</h2>
+  <p class="muted">Usa as credenciais de administrador do servidor de ficheiros (SFTPGo). Desde aquí podes crear usuarios e grupos e decidir quen comparte cada recurso.</p>
+  <form method="post" action="/admin/login">
+    <label for="user">Administrador</label>
+    <input type="text" id="user" name="user" value="{{.User}}" autocomplete="username" maxlength="256" required autofocus>
+    <label for="password">Contrasinal</label>
+    <input type="password" id="password" name="password" autocomplete="current-password" maxlength="256" required>
+    <details>
+      <summary>Tes activado o segundo factor no servidor de ficheiros?</summary>
+      <label for="otp">Código da túa app autenticadora</label>
+      <input type="text" id="otp" name="otp" class="otp" inputmode="numeric" maxlength="8" autocomplete="one-time-code">
+    </details>
+    <p><button class="primary">Entrar</button></p>
+  </form>
+</section>
+<footer class="admin"><a href="/">Volver á páxina dos usuarios</a></footer>
+{{template "foot"}}{{end}}
+
+{{define "admin"}}{{template "admin_head" .}}
+{{if .Minutes}}<p class="muted">A sesión remata en {{.Minutes}} min (caducidade do acceso a SFTPGo) ou tras 15 minutos sen usala; despois hai que entrar de novo.</p>{{end}}
+
+<section>
+  <h2>Grupos e recursos compartidos ({{len .Groups}})</h2>
+  <p class="muted">Cada grupo creado aquí ten un único recurso compartido co seu nome. Os membros do grupo poden velo no servidor de ficheiros e sincronizalo nos seus equipos.</p>
+  {{range .Groups}}
+  <div class="item">
+    <div class="name">{{.Name}}</div>
+    {{with .Description}}<div>{{.}}</div>{{end}}
+    {{range .Folders}}<div class="path">{{.VirtualPath}} → {{.Path}}</div>{{end}}
+    <div>{{with .Members}}Membros: {{range .}}<span class="tag">{{.}}</span>{{end}}{{else}}<span class="muted">Sen membros.</span>{{end}}</div>
+    {{if .Managed}}
+    <details>
+      <summary>Borrar o grupo</summary>
+      {{if .Members}}<p class="muted">Para borrar o grupo quita antes os seus membros.</p>{{else}}
+      <form method="post" action="/admin/groups/{{.Name}}/delete">
+        <p class="muted">Bórranse o grupo e o recurso no servidor de ficheiros; os ficheiros quedan no disco ({{range .Folders}}<span class="path">{{.Path}}</span>{{end}}).</p>
+        <label for="gdel-{{.Name}}">Escribe «{{.Name}}» para confirmar</label>
+        <div class="flex"><input class="grow" type="text" id="gdel-{{.Name}}" name="confirm" autocomplete="off" required>
+          <button class="danger">Borrar</button></div>
+      </form>{{end}}
+    </details>
+    {{else}}<p class="muted">Grupo creado en SFTPGo: os seus recursos e permisos cámbianse alí.</p>{{end}}
+  </div>
+  {{else}}<p class="muted">Aínda non hai grupos.</p>{{end}}
+  <details>
+    <summary>Novo grupo</summary>
+    <form method="post" action="/admin/groups">
+      <label for="gname">Nome (tamén é o nome do recurso)</label>
+      <input type="text" id="gname" name="name" maxlength="64" pattern="[A-Za-z0-9][A-Za-z0-9._\-]*" required>
+      <label for="gdesc">Descrición (opcional)</label>
+      <input type="text" id="gdesc" name="description" maxlength="200">
+      <p><button class="primary">Crear o grupo</button></p>
+    </form>
+  </details>
+</section>
+
+<section>
+  <h2>Usuarios ({{len .Users}})</h2>
+  {{range .Users}}
+  <div class="item">
+    <div class="row">
+      <span class="name">{{.Name}}</span>
+      {{if not .Enabled}}<span class="bad">desactivado</span>{{else if not .Sync.Allowed}}<span class="warn">non pode sincronizar (sen acceso ao WebClient)</span>{{end}}
+      <span class="muted">{{.Sync.Devices}} {{if eq .Sync.Devices 1}}equipo{{else}}equipos{{end}} · última entrada {{date .LastLogin}}</span>
+    </div>
+    <div>{{if .Groups}}Grupos: {{range .Groups}}<span class="tag">{{.}}</span>{{end}}{{else}}<span class="muted">Sen grupos.</span>{{end}}</div>
+    <div>{{with .Sync.Folders}}Sincroniza: {{range .}}<span class="tag">{{.}}</span>{{end}}{{else}}<span class="muted">Non sincroniza ningún recurso.</span>{{end}}</div>
+    <details>
+      <summary>Xestionar</summary>
+      <div class="manage">
+        <form method="post" action="/admin/users/{{.Name}}/groups">
+          <h3>Grupos</h3>
+          {{if .Choices}}
+          <div class="checks">{{range .Choices}}
+            <label title="{{if .Fixed}}Grupo primario ou de pertenza: cámbiase en SFTPGo{{end}}"><input type="checkbox" name="group" value="{{.Name}}"{{if .Checked}} checked{{end}}{{if .Fixed}} disabled{{end}}> {{.Name}}</label>{{end}}
+          </div>
+          <button>Gardar os grupos</button>
+          {{else}}<p class="muted">Aínda non hai grupos.</p>{{end}}
+        </form>
+        <form method="post" action="/admin/users/{{.Name}}/password">
+          <h3>Cambiar o contrasinal</h3>
+          <label for="p1-{{.Name}}">Novo contrasinal</label>
+          <input type="password" id="p1-{{.Name}}" name="password" minlength="8" maxlength="256" autocomplete="new-password" required>
+          <label for="p2-{{.Name}}">Repíteo</label>
+          <input type="password" id="p2-{{.Name}}" name="password2" minlength="8" maxlength="256" autocomplete="new-password" required>
+          <p><button>Cambiar</button></p>
+        </form>
+        <form method="post" action="/admin/users/{{.Name}}/delete">
+          <h3>Borrar o usuario</h3>
+          <p class="muted">Os seus equipos deixan de sincronizar. Os ficheiros quedan no disco.</p>
+          <label for="udel-{{.Name}}">Escribe «{{.Name}}» para confirmar</label>
+          <input type="text" id="udel-{{.Name}}" name="confirm" autocomplete="off" required>
+          <p><button class="danger">Borrar</button></p>
+        </form>
+      </div>
+    </details>
+  </div>
+  {{else}}<p class="muted">Aínda non hai usuarios.</p>{{end}}
+  <details>
+    <summary>Novo usuario</summary>
+    <form method="post" action="/admin/users">
+      <p class="muted">Os usuarios creados aquí non teñen carpeta persoal: só ven e sincronizan os recursos dos seus grupos.</p>
+      <label for="uname">Nome de usuario</label>
+      <input type="text" id="uname" name="name" maxlength="64" pattern="[A-Za-z0-9][A-Za-z0-9._\-]*" autocomplete="off" required>
+      <label for="upass">Contrasinal</label>
+      <input type="password" id="upass" name="password" minlength="8" maxlength="256" autocomplete="new-password" required>
+      <label for="upass2">Repíteo</label>
+      <input type="password" id="upass2" name="password2" minlength="8" maxlength="256" autocomplete="new-password" required>
+      {{with .GroupNames}}
+      <label>Grupos</label>
+      <div class="checks">{{range .}}<label><input type="checkbox" name="group" value="{{.}}"> {{.}}</label>{{end}}</div>
+      {{end}}
+      <p><button class="primary">Crear o usuario</button></p>
+    </form>
+  </details>
+</section>
+<footer class="admin"><a href="/">Páxina dos usuarios</a></footer>
+{{template "foot"}}{{end}}

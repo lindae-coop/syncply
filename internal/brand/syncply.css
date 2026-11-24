@@ -152,3 +152,14 @@ ol.steps .muted { display: block; font-size: .92em; margin-top: .3rem; }
   button { transition: none; }
   .bar > div { animation: none; }
 }
+
+/* Panel de administración (pairsrv) */
+.tag { display: inline-block; font-size: .82em; font-weight: 700; padding: 0 .55rem; margin: .1rem .15rem .1rem 0;
+  border: var(--borde-fino); border-radius: 999px; background: var(--cian-suave); color: var(--tinta); }
+.checks { display: flex; flex-wrap: wrap; gap: .2rem 1rem; margin: .3rem 0 .6rem; }
+.checks label { display: inline-flex; align-items: center; gap: .35rem; margin: 0; font-weight: 600; }
+.checks input { width: 1.1em; height: 1.1em; accent-color: var(--cian); }
+.manage { display: grid; gap: .4rem 1.4rem; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); }
+.manage form { margin: 0; }
+.manage h3 { font-size: .95rem; margin: .6rem 0 0; color: var(--tinta); }
+footer.admin { text-align: center; font-size: .9em; margin-top: 1rem; }
