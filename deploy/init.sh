@@ -76,6 +76,7 @@ else
   },
   "web": {
     "publicURL": "https://$syncply",
+    "filesURL": "https://$sftp/web/client",
     "downloads": [
       {"label": "Linux (x86-64)", "url": "/descargas/syncply-linux-amd64.tar.gz"},
       {"label": "Windows (x86-64, en probas)", "url": "/descargas/syncply-windows-amd64.exe"}

@@ -111,6 +111,9 @@ services:
       ST_URL: unix:///st/gui.sock
       ST_APIKEY: ${ST_APIKEY}
       PAIRSRV_HOOK_TOKEN: ${PAIRSRV_HOOK_TOKEN:?falta PAIRSRV_HOOK_TOKEN en .env}
+      # Ligazón «Os meus ficheiros» se pairsrv.json non ten web.filesURL
+      # (instalacións anteriores a esa opción).
+      SYNCPLY_FILES_URL: https://${SFTPGO_DOMAIN}/web/client
     volumes:
       - ./pairsrv.json:/etc/pairsrv.json:ro,z
       - pairsrv-state:/state

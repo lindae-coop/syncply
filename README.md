@@ -182,7 +182,20 @@ ese código. Dentro ve:
   Syncthing do servidor (o cliente rexeita o emparellamento se pairsrv
   responde con outro). **Non leva segredos**: sen o código non serve para
   vincular;
-- os recursos que se lle ofrecen e os seus equipos (cantos de cantos).
+- os recursos que se lle ofrecen e os seus equipos (cantos de cantos), cun
+  botón **Revogar…** en cada un: leva a unha páxina de confirmación (sen a
+  recarga automática da principal) e o equipo deixa de sincronizar ao
+  momento. Desde a web non se pide o código de vinculación, porque o
+  usuario xa entrou co seu contrasinal de SFTPGo; desde o cliente doutro
+  equipo segue facendo falta;
+- unha ligazón **Os meus ficheiros** (na barra e en «Recursos») ao WebClient
+  de SFTPGo, para ver, descargar e subir ficheiros desde o navegador.
+  URL en `web.filesURL` (p. ex. `https://ficheiros.example.org/web/client`;
+  `init.sh` xérraa co dominio de SFTPGo) ou, se falta, na variable
+  `SYNCPLY_FILES_URL` (`deploy/compose.yaml` constrúea con `SFTPGO_DOMAIN`, así
+  que as instalacións anteriores teñen a ligazón sen tocar nada). Sen
+  ningunha das dúas non se mostra. En desenvolvemento o WebClient está en
+  `http://127.0.0.1:8091/web/client`.
 
 Sesión en memoria (15 min sen actividade) con cookie `HttpOnly`,
 `SameSite=Strict` e `Secure` (agás en desenvolvemento); POST só da mesma orixe; `Cache-Control: no-store`; 5 contrasinais

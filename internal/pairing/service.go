@@ -278,6 +278,22 @@ func (s *Service) ListDevices(ctx context.Context, c *Caller) ([]DeviceInfo, err
 
 // Revoke elimina un equipo do usuario. Esixe un código de vinculación novo.
 func (s *Service) Revoke(ctx context.Context, c *Caller, deviceID, otp string) error {
+	return s.revoke(ctx, c.User, deviceID, func(us *UserState) error {
+		err := s.checkOTP(us, otp)
+		if serr := s.state.save(s.statePath); serr != nil {
+			return serr
+		}
+		return err
+	})
+}
+
+// RevokeByUser elimina un equipo do usuario sen código de vinculación: para
+// a web de pairsrv, onde o usuario xa entrou co seu contrasinal de SFTPGo.
+func (s *Service) RevokeByUser(ctx context.Context, user, deviceID string) error {
+	return s.revoke(ctx, user, deviceID, func(*UserState) error { return nil })
+}
+
+func (s *Service) revoke(ctx context.Context, user, deviceID string, check func(*UserState) error) error {
 	deviceID = strings.ToUpper(strings.TrimSpace(deviceID))
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -286,16 +302,12 @@ func (s *Service) Revoke(ctx context.Context, c *Caller, deviceID, otp string) e
 	if err != nil {
 		return err
 	}
-	u := snap.user(c.User)
+	u := snap.user(user)
 	if u == nil {
 		return ErrUnauthorized
 	}
 	us := s.state.userState(u.Name)
-	err = s.checkOTP(us, otp)
-	if serr := s.state.save(s.statePath); serr != nil {
-		return serr
-	}
-	if err != nil {
+	if err := check(us); err != nil {
 		return err
 	}
 	i := slices.IndexFunc(us.Devices, func(d Device) bool { return d.ID == deviceID })

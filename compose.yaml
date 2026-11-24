@@ -62,6 +62,8 @@ services:
       SFTPGO_DATA_PROVIDER__CREATE_DEFAULT_ADMIN: "true"
       SFTPGO_DEFAULT_ADMIN_USERNAME: admin
       SFTPGO_DEFAULT_ADMIN_PASSWORD: ${SFTPGO_ADMIN_PASSWORD:-syncply-dev-admin-NON-USAR-EN-PRODUCION}
+    # WebClient para a ligazón «Os meus ficheiros» da web de pairsrv.
+    ports: ["127.0.0.1:8091:8080"]
     volumes:
       - ./.dev/sftpgo/lib:/var/lib/sftpgo:z
       - ./.dev/sftpgo/data:/srv/sftpgo/data:z

@@ -130,7 +130,9 @@ Hai instancias en produción (decisión do usuario, 2026-11-21): **cada versión
 
 - Na raíz de pairsrv o usuario entra co usuario e contrasinal de SFTPGo (comprobados coa API de SFTPGo) e ve o **código de vinculación** cun contador (barra CSS + recarga automática), o texto de vinculación, a descarga do cliente, os recursos ofrecidos e os seus equipos (N de máximo).
 - O código é un TOTP (SHA1, 6 díxitos, 30 s, ±1 paso) cun **segredo por usuario xerado por pairsrv** e gardado no seu estado; créase a primeira vez que se mostra. Se o código actual xa se usou, a web mostra o do seguinte paso (xa aceptado), así que sempre mostra un código válido.
-- O mesmo código serve para vincular e para revogar. Os usuarios xa non necesitan activar o 2FA de SFTPGo; se o teñen, a web pídeo para entrar.
+- **Revogar desde a web de pairsrv** (pedido polo usuario): botón «Revogar…» en cada equipo → páxina de confirmación (sen `meta refresh`) → `Service.RevokeByUser` (sen OTP: a sesión xa vén do contrasinal de SFTPGo). Verificado en `make up`: o servidor corta a conexión ao momento e os outros equipos quitan o par introducido.
+- O mesmo código serve para vincular e para revogar desde o cliente.
+- Ligazón **«Os meus ficheiros»** ao WebClient de SFTPGo (pedido polo usuario): `web.filesURL` ou, se falta, `SYNCPLY_FILES_URL` (migración: `deploy/compose.yaml` constrúea con `SFTPGO_DOMAIN`; o stack do hosting ten que definila ou engadir `web.filesURL`). En desenvolvemento SFTPGo publícase en `127.0.0.1:8091`. Os usuarios xa non necesitan activar o 2FA de SFTPGo; se o teñen, a web pídeo para entrar.
 - En desenvolvemento: `make web` (`127.0.0.1:8090`); `make otp U=alice` e `make blob U=alice` entran na web co contrasinal de proba e devolven o mesmo código e texto.
 
 ## Panel de administración de pairsrv (`/admin/`, verificado contra SFTPGo 2.7.6)
@@ -190,7 +192,7 @@ Windows (`syncply.exe` autoinstalable, probado en Windows 11): `syncply.exe` aut
 
 ## Para futuras versións (pedidas polo usuario, sen deseñar)
 
-- ~~Web con modo escuro automático~~ e ~~estética da web nas aplicacións~~ (feito): `docs/index.html` cambia de paleta con `prefers-color-scheme` (`docs/logo-escuro.svg` en escuro e no pé). As webs de pairsrv e do cliente usan `internal/brand` (`syncply.css` e `logo.svg` embebidos, servidos en `/static/`; o logo leva un `<style>` interno que aclara o contorno e «lindæ» en escuro). Ao cambiar a paleta, cambiala nos dous sitios. Pendente: instaladores (mensaxes de Windows) e a futura icona da bandexa.
+- ~~Web con modo escuro automático~~ e ~~estética da web nas aplicacións~~ (feito): `docs/index.html` cambia de paleta con `prefers-color-scheme` (`docs/logo-escuro.svg` en escuro e no pé). As webs de pairsrv (usuarios e `/admin/`) e do cliente usan `internal/brand` (`syncply.css`, `logo.svg` e `logo-escuro.svg` embebidos, servidos en `/static/`; `logo.svg` leva un `<style>` interno que aclara o contorno e «lindæ» en escuro) coa **mesma estética ca a web pública**: barra superior a todo o ancho (`header.barra > .envoltorio`, fóra de `<main>`), tarxetas con sombra de 6 px, pasos numerados en tarxetas, despregables coma a FAQ (círculo «+»), avisos coma `.aviso` e pé negro (`footer.pe`, co logo escuro). Ao cambiar a paleta ou estes compoñentes, cambialos nos dous sitios. Capturas para revisar: Chromium sen interface nun contedor (`docker.io/zenika/alpine-chrome:124`, `--screenshot`). Pendente: instaladores (mensaxes de Windows) e a futura icona da bandexa.
 - ~~**Panel de administración propio**~~ (feito, ver abaixo).
 - **A web e o lema** fan referencia a "simple", "pequenos equipos" e "pequenos servidores. Algo así como "Syncply, a nube simple para pequenos equipos con pequenos servidores". Tamén fai referencias ó decrecemento.
 

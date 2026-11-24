@@ -169,3 +169,93 @@ func TestWebUserWithoutAccess(t *testing.T) {
 		t.Fatalf("eve:\n%s", page.Body)
 	}
 }
+
+func TestWebRevokeDevice(t *testing.T) {
+	e, h := newWebEnv(t)
+	for _, p := range []struct{ user, dev string }{{"alice", devA1}, {"alice", devA2}, {"bob", devB1}} {
+		if _, err := e.pair(p.user, p.dev); err != nil {
+			t.Fatal(err)
+		}
+	}
+	revoke := func(c []*http.Cookie, form url.Values) *httptest.ResponseRecorder {
+		r := httptest.NewRequest(http.MethodPost, "http://srv/devices/revoke", strings.NewReader(form.Encode()))
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		for _, ck := range c {
+			r.AddCookie(ck)
+		}
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, r)
+		return rec
+	}
+	devices := func(user string) int {
+		d, _ := e.svc.ListDevices(context.Background(), &Caller{User: user})
+		return len(d)
+	}
+
+	// Sen sesión non fai nada.
+	revoke(nil, url.Values{"device": {devA1}, "confirm": {"1"}})
+	if devices("alice") != 2 {
+		t.Fatal("revogado sen sesión")
+	}
+	c := login(t, h, "alice", "segredo", nil).Result().Cookies()
+	if !strings.Contains(get(h, c).Body.String(), `action="/devices/revoke"`) {
+		t.Fatal("a páxina non ofrece revogar")
+	}
+	// Primeiro a confirmación, sen recarga automática.
+	rec := revoke(c, url.Values{"device": {devA1}})
+	if b := rec.Body.String(); rec.Code != http.StatusOK || !strings.Contains(b, `name="confirm" value="1"`) || strings.Contains(b, "refresh") {
+		t.Fatalf("confirmación: %d\n%s", rec.Code, b)
+	}
+	if devices("alice") != 2 {
+		t.Fatal("revogado sen confirmar")
+	}
+	// Un equipo doutro usuario non se pode revogar.
+	revoke(c, url.Values{"device": {devB1}, "confirm": {"1"}})
+	if devices("bob") != 1 {
+		t.Fatal("alice revogou un equipo de bob")
+	}
+	if rec := revoke(c, url.Values{"device": {devA1}, "confirm": {"1"}}); rec.Code != http.StatusSeeOther {
+		t.Fatalf("revogar: %d", rec.Code)
+	}
+	if devices("alice") != 1 {
+		t.Fatal("equipo sen revogar")
+	}
+	if _, ok := e.st.devices[devA1]; ok {
+		t.Error("o equipo revogado segue no Syncthing do servidor")
+	}
+	page := get(h, c).Body.String()
+	if !strings.Contains(page, "okmsg") || !strings.Contains(page, "Revogado") {
+		t.Errorf("sen mensaxe tras revogar:\n%s", page)
+	}
+	if strings.Contains(get(h, c).Body.String(), "Revogado") {
+		t.Error("a mensaxe debe mostrarse só unha vez")
+	}
+}
+
+func TestWebFilesLink(t *testing.T) {
+	e := newEnv(t)
+	t.Setenv("SYNCPLY_DEV", "")
+	t.Setenv("SYNCPLY_FILES_URL", "")
+	if _, err := NewWeb(e.svc, fakeAuth{}, WebOptions{PublicURL: "https://a.example", FilesURL: "http://b.example/web/client"}); err == nil {
+		t.Error("filesURL http aceptada fóra de desenvolvemento")
+	}
+	// Sen opción, úsase SYNCPLY_FILES_URL (instalacións anteriores).
+	t.Setenv("SYNCPLY_FILES_URL", "https://ficheiros.example/web/client")
+	w, err := NewWeb(e.svc, fakeAuth{"alice": "segredo"}, WebOptions{PublicURL: "https://a.example"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := w.Handler()
+	c := login(t, h, "alice", "segredo", nil).Result().Cookies()
+	if b := get(h, c).Body.String(); !strings.Contains(b, `href="https://ficheiros.example/web/client"`) {
+		t.Errorf("sen ligazón aos ficheiros:\n%s", b)
+	}
+	// Sen ningunha das dúas, non hai ligazón.
+	t.Setenv("SYNCPLY_FILES_URL", "")
+	w, _ = NewWeb(e.svc, fakeAuth{"alice": "segredo"}, WebOptions{PublicURL: "https://a.example"})
+	h = w.Handler()
+	c = login(t, h, "alice", "segredo", nil).Result().Cookies()
+	if strings.Contains(get(h, c).Body.String(), "Os meus ficheiros") {
+		t.Error("ligazón sen filesURL")
+	}
+}

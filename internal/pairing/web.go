@@ -11,6 +11,8 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -32,6 +34,11 @@ type WebOptions struct {
 	// URL base coa que os clientes chegan a pairsrv (a do proxy); vai no
 	// texto de vinculación. Obrigatoria; https agás en desenvolvemento.
 	PublicURL string `json:"publicURL"`
+	// URL pública do WebClient de SFTPGo (p. ex.
+	// https://ficheiros.example.org/web/client), para a ligazón «Os meus
+	// ficheiros». Opcional; se falta, a variable SYNCPLY_FILES_URL; se
+	// tampouco está, non se mostra a ligazón.
+	FilesURL string `json:"filesURL,omitempty"`
 }
 
 func (o *WebOptions) validate() error {
@@ -42,6 +49,14 @@ func (o *WebOptions) validate() error {
 		return fmt.Errorf("web.publicURL %q: %w", o.PublicURL, err)
 	}
 	o.PublicURL = strings.TrimRight(o.PublicURL, "/")
+	if o.FilesURL == "" {
+		o.FilesURL = os.Getenv("SYNCPLY_FILES_URL")
+	}
+	if o.FilesURL != "" {
+		if err := CheckPublicURL(o.FilesURL); err != nil {
+			return fmt.Errorf("web.filesURL %q: %w", o.FilesURL, err)
+		}
+	}
 	return nil
 }
 
@@ -109,6 +124,8 @@ type Web struct {
 type session struct {
 	user    string
 	expires time.Time
+	flash   string // mensaxe que se mostra unha vez na seguinte páxina
+	flashOK bool
 }
 
 type loginFails struct {
@@ -133,6 +150,7 @@ func (w *Web) Handler() http.Handler {
 	mux.HandleFunc("GET /{$}", w.handleIndex)
 	mux.HandleFunc("POST /login", w.handleLogin)
 	mux.HandleFunc("POST /logout", w.handleLogout)
+	mux.HandleFunc("POST /devices/revoke", w.handleRevoke)
 	mux.HandleFunc("GET /static/copy.js", func(rw http.ResponseWriter, _ *http.Request) {
 		rw.Header().Set("Content-Type", "text/javascript; charset=utf-8")
 		rw.Write(copyJS)
@@ -187,7 +205,11 @@ type pageData struct {
 	Account   *Account
 	Downloads []Download
 	LinkText  string // texto de vinculación para pegar no cliente
-	AdminLink bool   // hai panel de administración
+	Flash     string
+	FlashOK   bool
+	FilesURL  string      // WebClient de SFTPGo
+	Revoke    *DeviceInfo // equipo que se vai revogar (páxina de confirmación)
+	AdminLink bool        // hai panel de administración
 }
 
 func (w *Web) handleIndex(rw http.ResponseWriter, r *http.Request) {
@@ -214,7 +236,17 @@ func (w *Web) handleIndex(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	left := max(code.Until.Sub(w.now()), refreshMinDelay)
+	w.mu.Lock()
+	var flash string
+	var flashOK bool
+	if c, err := r.Cookie(sessionCookie); err == nil && w.sessions[c.Value] != nil {
+		s := w.sessions[c.Value]
+		flash, flashOK, s.flash = s.flash, s.flashOK, ""
+	}
+	w.mu.Unlock()
 	w.render(rw, http.StatusOK, "index", &pageData{
+		Flash:     flash,
+		FlashOK:   flashOK,
 		User:      user,
 		Code:      code,
 		CodeLeft:  int((left + time.Second - 1) / time.Second),
@@ -222,6 +254,7 @@ func (w *Web) handleIndex(rw http.ResponseWriter, r *http.Request) {
 		Account:   acc,
 		Downloads: w.opts.Downloads,
 		LinkText:  w.linkText(user),
+		FilesURL:  w.opts.FilesURL,
 	})
 }
 
@@ -264,6 +297,62 @@ func (w *Web) handleLogin(rw http.ResponseWriter, r *http.Request) {
 		HttpOnly: true, Secure: secureCookies(), SameSite: http.SameSiteStrictMode})
 	log.Printf("web: sesión iniciada por %q", user)
 	http.Redirect(rw, r, "/", http.StatusSeeOther)
+}
+
+// handleRevoke revoga un equipo do usuario da sesión. Sen confirm=1 mostra
+// a páxina de confirmación (sen recarga automática, a diferenza da
+// principal). Non pide código de vinculación: o usuario xa entrou co seu
+// contrasinal de SFTPGo.
+func (w *Web) handleRevoke(rw http.ResponseWriter, r *http.Request) {
+	user := w.sessionUser(r)
+	if user == "" {
+		http.Redirect(rw, r, "/", http.StatusSeeOther)
+		return
+	}
+	r.Body = http.MaxBytesReader(rw, r.Body, maxBody)
+	id := strings.TrimSpace(r.PostFormValue("device"))
+	ctx := r.Context()
+	devs, err := w.svc.ListDevices(ctx, &Caller{User: user})
+	if err != nil {
+		log.Printf("web: %s: %v", user, err)
+		http.Error(rw, "erro interno", http.StatusInternalServerError)
+		return
+	}
+	i := slices.IndexFunc(devs, func(d DeviceInfo) bool { return d.ID == id })
+	if i < 0 {
+		w.setFlash(r, true, "Ese equipo xa non está vinculado á túa conta.")
+		http.Redirect(rw, r, "/", http.StatusSeeOther)
+		return
+	}
+	if r.PostFormValue("confirm") != "1" {
+		w.render(rw, http.StatusOK, "revoke", &pageData{User: user, Revoke: &devs[i]})
+		return
+	}
+	switch err := w.svc.RevokeByUser(ctx, user, id); {
+	case err == nil:
+		log.Printf("web: %s revogou o equipo %q (%s)", user, devs[i].Name, id)
+		w.setFlash(r, true, "Revogado o equipo «"+devs[i].Name+"»: xa non pode sincronizar.")
+	case errors.Is(err, ErrNotFound):
+		w.setFlash(r, true, "Ese equipo xa non está vinculado á túa conta.")
+	case errors.Is(err, ErrUnauthorized):
+		w.dropSession(rw, r)
+	default:
+		log.Printf("web: %s: revogar %s: %v", user, id, err)
+		w.setFlash(r, false, "Non se puido revogar o equipo; proba de novo.")
+	}
+	http.Redirect(rw, r, "/", http.StatusSeeOther)
+}
+
+func (w *Web) setFlash(r *http.Request, ok bool, msg string) {
+	c, err := r.Cookie(sessionCookie)
+	if err != nil {
+		return
+	}
+	w.mu.Lock()
+	if s := w.sessions[c.Value]; s != nil {
+		s.flash, s.flashOK = msg, ok
+	}
+	w.mu.Unlock()
 }
 
 func (w *Web) handleLogout(rw http.ResponseWriter, r *http.Request) {

@@ -19,10 +19,16 @@ var css []byte
 //go:embed logo.svg
 var logo []byte
 
+// Logo para fondos sempre escuros (o pé): copia de docs/logo-escuro.svg.
+//
+//go:embed logo-escuro.svg
+var logoDark []byte
+
 // Rutas nas que Register serve os ficheiros.
 const (
-	CSSPath  = "/static/syncply.css"
-	LogoPath = "/static/logo.svg"
+	CSSPath      = "/static/syncply.css"
+	LogoPath     = "/static/logo.svg"
+	LogoDarkPath = "/static/logo-escuro.svg"
 )
 
 // Register engade ao mux as rutas da folla de estilos e do logo. Son
@@ -31,6 +37,7 @@ const (
 func Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET "+CSSPath, serve("text/css; charset=utf-8", css))
 	mux.HandleFunc("GET "+LogoPath, serve("image/svg+xml", logo))
+	mux.HandleFunc("GET "+LogoDarkPath, serve("image/svg+xml", logoDark))
 }
 
 func serve(ctype string, body []byte) http.HandlerFunc {
