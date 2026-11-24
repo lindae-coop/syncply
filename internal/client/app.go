@@ -62,6 +62,7 @@ type App struct {
 	now         func() time.Time
 
 	sup *Supervisor // nil se Syncthing é externo (non o arranca syncply)
+	hub *Hub        // avisos de cambio para a web (ver live.go)
 
 	mu    sync.Mutex
 	state State
@@ -114,6 +115,7 @@ func (a *App) Stop(ctx context.Context) error {
 	if err := a.sup.Stop(ctx); err != nil {
 		return err
 	}
+	defer a.hub.Notify(ChangeState)
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.state.Stopped = true
@@ -125,6 +127,7 @@ func (a *App) Start(ctx context.Context) error {
 		return userErr("Este cliente non xestiona o proceso de Syncthing.")
 	}
 	a.sup.Start()
+	defer a.hub.Notify(ChangeState)
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.state.Stopped = false
@@ -132,7 +135,7 @@ func (a *App) Start(ctx context.Context) error {
 }
 
 func NewApp(st *stapi.Client, statePath, foldersBase string) (*App, error) {
-	a := &App{st: st, statePath: statePath, foldersBase: foldersBase, now: time.Now}
+	a := &App{st: st, statePath: statePath, foldersBase: foldersBase, now: time.Now, hub: NewHub()}
 	b, err := os.ReadFile(statePath)
 	switch {
 	case errors.Is(err, os.ErrNotExist):
@@ -333,6 +336,7 @@ func (a *App) Pair(ctx context.Context, linkText, otp, deviceName string) error 
 	if err != nil {
 		return err
 	}
+	a.hub.Notify(ChangeState)
 	if err := a.ApplyOptions(ctx); err != nil {
 		log.Printf("aplicando opcións de syncthing do servidor: %v", err)
 	}
@@ -548,6 +552,7 @@ func (a *App) Pause(ctx context.Context, d time.Duration) error {
 	if err := a.st.PauseAll(ctx); err != nil {
 		return err
 	}
+	defer a.hub.Notify(ChangeState)
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.state.ResumeAt = time.Time{}
@@ -564,6 +569,7 @@ func (a *App) Resume(ctx context.Context) error {
 	if err := a.st.ResumeAll(ctx); err != nil {
 		return err
 	}
+	defer a.hub.Notify(ChangeState)
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.state.ResumeAt = time.Time{}

@@ -182,6 +182,7 @@ func daemon(args []string) error {
 	}
 	defer os.Remove(uiPath(*dir))
 
+	go app.WatchEvents(ctx)
 	go func() {
 		t := time.NewTicker(15 * time.Second)
 		defer t.Stop()
@@ -197,7 +198,10 @@ func daemon(args []string) error {
 		}
 	}()
 
-	srv := &http.Server{Handler: web.Handler(), ReadHeaderTimeout: 10 * time.Second}
+	// BaseContext: ao pechar, cancélanse tamén as conexións SSE (/events),
+	// que senón farían agardar a Shutdown.
+	srv := &http.Server{Handler: web.Handler(), ReadHeaderTimeout: 10 * time.Second,
+		BaseContext: func(net.Listener) context.Context { return ctx }}
 	go func() {
 		<-ctx.Done()
 		sctx, c := context.WithTimeout(context.Background(), 5*time.Second)

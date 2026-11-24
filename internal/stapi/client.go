@@ -275,3 +275,34 @@ func (c *Client) FolderStatus(ctx context.Context, id string) (FolderStatus, err
 	err := c.Do(ctx, http.MethodGet, "/rest/db/status?folder="+url.QueryEscape(id), nil, &out)
 	return out, err
 }
+
+// Event é un evento de /rest/events (só os campos que usamos).
+type Event struct {
+	ID   int    `json:"id"`
+	Type string `json:"type"`
+}
+
+// Events agarda (long polling, ata timeout) eventos con ID maior ca since
+// dos tipos indicados. O timeout ten que ser menor có do cliente HTTP.
+// Os IDs volven empezar cando Syncthing se reinicia.
+func (c *Client) Events(ctx context.Context, since int, types []string, timeout time.Duration) ([]Event, error) {
+	q := url.Values{
+		"since":   {fmt.Sprint(since)},
+		"timeout": {fmt.Sprint(int(timeout.Seconds()))},
+	}
+	if len(types) > 0 {
+		q.Set("events", strings.Join(types, ","))
+	}
+	var out []Event
+	err := c.Do(ctx, http.MethodGet, "/rest/events?"+q.Encode(), nil, &out)
+	return out, err
+}
+
+// StartTime devolve a hora de arranque de Syncthing (para detectar reinicios).
+func (c *Client) StartTime(ctx context.Context) (string, error) {
+	var s struct {
+		StartTime string `json:"startTime"`
+	}
+	err := c.Do(ctx, http.MethodGet, "/rest/system/status", nil, &s)
+	return s.StartTime, err
+}

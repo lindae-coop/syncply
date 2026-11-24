@@ -306,7 +306,13 @@ Un só binario ([cmd/syncply](cmd/syncply/main.go), [internal/client](internal/c
     sincronizar (os ficheiros locais quedan);
   - pausa 1 h / 8 h (retómase só), ou **detén** (para o proceso de
     Syncthing; lémbrase entre reinicios) e arranca;
-  - ve os seus equipos e revoga outros (cun código de vinculación novo).
+  - ve os seus equipos e revoga outros (cun código de vinculación novo);
+  - as páxinas **actualízanse soas**: o daemon segue os eventos do seu
+    Syncthing (`/rest/events`) e avisa por SSE (`GET /events`); a páxina
+    volve pedir o seu HTML e substitúe as rexións que cambiaron, agás a que
+    o usuario está usando (foco, despregable aberto, campo editado), que se
+    pon ao día ao saír dela. A lista de equipos (de pairsrv) recárgase
+    tamén cada 60 s. Sen JavaScript, ligazón «Actualizar».
 - `syncply open`: o que executa o **acceso directo**. Le `ui.json` (porto e
   clave de control, `0600`, só do usuario), pídelle ao daemon unha URL de
   acceso dun só uso (60 s) e ábrea no navegador. O usuario non ten que saber
@@ -317,7 +323,8 @@ Un só binario ([cmd/syncply](cmd/syncply/main.go), [internal/client](internal/c
 
 Seguridade da web: só loopback; URL de acceso dun só uso → cookie de sesión
 `HttpOnly`, `SameSite=Strict`; comprobación de `Host` (DNS rebinding) e de
-`Origin`/`Sec-Fetch-Site` nos POST (CSRF); CSP sen JavaScript.
+`Origin`/`Sec-Fetch-Site` nos POST (CSRF); CSP só con scripts propios
+(`script-src 'self'`, `/static/live.js`).
 
 O cliente non ten configuración de servidor: todo vén do texto de
 vinculación e da resposta de pairsrv. (As instalacións anteriores con

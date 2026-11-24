@@ -1,11 +1,12 @@
 {{template "head"}}
 {{template "nav" "devices"}}
 {{template "flash" .}}
+<span id="vivo" data-on="state cluster" data-every="60" hidden></span>
 
 {{if not .Overview.Paired}}
-<section><p>Este equipo aínda non está vinculado. <a href="/">Vincúlao primeiro</a>.</p></section>
+<section data-rexion="sen-vincular"><p>Este equipo aínda non está vinculado. <a href="/">Vincúlao primeiro</a>.</p></section>
 {{else}}
-<section>
+<section data-rexion="equipos">
   <h2>Equipos vinculados á túa conta</h2>
   {{if .DeviceErr}}<p class="bad">{{.DeviceErr}}</p>{{end}}
   {{with .Devices}}
@@ -39,7 +40,7 @@
   {{end}}
 </section>
 
-<section id="relink">
+<section id="relink" data-rexion="conexion">
   <h2>Conexión co servidor</h2>
   <p>Servidor <strong>{{.ServerHost}}</strong> · usuario <strong>{{.Overview.User}}</strong> · este equipo: {{.Overview.DeviceName}}</p>
   <details>

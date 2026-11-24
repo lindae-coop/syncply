@@ -91,6 +91,8 @@ func (w *Web) Handler() http.Handler {
 	mux.HandleFunc("GET /login", w.handleLogin)
 	mux.HandleFunc("GET /{$}", w.page(w.handleIndex))
 	mux.HandleFunc("GET /devices", w.page(w.handleDevices))
+	mux.HandleFunc("GET /events", w.handleEvents)
+	mux.HandleFunc("GET /static/live.js", serveLiveJS)
 	mux.HandleFunc("POST /pair/check", w.form(w.handleCheckLink))
 	mux.HandleFunc("POST /pair", w.form(w.handlePair))
 	mux.HandleFunc("POST /accept", w.action(func(r *http.Request) (string, error) {
@@ -126,7 +128,7 @@ func (w *Web) Handler() http.Handler {
 func (w *Web) guard(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		h := rw.Header()
-		h.Set("Content-Security-Policy", "default-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
+		h.Set("Content-Security-Policy", "default-src 'none'; script-src 'self'; connect-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
 		h.Set("X-Content-Type-Options", "nosniff")
 		// Non "no-referrer": con esa política o navegador envía "Origin: null"
 		// mesmo nos POST á mesma orixe (especificación Fetch) e a
