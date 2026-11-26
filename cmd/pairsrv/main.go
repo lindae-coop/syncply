@@ -223,12 +223,23 @@ func waitSFTPGo(ctx context.Context, dir *sftpgo.Directory) error {
 }
 
 // filesOnly non deixa listar directorios.
+// downloadWriteTimeout substitúe o WriteTimeout do servidor (30 s) nas
+// descargas: os paquetes miden decenas de MB e nunha conexión lenta non
+// chegan a tempo.
+const downloadWriteTimeout = 30 * time.Minute
+
+// filesOnly serve só ficheiros (sen listaxes de directorio). Cache-Control:
+// no-cache obriga a navegadores e proxies a preguntar antes de reutilizar
+// unha copia: os nomes non levan a versión e update.json cambia con cada
+// versión (cun ETag/Last-Modified igual, a resposta é un 304 sen datos).
 func filesOnly(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "" || strings.HasSuffix(r.URL.Path, "/") {
 			http.NotFound(w, r)
 			return
 		}
+		_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(downloadWriteTimeout))
+		w.Header().Set("Cache-Control", "no-cache")
 		h.ServeHTTP(w, r)
 	})
 }

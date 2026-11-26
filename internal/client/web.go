@@ -12,6 +12,8 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -41,8 +43,9 @@ const (
 var templatesFS embed.FS
 
 var tmpl = template.Must(template.New("").Funcs(template.FuncMap{
-	"bytes":  humanBytes,
-	"localt": func(t time.Time) string { return t.Local().Format("02/01/2006 15:04") },
+	"bytes":   humanBytes,
+	"dirname": filepath.Dir,
+	"localt":  func(t time.Time) string { return t.Local().Format("02/01/2006 15:04") },
 }).ParseFS(templatesFS, "templates/*.html"))
 
 type Web struct {
@@ -91,6 +94,7 @@ func (w *Web) Handler() http.Handler {
 	mux.HandleFunc("GET /login", w.handleLogin)
 	mux.HandleFunc("GET /{$}", w.page(w.handleIndex))
 	mux.HandleFunc("GET /devices", w.page(w.handleDevices))
+	mux.HandleFunc("GET /browse", w.page(w.handleBrowse))
 	mux.HandleFunc("GET /events", w.handleEvents)
 	mux.HandleFunc("GET /static/live.js", serveLiveJS)
 	mux.HandleFunc("POST /pair/check", w.form(w.handleCheckLink))
@@ -100,6 +104,10 @@ func (w *Web) Handler() http.Handler {
 	}))
 	mux.HandleFunc("POST /unsync", w.action(func(r *http.Request) (string, error) {
 		return "Xa non se sincroniza. Os ficheiros locais seguen no seu sitio.", w.app.Unsync(r.Context(), r.FormValue("id"))
+	}))
+	mux.HandleFunc("POST /move", w.action(func(r *http.Request) (string, error) {
+		path := filepath.Clean(strings.TrimSpace(r.FormValue("path")))
+		return "Carpeta cambiada a " + path + ". Os ficheiros movéronse alí.", w.app.Move(r.Context(), r.FormValue("id"), path)
 	}))
 	mux.HandleFunc("POST /pause", w.action(func(r *http.Request) (string, error) {
 		d, err := time.ParseDuration(r.FormValue("for"))
@@ -236,6 +244,7 @@ type pageData struct {
 	DeviceErr  string
 	ServerHost string
 	Update     UpdateStatus
+	Browse     *browseView
 }
 
 func (w *Web) page(h func(*http.Request, *pageData) (string, error)) http.HandlerFunc {
@@ -359,7 +368,96 @@ func (w *Web) handleIndex(r *http.Request, d *pageData) (string, error) {
 		ov = &Overview{Paired: true}
 	}
 	d.Overview = ov
+	// Volta do explorador de carpetas: encher a ruta escollida.
+	if q := r.URL.Query(); q.Get("elixir") != "" {
+		path, ok := pickedPath(q.Get("dir"), q.Get("nome"))
+		if !ok {
+			d.Error = "O nome da carpeta non pode levar «/», «\\» nin «:»."
+			return "index.html", err
+		}
+		id, mode := q.Get("elixir"), q.Get("modo")
+		for i := range ov.Offers {
+			if o := &ov.Offers[i]; mode == "aceptar" && o.ID == id {
+				o.SuggestedPath, o.Picked = path, true
+			}
+		}
+		for i := range ov.Folders {
+			if f := &ov.Folders[i]; mode == "mover" && f.ID == id {
+				f.MovePath, f.MoveOpen = path, true
+			}
+		}
+	}
 	return "index.html", err
+}
+
+type dirLink struct{ Name, URL string }
+
+type browseView struct {
+	*Browse
+	Target, Mode, Label, Name string
+	Roots, Subdirs            []dirLink
+	ParentURL                 string
+}
+
+// handleBrowse é o explorador de carpetas para escoller onde sincronizar
+// un recurso (modo "aceptar": unha oferta; "mover": un recurso aceptado).
+func (w *Web) handleBrowse(r *http.Request, d *pageData) (string, error) {
+	q := r.URL.Query()
+	bv := &browseView{Target: q.Get("elixir"), Mode: q.Get("modo"), Name: q.Get("nome")}
+	ov, err := w.app.Overview(r.Context())
+	if err != nil {
+		return "browse.html", err
+	}
+	d.Overview = ov
+	switch bv.Mode {
+	case "aceptar":
+		for _, o := range ov.Offers {
+			if o.ID == bv.Target {
+				bv.Label = o.Label
+			}
+		}
+	case "mover":
+		for _, f := range ov.Folders {
+			if f.ID == bv.Target {
+				bv.Label = f.Label
+			}
+		}
+	}
+	if bv.Label == "" {
+		d.Error = "Ese recurso xa non está dispoñible."
+		return "browse.html", nil
+	}
+	if _, ok := q["nome"]; !ok {
+		bv.Name = filepath.Base(w.app.suggestPath(bv.Label))
+	}
+	// Se a carpeta pedida aínda non existe (p. ex. a suxerida), empezar na
+	// primeira que exista por riba.
+	dir := q.Get("dir")
+	for dir != "" && filepath.IsAbs(dir) {
+		if fi, err := os.Stat(dir); err == nil && fi.IsDir() {
+			break
+		}
+		p := filepath.Dir(dir)
+		if p == dir {
+			break
+		}
+		dir = p
+	}
+	bv.Browse = w.app.BrowseDir(dir)
+	link := func(dir string) string {
+		return "/browse?" + url.Values{"elixir": {bv.Target}, "modo": {bv.Mode}, "dir": {dir}, "nome": {bv.Name}}.Encode()
+	}
+	for _, root := range bv.Browse.Roots {
+		bv.Roots = append(bv.Roots, dirLink{root, link(root)})
+	}
+	for _, sd := range bv.Browse.Subdirs {
+		bv.Subdirs = append(bv.Subdirs, dirLink{sd, link(filepath.Join(bv.Browse.Dir, sd))})
+	}
+	if bv.Browse.Parent != "" {
+		bv.ParentURL = link(bv.Browse.Parent)
+	}
+	d.Browse = bv
+	return "browse.html", nil
 }
 
 func (w *Web) handleDevices(r *http.Request, d *pageData) (string, error) {

@@ -366,11 +366,14 @@ type FolderView struct {
 	ID, Label, Path string
 	Status          stapi.FolderStatus
 	StatusErr       string
+	MovePath        string // escollida no explorador para cambiar a carpeta
+	MoveOpen        bool
 }
 
 type OfferView struct {
 	ID, Label     string
 	SuggestedPath string
+	Picked        bool // SuggestedPath vén do explorador de carpetas
 }
 
 type Overview struct {
@@ -474,9 +477,9 @@ func (a *App) Accept(ctx context.Context, id, path string) error {
 		return err
 	}
 	s := a.snapshotState()
-	path = filepath.Clean(strings.TrimSpace(path))
-	if !filepath.IsAbs(path) {
-		return userErr("A carpeta local ten que ser unha ruta completa (p. ex. %s).", a.suggestPath("Documentos"))
+	path, err := a.cleanLocalPath(path)
+	if err != nil {
+		return err
 	}
 	pending, err := a.st.PendingFolders(ctx)
 	if err != nil {
@@ -490,13 +493,8 @@ func (a *App) Accept(ctx context.Context, id, path string) error {
 	if err != nil {
 		return err
 	}
-	for _, f := range folders {
-		p, _ := f["path"].(string)
-		p = filepath.Clean(p)
-		if p == path || strings.HasPrefix(path, p+string(filepath.Separator)) || strings.HasPrefix(p, path+string(filepath.Separator)) {
-			label, _ := f["label"].(string)
-			return userErr("Esa carpeta coincide ou está dentro doutra que xa se sincroniza (%s).", label)
-		}
+	if err := checkOverlap(folders, path, ""); err != nil {
+		return err
 	}
 	label := o.Label
 	if label == "" {

@@ -87,6 +87,19 @@
       <span class="muted" style="margin-left:auto">{{.Status.GlobalFiles}} ficheiros · {{bytes .Status.GlobalBytes}}</span>
     </div>
     <div class="path">{{.Path}}</div>
+    <details{{if .MoveOpen}} open{{end}}>
+      <summary>Cambiar a carpeta local</summary>
+      <form method="post" action="/move" class="flex">
+        <input type="hidden" name="id" value="{{.ID}}">
+        <div class="grow">
+          <label for="m-{{.ID}}">Carpeta nova</label>
+          <input type="text" id="m-{{.ID}}" name="path" value="{{or .MovePath .Path}}" spellcheck="false" required{{if .MoveOpen}} autofocus{{end}}>
+        </div>
+        <a class="boton" href="/browse?elixir={{.ID}}&amp;modo=mover&amp;dir={{dirname .Path}}">Escoller…</a>
+        <button class="primary">Mover</button>
+      </form>
+      <p class="muted">Os ficheiros móvense á carpeta nova (non se descargan de novo). Ten que ser nova ou estar baleira.</p>
+    </details>
     <details>
       <summary>Deixar de sincronizar</summary>
       <form method="post" action="/unsync">
@@ -110,8 +123,9 @@
       <input type="hidden" name="id" value="{{.ID}}">
       <div class="grow">
         <label for="p-{{.ID}}">Carpeta neste equipo</label>
-        <input type="text" id="p-{{.ID}}" name="path" value="{{.SuggestedPath}}" required>
+        <input type="text" id="p-{{.ID}}" name="path" value="{{.SuggestedPath}}" spellcheck="false" required{{if .Picked}} autofocus{{end}}>
       </div>
+      <a class="boton" href="/browse?elixir={{.ID}}&amp;modo=aceptar&amp;dir={{dirname .SuggestedPath}}">Escoller…</a>
       <button class="primary">Sincronizar</button>
     </form>
   </div>

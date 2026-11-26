@@ -1,0 +1,32 @@
+{{template "head"}}
+{{template "nav" "index"}}
+{{template "flash" .}}
+{{with .Browse}}
+<section>
+  <h2>{{if eq .Mode "mover"}}Nova carpeta para{{else}}Carpeta para{{end}} «{{.Label}}»</h2>
+  <p class="muted">Vai ata a carpeta onde queres gardar o recurso. Dentro dela crearase unha subcarpeta co nome que indiques{{if eq .Mode "mover"}}, e os ficheiros moveranse alí{{end}}.</p>
+  <p class="row"><span class="muted">Ir a:</span>{{range .Roots}}<a href="{{.URL}}">{{.Name}}</a>{{end}}</p>
+  <div class="path"><strong>{{.Dir}}</strong></div>
+  {{if .Err}}<p class="bad">Non se pode ler esta carpeta: {{.Err}}</p>{{end}}
+  <ul class="carpetas">
+    {{if .ParentURL}}<li><a href="{{.ParentURL}}">↑ Carpeta superior</a></li>{{end}}
+    {{range .Subdirs}}<li><a href="{{.URL}}">{{.Name}}</a></li>
+    {{else}}{{if not .Err}}<li class="muted">Non hai subcarpetas.</li>{{end}}{{end}}
+    {{if .More}}<li class="muted">Hai máis subcarpetas das que se amosan.</li>{{end}}
+  </ul>
+  <form method="get" action="/" class="flex">
+    <input type="hidden" name="elixir" value="{{.Target}}">
+    <input type="hidden" name="modo" value="{{.Mode}}">
+    <input type="hidden" name="dir" value="{{.Dir}}">
+    <div class="grow">
+      <label for="nome">Nome da subcarpeta (baleiro: usar esta mesma carpeta)</label>
+      <input type="text" id="nome" name="nome" value="{{.Name}}" spellcheck="false">
+    </div>
+    <button class="primary">Usar esta carpeta</button>
+    <a href="/">Cancelar</a>
+  </form>
+</section>
+{{else}}
+<section><p><a href="/">Volver</a></p></section>
+{{end}}
+{{template "foot"}}

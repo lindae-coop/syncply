@@ -78,7 +78,8 @@
     if (busy) { again = true; return; }
     busy = true;
     last = Date.now();
-    fetch(location.pathname, { credentials: 'same-origin', cache: 'no-store' })
+    // Coa consulta: leva a ruta escollida no explorador de carpetas.
+    fetch(location.pathname + location.search, { credentials: 'same-origin', cache: 'no-store' })
       .then(function (r) {
         if (r.status === 401) { stop(); return null; } // sesión caducada
         return r.ok ? r.text() : null;
