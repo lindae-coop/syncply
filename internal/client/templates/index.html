@@ -7,7 +7,7 @@
 <section data-rexion="detida">
   <div class="row">
     <div class="warn"><span class="dot warn"></span>Sincronización detida</div>
-    <form method="post" action="/start" class="inline" style="margin-left:auto"><button class="primary">Arrancar</button></form>
+    <form method="post" action="/start" class="inline" style="margin-left:auto"><button class="icona primary" title="Arrancar a sincronización">{{template "ico_retomar"}}<span class="sr">Arrancar</span></button></form>
   </div>
   <p class="muted">Mentres estea detida non se envía nin se recibe ningún cambio.</p>
 </section>
@@ -61,14 +61,14 @@
         <div class="bad"><span class="dot bad"></span>Sen conexión co servidor</div>
       {{end}}
     </div>
-    <div style="margin-left:auto" class="row">
+    <div style="margin-left:auto" class="row iconas">
       {{if .Overview.Paused}}
-        <form method="post" action="/resume" class="inline"><button class="primary">Retomar</button></form>
+        <form method="post" action="/resume" class="inline"><button class="icona primary" title="Retomar a sincronización">{{template "ico_retomar"}}<span class="sr">Retomar</span></button></form>
       {{else}}
-        <form method="post" action="/pause" class="inline"><input type="hidden" name="for" value="1h"><button>Pausar 1 hora</button></form>
-        <form method="post" action="/pause" class="inline"><input type="hidden" name="for" value="8h"><button>Pausar 8 horas</button></form>
+        <form method="post" action="/pause" class="inline"><input type="hidden" name="for" value="1h"><button class="icona con-texto" title="Pausar 1 hora">{{template "ico_pausar"}}1 h<span class="sr">: pausar 1 hora</span></button></form>
+        <form method="post" action="/pause" class="inline"><input type="hidden" name="for" value="8h"><button class="icona con-texto" title="Pausar 8 horas">{{template "ico_pausar"}}8 h<span class="sr">: pausar 8 horas</span></button></form>
       {{end}}
-      <form method="post" action="/stop" class="inline"><button>Deter</button></form>
+      <form method="post" action="/stop" class="inline"><button class="icona" title="Deter a sincronización">{{template "ico_deter"}}<span class="sr">Deter</span></button></form>
     </div>
   </div>
 </section>
@@ -76,34 +76,25 @@
 <section data-rexion="sincronizando">
   <h2>Sincronizando</h2>
   {{range .Overview.Folders}}
-  <div class="item">
-    <div class="row">
-      <span class="name">{{.Label}}</span>
-      {{if .StatusErr}}<span class="bad">sen estado</span>
-      {{else if eq .Status.State "error"}}<span class="bad">erro: {{.Status.Error}}</span>
-      {{else if gt .Status.NeedFiles 0}}<span class="warn">sincronizando · faltan {{.Status.NeedFiles}} ficheiros ({{bytes .Status.NeedBytes}})</span>
-      {{else if eq .Status.State "idle"}}<span class="ok">ao día</span>
-      {{else}}<span class="muted">{{.Status.State}}</span>{{end}}
-      <span class="muted" style="margin-left:auto">{{.Status.GlobalFiles}} ficheiros · {{bytes .Status.GlobalBytes}}</span>
+  <div class="item con-accions">
+    <div class="datos">
+      <div class="row">
+        <span class="name">{{.Label}}</span>
+        {{if .StatusErr}}<span class="bad">sen estado</span>
+        {{else if eq .Status.State "error"}}<span class="bad">erro: {{.Status.Error}}</span>
+        {{else if gt .Status.NeedFiles 0}}<span class="warn">sincronizando · faltan {{.Status.NeedFiles}} ficheiros ({{bytes .Status.NeedBytes}})</span>
+        {{else if eq .Status.State "idle"}}<span class="ok">ao día</span>
+        {{else}}<span class="muted">{{.Status.State}}</span>{{end}}
+      </div>
+      <div class="path">{{.Path}}</div>
+      <div class="muted">{{.Status.GlobalFiles}} ficheiros · {{bytes .Status.GlobalBytes}}</div>
     </div>
-    <div class="path">{{.Path}}</div>
-    <details{{if .MoveOpen}} open{{end}}>
-      <summary>Cambiar a carpeta local</summary>
-      <form method="post" action="/move" class="flex">
+    <a class="icona" href="/browse?elixir={{.ID}}&amp;modo=mover&amp;dir={{dirname .Path}}" title="Cambiar a carpeta local">{{template "ico_mover"}}<span class="sr">Cambiar a carpeta local</span></a>
+    <details class="accion perigo">
+      <summary title="Deixar de sincronizar">{{template "ico_deixar"}}<span class="sr">Deixar de sincronizar</span></summary>
+      <form method="post" action="/unsync" class="panel">
         <input type="hidden" name="id" value="{{.ID}}">
-        <div class="grow">
-          <label for="m-{{.ID}}">Carpeta nova</label>
-          <input type="text" id="m-{{.ID}}" name="path" value="{{or .MovePath .Path}}" spellcheck="false" required{{if .MoveOpen}} autofocus{{end}}>
-        </div>
-        <a class="boton" href="/browse?elixir={{.ID}}&amp;modo=mover&amp;dir={{dirname .Path}}">Escoller…</a>
-        <button class="primary">Mover</button>
-      </form>
-      <p class="muted">Os ficheiros móvense á carpeta nova (non se descargan de novo). Ten que ser nova ou estar baleira.</p>
-    </details>
-    <details>
-      <summary>Deixar de sincronizar</summary>
-      <form method="post" action="/unsync">
-        <input type="hidden" name="id" value="{{.ID}}">
+        <h3>Deixar de sincronizar</h3>
         <p class="muted">Os ficheiros desta carpeta quedan no equipo, pero deixan de actualizarse. Podes volver engadila máis tarde.</p>
         <button class="danger">Deixar de sincronizar «{{.Label}}»</button>
       </form>
@@ -115,19 +106,11 @@
 </section>
 
 <section data-rexion="ofertas">
-  <h2>Dispoñibles no servidor</h2>
+  <h2>Otros recursos que podes sincronizar</h2>
   {{range .Overview.Offers}}
-  <div class="item">
-    <div class="name">{{.Label}}</div>
-    <form method="post" action="/accept" class="flex">
-      <input type="hidden" name="id" value="{{.ID}}">
-      <div class="grow">
-        <label for="p-{{.ID}}">Carpeta neste equipo</label>
-        <input type="text" id="p-{{.ID}}" name="path" value="{{.SuggestedPath}}" spellcheck="false" required{{if .Picked}} autofocus{{end}}>
-      </div>
-      <a class="boton" href="/browse?elixir={{.ID}}&amp;modo=aceptar&amp;dir={{dirname .SuggestedPath}}">Escoller…</a>
-      <button class="primary">Sincronizar</button>
-    </form>
+  <div class="item con-accions">
+    <div class="datos"><span class="name">{{.Label}}</span></div>
+    <a class="icona primary" href="/browse?elixir={{.ID}}&amp;modo=aceptar&amp;dir={{dirname .SuggestedPath}}" title="Escoller a carpeta e sincronizar">{{template "ico_carpeta"}}<span class="sr">Escoller a carpeta e sincronizar «{{.Label}}»</span></a>
   </div>
   {{else}}
   <p class="muted">{{if .Overview.ServerConnected}}Non hai máis recursos dispoñibles.{{else}}Os recursos dispoñibles aparecerán cando haxa conexión co servidor.{{end}}</p>

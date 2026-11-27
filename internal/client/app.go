@@ -366,14 +366,11 @@ type FolderView struct {
 	ID, Label, Path string
 	Status          stapi.FolderStatus
 	StatusErr       string
-	MovePath        string // escollida no explorador para cambiar a carpeta
-	MoveOpen        bool
 }
 
 type OfferView struct {
 	ID, Label     string
 	SuggestedPath string
-	Picked        bool // SuggestedPath vén do explorador de carpetas
 }
 
 type Overview struct {

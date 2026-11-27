@@ -6,7 +6,7 @@
   <a class="marca" href="/"><img src="/static/logo.svg" alt="Syncply" width="76" height="76"></a>
   <h1>Sincronización de ficheiros</h1>
   <span class="who">{{.User}}</span>
-  {{with .FilesURL}}<a class="boton" href="{{.}}">Os meus ficheiros</a>{{end}}
+  {{with .FilesURL}}<a class="boton principal" href="{{.}}">Ver os meus ficheiros na nube</a>{{end}}
   <form method="post" action="/logout" class="inline"><button>Saír</button></form>
 </div></header>
 <main>
@@ -19,7 +19,8 @@
     <li>
       <strong>Descarga e instala o cliente</strong> (se aínda non o tes):
       {{range $i, $d := .Downloads}}{{if $i}} · {{end}}<a href="{{$d.URL}}">{{$d.Label}}</a>{{end}}.
-      <span class="muted">Ao rematar ábrese a súa páxina de configuración; despois atópala como «Syncply» no menú de aplicacións.</span>
+      <span class="muted">En Linux, descomprime o ficheiro e abre <code>syncply</code> (ou <code>./syncply</code> nun terminal).
+      Ao rematar ábrese a súa páxina de configuración; despois atópala como «Syncply» no menú de aplicacións.</span>
     </li>
     {{end}}
     <li>
@@ -27,13 +28,11 @@
       <textarea id="linktext" class="linktext" readonly rows="3" spellcheck="false">{{.LinkText}}</textarea>
       <div class="row"><button type="button" data-copy="linktext" hidden>Copiar</button>
         <span id="linktext-copied" class="ok" hidden>Copiado</span></div>
-      <span class="muted">Indica a que servidor e con que usuario se vincula o equipo. Non é secreto: por si só non permite vincular nada.</span>
     </li>
     <li>
       <strong>Cando o cliente o pida, introduce o código de vinculación:</strong>
       <p class="code" id="code">{{.Code.Code}}</p>
       <div class="bar" title="Tempo ata o seguinte código"><div style="width: {{.CodeShare}}%; animation-duration: {{.CodeLeft}}s"></div></div>
-      <span class="muted">Cambia cada 30 segundos e cada código só vale unha vez; esta páxina actualízase soa. Tamén serve para revogar un equipo desde outro.</span>
     </li>
   </ol>
 </section>
@@ -42,13 +41,11 @@
   <h2>Recursos que se sincronizan</h2>
   {{with .Account.Folders}}
   <ul>{{range .}}<li>{{.Label}}</li>{{end}}</ul>
-  <p class="muted">Só se ofrecen os recursos nos que tes permiso de escritura. No cliente escolles en que carpeta do equipo se garda cada un.</p>
   {{else}}
   <p class="muted">A túa conta non ten ningún recurso que se poida sincronizar (fai falta permiso de escritura).</p>
   {{end}}
   {{with .FilesURL}}
-  <p>Tamén podes ver, descargar e subir os teus ficheiros desde o navegador, sen instalar nada, co mesmo usuario e contrasinal:</p>
-  <p><a class="boton principal" href="{{.}}">Abrir os meus ficheiros</a></p>
+  <p><a class="boton principal" href="{{.}}">Abrir os meus ficheiros na nube</a></p>
   {{end}}
 </section>
 

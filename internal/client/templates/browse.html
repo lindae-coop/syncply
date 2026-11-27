@@ -1,31 +1,62 @@
 {{template "head"}}
 {{template "nav" "index"}}
-{{template "flash" .}}
+{{if not (and .Browse .Browse.Nova)}}{{template "flash" .}}{{end}}
 {{with .Browse}}
 <section>
   <h2>{{if eq .Mode "mover"}}Nova carpeta para{{else}}Carpeta para{{end}} «{{.Label}}»</h2>
-  <p class="muted">Vai ata a carpeta onde queres gardar o recurso. Dentro dela crearase unha subcarpeta co nome que indiques{{if eq .Mode "mover"}}, e os ficheiros moveranse alí{{end}}.</p>
+  {{if eq .Mode "mover"}}
+  <p class="muted">Vai ata a carpeta onde queres levar o recurso: ten que estar baleira (podes crear unha nova). Os ficheiros moveranse alí, sen descargalos de novo.</p>
+  {{else}}
+  <p class="muted">Vai ata a carpeta onde queres sincronizar o recurso ou crea unha nova.</p>
+  {{end}}
   <p class="row"><span class="muted">Ir a:</span>{{range .Roots}}<a href="{{.URL}}">{{.Name}}</a>{{end}}</p>
   <div class="path"><strong>{{.Dir}}</strong></div>
   {{if .Err}}<p class="bad">Non se pode ler esta carpeta: {{.Err}}</p>{{end}}
   <ul class="carpetas">
-    {{if .ParentURL}}<li><a href="{{.ParentURL}}">↑ Carpeta superior</a></li>{{end}}
-    {{range .Subdirs}}<li><a href="{{.URL}}">{{.Name}}</a></li>
+    {{if .ParentURL}}<li><a class="con-icona" href="{{.ParentURL}}">{{template "ico_carpeta_arriba"}}Carpeta superior</a></li>{{end}}
+    {{range .Subdirs}}<li><a class="con-icona" href="{{.URL}}">{{template "ico_carpeta"}}{{.Name}}</a></li>
     {{else}}{{if not .Err}}<li class="muted">Non hai subcarpetas.</li>{{end}}{{end}}
     {{if .More}}<li class="muted">Hai máis subcarpetas das que se amosan.</li>{{end}}
+    {{if not .Err}}<li><a class="con-icona nova" href="{{.NovaURL}}">{{template "ico_carpeta_nova"}}Nova carpeta</a></li>{{end}}
   </ul>
-  <form method="get" action="/" class="flex">
-    <input type="hidden" name="elixir" value="{{.Target}}">
+  <form method="post" action="{{if eq .Mode "mover"}}/move{{else}}/accept{{end}}" class="escoller">
+    <input type="hidden" name="back" value="/browse">
+    <input type="hidden" name="id" value="{{.Target}}">
     <input type="hidden" name="modo" value="{{.Mode}}">
     <input type="hidden" name="dir" value="{{.Dir}}">
-    <div class="grow">
-      <label for="nome">Nome da subcarpeta (baleiro: usar esta mesma carpeta)</label>
-      <input type="text" id="nome" name="nome" value="{{.Name}}" spellcheck="false">
+    {{if and (not .Empty) (not .Err)}}{{if eq .Mode "mover"}}
+    <p class="warn">Esta carpeta non está baleira. Para mover o recurso, crea unha carpeta nova ou entra nunha baleira.</p>
+    {{else}}
+    <p class="warn">Esta carpeta non está baleira: todo o que contén subirase ao servidor e compartirase con quen teña acceso a «{{.Label}}».</p>
+    <div class="checks"><label><input type="checkbox" name="confirmar" value="1" required> Si, quero sincronizar esta carpeta co que xa ten</label></div>
+    {{end}}{{end}}
+    <div class="row accions-final">
+      <a href="/">Cancelar</a>
+      {{if not .Err}}{{if eq .Mode "mover"}}{{if .Empty}}<button class="primary">Mover aquí</button>{{end}}
+      {{else}}<button class="primary">Sincronizar aquí</button>{{end}}{{end}}
     </div>
-    <button class="primary">Usar esta carpeta</button>
-    <a href="/">Cancelar</a>
   </form>
 </section>
+{{if .Nova}}
+<div class="modal-fondo">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="nova-titulo">
+    <h2 id="nova-titulo">Nova carpeta</h2>
+    <p class="path">{{.Dir}}</p>
+    {{with $.Error}}<div class="msg errmsg">{{.}}</div>{{end}}
+    <form method="post" action="/mkdir">
+      <input type="hidden" name="elixir" value="{{.Target}}">
+      <input type="hidden" name="modo" value="{{.Mode}}">
+      <input type="hidden" name="dir" value="{{.Dir}}">
+      <label for="nome">Nome</label>
+      <input type="text" id="nome" name="nome" maxlength="255" spellcheck="false" value="{{.NovaNome}}" autocomplete="off" required autofocus>
+      <div class="row accions-final">
+        <a href="{{.URL}}">Cancelar</a>
+        <button class="primary">Crear</button>
+      </div>
+    </form>
+  </div>
+</div>
+{{end}}
 {{else}}
 <section><p><a href="/">Volver</a></p></section>
 {{end}}

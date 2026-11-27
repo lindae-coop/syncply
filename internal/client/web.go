@@ -100,13 +100,27 @@ func (w *Web) Handler() http.Handler {
 	mux.HandleFunc("POST /pair/check", w.form(w.handleCheckLink))
 	mux.HandleFunc("POST /pair", w.form(w.handlePair))
 	mux.HandleFunc("POST /accept", w.action(func(r *http.Request) (string, error) {
-		return "Recurso engadido.", w.app.Accept(r.Context(), r.FormValue("id"), r.FormValue("path"))
+		path, err := formPath(r)
+		if err != nil {
+			return "", err
+		}
+		// Unha carpeta con ficheiros súbese enteira ao servidor e compártese:
+		// pedir confirmación (p. ex. non sincronizar o cartafol persoal por erro).
+		if r.FormValue("confirmar") != "1" && filepath.IsAbs(path) && !dirEmpty(path) {
+			return "", userErr("Esa carpeta non está baleira: confirma que queres compartir o seu contido ou crea unha carpeta nova.")
+		}
+		return "Recurso engadido.", w.app.Accept(r.Context(), r.FormValue("id"), path)
 	}))
+	mux.HandleFunc("POST /mkdir", w.form(w.handleMkdir))
 	mux.HandleFunc("POST /unsync", w.action(func(r *http.Request) (string, error) {
 		return "Xa non se sincroniza. Os ficheiros locais seguen no seu sitio.", w.app.Unsync(r.Context(), r.FormValue("id"))
 	}))
 	mux.HandleFunc("POST /move", w.action(func(r *http.Request) (string, error) {
-		path := filepath.Clean(strings.TrimSpace(r.FormValue("path")))
+		path, err := formPath(r)
+		if err != nil {
+			return "", err
+		}
+		path = filepath.Clean(path)
 		return "Carpeta cambiada a " + path + ". Os ficheiros movéronse alí.", w.app.Move(r.Context(), r.FormValue("id"), path)
 	}))
 	mux.HandleFunc("POST /pause", w.action(func(r *http.Request) (string, error) {
@@ -270,14 +284,27 @@ func (w *Web) action(h func(*http.Request) (string, error)) http.HandlerFunc {
 			return
 		}
 		r.Body = http.MaxBytesReader(rw, r.Body, 16<<10)
+		// Ler o formulario agora: h recibe unha copia de r e o que lea
+		// nela non chegaría aquí (back, dir…).
+		r.ParseForm()
 		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 		defer cancel()
 		ok, err := h(r.WithContext(ctx))
 		back := "/"
-		if ref := r.FormValue("back"); ref == "/devices" {
-			back = ref
-		}
 		q := url.Values{}
+		switch r.FormValue("back") {
+		case "/devices":
+			back = "/devices"
+		case "/browse":
+			// Desde o explorador de carpetas: se falla, volver a el coa
+			// mesma carpeta.
+			if err != nil {
+				back = "/browse"
+				q.Set("elixir", r.FormValue("id"))
+				q.Set("modo", r.FormValue("modo"))
+				q.Set("dir", r.FormValue("dir"))
+			}
+		}
 		var ue *UserError
 		switch {
 		case errors.As(err, &ue):
@@ -368,42 +395,67 @@ func (w *Web) handleIndex(r *http.Request, d *pageData) (string, error) {
 		ov = &Overview{Paired: true}
 	}
 	d.Overview = ov
-	// Volta do explorador de carpetas: encher a ruta escollida.
-	if q := r.URL.Query(); q.Get("elixir") != "" {
-		path, ok := pickedPath(q.Get("dir"), q.Get("nome"))
-		if !ok {
-			d.Error = "O nome da carpeta non pode levar «/», «\\» nin «:»."
-			return "index.html", err
-		}
-		id, mode := q.Get("elixir"), q.Get("modo")
-		for i := range ov.Offers {
-			if o := &ov.Offers[i]; mode == "aceptar" && o.ID == id {
-				o.SuggestedPath, o.Picked = path, true
-			}
-		}
-		for i := range ov.Folders {
-			if f := &ov.Folders[i]; mode == "mover" && f.ID == id {
-				f.MovePath, f.MoveOpen = path, true
-			}
-		}
-	}
 	return "index.html", err
+}
+
+// formPath: a carpeta dun formulario de aceptar ou mover: a que se ve no
+// explorador (dir) ou unha ruta escrita (path).
+func formPath(r *http.Request) (string, error) {
+	if err := r.ParseForm(); err != nil {
+		return "", userErr("Formulario non válido.")
+	}
+	if _, ok := r.Form["dir"]; !ok {
+		return strings.TrimSpace(r.FormValue("path")), nil
+	}
+	path, ok := pickedPath(r.FormValue("dir"), "")
+	if !ok {
+		return "", userErr("A carpeta ten que ser unha ruta completa.")
+	}
+	return path, nil
+}
+
+// browseURL: o explorador nunha carpeta, con parámetros extra (err…).
+func browseURL(target, mode, dir string, extra url.Values) string {
+	q := url.Values{"elixir": {target}, "modo": {mode}, "dir": {dir}}
+	for k, v := range extra {
+		q[k] = v
+	}
+	return "/browse?" + q.Encode()
+}
+
+// handleMkdir crea unha carpeta desde o explorador e entra nela.
+func (w *Web) handleMkdir(rw http.ResponseWriter, r *http.Request) {
+	target, mode, dir := r.FormValue("elixir"), r.FormValue("modo"), r.FormValue("dir")
+	path, err := w.app.MakeDir(dir, r.FormValue("nome"))
+	if err != nil {
+		var ue *UserError
+		msg := "Produciuse un erro: " + err.Error()
+		if errors.As(err, &ue) {
+			msg = ue.Msg
+		}
+		http.Redirect(rw, r, browseURL(target, mode, dir, url.Values{"err": {msg}, "nova": {"1"}, "nome": {r.FormValue("nome")}}), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(rw, r, browseURL(target, mode, path, url.Values{"ok": {"Carpeta «" + filepath.Base(path) + "» creada."}}), http.StatusSeeOther)
 }
 
 type dirLink struct{ Name, URL string }
 
 type browseView struct {
 	*Browse
-	Target, Mode, Label, Name string
-	Roots, Subdirs            []dirLink
-	ParentURL                 string
+	Target, Mode, Label string
+	Roots, Subdirs      []dirLink
+	ParentURL           string
+	Nova                bool   // modal «Nova carpeta» aberto
+	NovaNome            string // nome escrito, se houbo un erro
+	URL, NovaURL        string // esta carpeta, sen e co modal
 }
 
 // handleBrowse é o explorador de carpetas para escoller onde sincronizar
 // un recurso (modo "aceptar": unha oferta; "mover": un recurso aceptado).
 func (w *Web) handleBrowse(r *http.Request, d *pageData) (string, error) {
 	q := r.URL.Query()
-	bv := &browseView{Target: q.Get("elixir"), Mode: q.Get("modo"), Name: q.Get("nome")}
+	bv := &browseView{Target: q.Get("elixir"), Mode: q.Get("modo"), Nova: q.Get("nova") == "1", NovaNome: q.Get("nome")}
 	ov, err := w.app.Overview(r.Context())
 	if err != nil {
 		return "browse.html", err
@@ -427,9 +479,6 @@ func (w *Web) handleBrowse(r *http.Request, d *pageData) (string, error) {
 		d.Error = "Ese recurso xa non está dispoñible."
 		return "browse.html", nil
 	}
-	if _, ok := q["nome"]; !ok {
-		bv.Name = filepath.Base(w.app.suggestPath(bv.Label))
-	}
 	// Se a carpeta pedida aínda non existe (p. ex. a suxerida), empezar na
 	// primeira que exista por riba.
 	dir := q.Get("dir")
@@ -444,9 +493,7 @@ func (w *Web) handleBrowse(r *http.Request, d *pageData) (string, error) {
 		dir = p
 	}
 	bv.Browse = w.app.BrowseDir(dir)
-	link := func(dir string) string {
-		return "/browse?" + url.Values{"elixir": {bv.Target}, "modo": {bv.Mode}, "dir": {dir}, "nome": {bv.Name}}.Encode()
-	}
+	link := func(dir string) string { return browseURL(bv.Target, bv.Mode, dir, nil) }
 	for _, root := range bv.Browse.Roots {
 		bv.Roots = append(bv.Roots, dirLink{root, link(root)})
 	}
@@ -455,6 +502,11 @@ func (w *Web) handleBrowse(r *http.Request, d *pageData) (string, error) {
 	}
 	if bv.Browse.Parent != "" {
 		bv.ParentURL = link(bv.Browse.Parent)
+	}
+	bv.URL = link(bv.Browse.Dir)
+	bv.NovaURL = browseURL(bv.Target, bv.Mode, bv.Browse.Dir, url.Values{"nova": {"1"}})
+	if bv.Browse.Err != "" {
+		bv.Nova = false
 	}
 	d.Browse = bv
 	return "browse.html", nil

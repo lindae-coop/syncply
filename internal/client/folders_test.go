@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -199,22 +200,74 @@ func TestBrowsePages(t *testing.T) {
 	// A suxerida aínda non existe: empeza na primeira por riba que exista.
 	rec := do(e.h, http.MethodGet, "/browse?elixir=f2&modo=aceptar&dir="+filepath.Join(dir, "syncply", "Documentos"), nil, c, nil)
 	b := rec.Body.String()
-	if !strings.Contains(b, "«Documentos»") || !strings.Contains(b, ">Escritorio</a>") || !strings.Contains(b, `name="nome" value="Documentos"`) {
+	if !strings.Contains(b, "«Documentos»") || !strings.Contains(b, "Escritorio</a>") || !strings.Contains(b, `name="confirmar"`) {
 		t.Errorf("explorador: %d\n%s", rec.Code, b)
 	}
 	if rec := do(e.h, http.MethodGet, "/browse?elixir=xx&modo=aceptar", nil, c, nil); !strings.Contains(rec.Body.String(), "xa non está dispoñible") {
 		t.Error("recurso descoñecido")
 	}
-	// Volta á páxina principal coa carpeta escollida.
-	rec = do(e.h, http.MethodGet, "/?elixir=f2&modo=aceptar&dir="+dir+"&nome=Docs", nil, c, nil)
-	if b := rec.Body.String(); !strings.Contains(b, `value="`+filepath.Join(dir, "Docs")+`" spellcheck="false" required autofocus`) {
-		t.Errorf("oferta sen a ruta escollida:\n%s", b)
+	browser := map[string]string{"Origin": public, "Sec-Fetch-Site": "same-origin"}
+	post := func(path string, form url.Values) *url.URL {
+		t.Helper()
+		rec := do(e.h, http.MethodPost, path, browser, c, form)
+		if rec.Code != http.StatusSeeOther {
+			t.Fatalf("%s: %d", path, rec.Code)
+		}
+		u, _ := url.Parse(rec.Header().Get("Location"))
+		return u
 	}
-	rec = do(e.h, http.MethodGet, "/?elixir=f1&modo=mover&dir="+dir+"&nome=Común", nil, c, nil)
-	if b := rec.Body.String(); !strings.Contains(b, "<details open>") || !strings.Contains(b, `value="`+filepath.Join(dir, "Común")+`"`) {
-		t.Errorf("mover sen a ruta escollida:\n%s", b)
+
+	// «Nova carpeta» abre o modal (co erro dentro, non arriba).
+	if b := do(e.h, http.MethodGet, "/browse?elixir=f2&modo=aceptar&dir="+dir, nil, c, nil).Body.String(); strings.Contains(b, `action="/mkdir"`) || !strings.Contains(b, "nova=1") {
+		t.Errorf("sen modal pechado:\n%s", b)
 	}
-	if rec := do(e.h, http.MethodGet, "/?elixir=f2&modo=aceptar&dir="+dir+"&nome=a/b", nil, c, nil); !strings.Contains(rec.Body.String(), "non pode levar") {
-		t.Error("nome con barra aceptado")
+	b = do(e.h, http.MethodGet, "/browse?elixir=f2&modo=aceptar&nova=1&err=Mal&nome=Algo&dir="+dir, nil, c, nil).Body.String()
+	if !strings.Contains(b, `role="dialog"`) || !strings.Contains(b, `action="/mkdir"`) || strings.Count(b, "Mal") != 1 || !strings.Contains(b, `value="Algo"`) {
+		t.Errorf("modal:\n%s", b)
+	}
+	// Crear a carpeta entra nela.
+	mk := url.Values{"elixir": {"f2"}, "modo": {"aceptar"}, "dir": {dir}, "nome": {"Docs"}}
+	docs := filepath.Join(dir, "Docs")
+	if u := post("/mkdir", mk); u.Path != "/browse" || u.Query().Get("dir") != docs || u.Query().Get("elixir") != "f2" {
+		t.Errorf("crear carpeta: %s", u)
+	}
+	if fi, err := os.Stat(docs); err != nil || !fi.IsDir() {
+		t.Fatal("non se creou a carpeta")
+	}
+	for nome, want := range map[string]string{"Docs": "Xa existe", "a/b": "non pode levar", " ": "Escribe o nome"} {
+		mk.Set("nome", nome)
+		if u := post("/mkdir", mk); u.Path != "/browse" || u.Query().Get("dir") != dir || u.Query().Get("nova") != "1" ||
+			!strings.Contains(u.Query().Get("err"), want) {
+			t.Errorf("crear %q: %s", nome, u)
+		}
+	}
+
+	// Sincronizar na carpeta que se ve (baleira): sen confirmación.
+	form := url.Values{"back": {"/browse"}, "id": {"f2"}, "modo": {"aceptar"}, "dir": {docs}}
+	if u := post("/accept", form); u.Path != "/" || u.Query().Get("ok") == "" {
+		t.Errorf("aceptar desde o explorador: %s", u)
+	}
+	if f := e.st.write("PUT /rest/config/folders/f2"); f == nil || f["path"] != docs {
+		t.Errorf("carpeta aceptada: %v", f)
+	}
+	// Carpeta con contido: pide confirmación e volve ao explorador.
+	form.Set("dir", dir)
+	u := post("/accept", form)
+	if q := u.Query(); u.Path != "/browse" || q.Get("elixir") != "f2" || q.Get("modo") != "aceptar" ||
+		q.Get("dir") != dir || !strings.Contains(q.Get("err"), "non está baleira") {
+		t.Errorf("sen confirmar: %s", u)
+	}
+	form.Set("confirmar", "1")
+	if u := post("/accept", form); u.Path != "/" || u.Query().Get("ok") == "" {
+		t.Errorf("confirmado: %s", u)
+	}
+	// Mover a unha carpeta con contido: sen botón.
+	rec = do(e.h, http.MethodGet, "/browse?elixir=f1&modo=mover&dir="+dir, nil, c, nil)
+	if b := rec.Body.String(); strings.Contains(b, "Mover aquí") || !strings.Contains(b, "non está baleira") {
+		t.Errorf("mover a carpeta chea:\n%s", b)
+	}
+	// Desde fóra do explorador segue valendo unha ruta escrita.
+	if u := post("/move", url.Values{"id": {"f1"}, "path": {"relativa"}}); u.Path != "/" || u.Query().Get("err") == "" {
+		t.Errorf("mover cunha ruta relativa: %s", u)
 	}
 }

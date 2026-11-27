@@ -201,6 +201,7 @@ type Browse struct {
 	Roots   []string // cartafol persoal e unidades
 	Err     string
 	More    bool // máis subcarpetas das que se amosan
+	Empty   bool // sen ningunha entrada (nin ficheiros nin ocultas)
 }
 
 const browseMax = 500
@@ -226,6 +227,7 @@ func (a *App) BrowseDir(dir string) *Browse {
 		b.Err = err.Error()
 		return b
 	}
+	b.Empty = len(entries) == 0
 	for _, e := range entries {
 		name := e.Name()
 		if hiddenName(name) {
@@ -269,4 +271,29 @@ func pickedPath(dir, name string) (string, bool) {
 		return "", false
 	}
 	return filepath.Join(dir, name), true
+}
+
+// MakeDir crea a subcarpeta name dentro de dir (botón «Nova carpeta» do
+// explorador) e devolve a súa ruta.
+func (a *App) MakeDir(dir, name string) (string, error) {
+	if strings.TrimSpace(name) == "" {
+		return "", userErr("Escribe o nome da carpeta nova.")
+	}
+	path, ok := pickedPath(dir, name)
+	if !ok {
+		return "", userErr("O nome da carpeta non pode levar «/», «\\» nin «:».")
+	}
+	if err := os.Mkdir(path, 0o755); err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return "", userErr("Xa existe «%s» nesta carpeta.", filepath.Base(path))
+		}
+		return "", userErr("Non se puido crear a carpeta: %v", err)
+	}
+	return path, nil
+}
+
+// dirEmpty: a carpeta non existe ou non ten ningunha entrada.
+func dirEmpty(dir string) bool {
+	entries, err := os.ReadDir(dir)
+	return err != nil && errors.Is(err, os.ErrNotExist) || err == nil && len(entries) == 0
 }

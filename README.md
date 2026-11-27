@@ -304,9 +304,11 @@ Un só binario ([cmd/syncply](cmd/syncply/main.go), [internal/client](internal/c
   - ve os recursos que sincroniza (estado, tamaño) e os que ofrece o
     servidor, escolle a carpeta local de cada un e acepta, ou deixa de
     sincronizar (os ficheiros locais quedan);
-  - escolle a carpeta cun **explorador de carpetas** propio («Escoller…»:
-    o navegador non dá rutas completas), que tamén crea a subcarpeta co
-    nome do recurso;
+  - escolle a carpeta cun **explorador de carpetas** propio (icona de
+    carpeta; o navegador non dá rutas completas): navega, crea se quere
+    unha «Nova carpeta» e preme «Sincronizar aquí» (ou «Mover aquí»). Se a
+    carpeta non está baleira, pide confirmar que se compartirá o seu
+    contido;
   - **cambia a carpeta local** dun recurso xa aceptado: os ficheiros
     **móvense** (pausa a carpeta en Syncthing, renomea, cambia `path`,
     retoma), non se descargan de novo. Só a unha carpeta nova ou baleira e

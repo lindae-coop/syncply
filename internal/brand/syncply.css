@@ -19,6 +19,7 @@
   --ok: #157a3f;
   --warn: #965800;
   --bad: #b8291f;
+  --azul: #1259c3;       /* accións de crear (p. ex. «Nova carpeta») */
   --raio: 18px;
   --borde: 3px solid var(--tinta);
   --borde-fino: 2px solid var(--tinta);
@@ -42,6 +43,7 @@
     --ok: #4cd38a;
     --warn: #f0b44a;
     --bad: #ff8a7e;
+    --azul: #6aa8ff;
   }
 }
 
@@ -146,6 +148,8 @@ form.inline { display: inline; }
 ul.carpetas { list-style: none; padding: 0; margin: .8rem 0 1.2rem; columns: 15rem; column-gap: 1.5rem; }
 ul.carpetas li { padding: .25rem 0; break-inside: avoid; word-break: break-word; }
 ul.carpetas a { font-weight: 700; }
+ul.estado { list-style: none; padding: 0; }
+ul.estado li { padding: .2rem 0; }
 .row { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
 .flex { display: flex; gap: .7rem; align-items: end; flex-wrap: wrap; }
 .flex > .grow { flex: 1 1 16rem; }
@@ -212,6 +216,58 @@ ol.steps .muted { display: block; font-size: .93em; margin-top: .35rem; }
 .manage form { margin: 0; }
 .manage h3 { font-size: 1rem; margin: .5rem 0 0; }
 footer.admin { text-align: center; font-weight: 700; margin-top: .5rem; }
+/* Fichas (coma as tarxetas) e accións con iconas aliñadas á dereita. Un
+   despregable aberto pasa ao final da fila e ocupa todo o ancho, coa súa
+   icona á dereita e o formulario debaixo. */
+.fichas { display: grid; gap: 1.2rem; margin-top: .9rem; }
+.ficha { background: var(--fondo); border: var(--borde); border-radius: var(--raio);
+  box-shadow: var(--sombra); padding: 1rem 1.2rem; }
+.ficha .name { font-weight: 850; color: var(--tinta); font-size: 1.08em; }
+.con-accions { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: flex-end; gap: .5rem; }
+.con-accions > .datos { flex: 1 1 16rem; min-width: 0; align-self: center; }
+.cabeceira { align-items: center; margin-bottom: .6rem; }
+.cabeceira > h2 { flex: 1 1 14rem; margin: 0; }
+details.accion { border: 0; background: none; padding: 0; margin: 0; }
+details.accion[open] { order: 99; flex-basis: 100%; padding: 0; }
+/* Botóns con icona: redondos e pequenos (button.icona, a.icona e o
+   resumo dos despregables details.accion). */
+details.accion > summary, button.icona, a.icona {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 2.4rem; height: 2.4rem; margin: 0; padding: 0; gap: .3rem;
+  border: var(--borde-fino); border-radius: 999px; background: var(--fondo); color: var(--tinta);
+  font-size: .9rem; font-weight: 800; text-decoration: none; line-height: 1;
+  box-shadow: 3px 3px 0 var(--tinta); transition: transform .1s, box-shadow .1s;
+}
+button.icona.con-texto { width: auto; padding: 0 .75rem 0 .55rem; }
+button.icona.primary { background: var(--cian); color: var(--negro); }
+details.accion > summary::before { content: none; }
+details.accion > summary:hover, details.accion[open] > summary, button.icona:hover, a.icona:hover {
+  background: var(--cian); color: var(--negro); transform: translate(1px, 1px); box-shadow: 2px 2px 0 var(--tinta);
+}
+button.icona:active { transform: translate(3px, 3px); box-shadow: none; }
+details.accion[open] > summary { display: flex; margin: 0 0 0 auto; border-bottom: var(--borde-fino); border-radius: 999px; }
+details.accion.perigo > summary { color: var(--bad); }
+details.accion.perigo > summary:hover, details.accion.perigo[open] > summary { background: var(--bad); color: var(--fondo); }
+details.accion svg, .icona svg, .con-icona svg { width: 1.2rem; height: 1.2rem; flex: none; fill: none; stroke: currentColor;
+  stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.iconas { gap: .5rem; }
+.flex > .iconas { margin-left: auto; }
+a.con-icona { display: inline-flex; align-items: center; gap: .45rem; }
+a.icona.primary { background: var(--cian); color: var(--negro); }
+/* «Nova carpeta»: unha carpeta máis da lista, en azul; abre un modal. */
+ul.carpetas a.nova { color: var(--azul); }
+ul.carpetas a.nova:hover { color: var(--negro); }
+.modal-fondo { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 1rem;
+  background: rgba(0, 0, 0, .45); }
+.modal { width: min(28rem, 100%); background: var(--fondo); border: var(--borde); border-radius: var(--raio);
+  box-shadow: var(--sombra); padding: 1.3rem 1.5rem 1.2rem; }
+.modal .msg { margin: .6rem 0 0; }
+.modal .accions-final { margin-top: 1rem; }
+form.escoller { border-top: var(--borde-fino); padding-top: .8rem; margin-top: .4rem; }
+.accions-final { justify-content: flex-end; gap: 1.2rem; }
+.panel { margin-top: .6rem; border: var(--borde-fino); border-radius: 14px; background: var(--fondo); padding: .2rem 1.1rem 1rem; }
+.panel h3 { margin-top: .7rem; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 @media (max-width: 40rem) {
   header .marca img { width: 56px; height: 56px; }
@@ -222,6 +278,6 @@ footer.admin { text-align: center; font-weight: 700; margin-top: .5rem; }
   ol.steps > li::before { top: 1rem; }
 }
 @media (prefers-reduced-motion: reduce) {
-  button, a.boton { transition: none; }
+  button, a.boton, a.icona, details.accion > summary { transition: none; }
   .bar > div { animation: none; }
 }

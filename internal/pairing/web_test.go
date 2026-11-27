@@ -255,7 +255,7 @@ func TestWebFilesLink(t *testing.T) {
 	w, _ = NewWeb(e.svc, fakeAuth{"alice": "segredo"}, WebOptions{PublicURL: "https://a.example"})
 	h = w.Handler()
 	c = login(t, h, "alice", "segredo", nil).Result().Cookies()
-	if strings.Contains(get(h, c).Body.String(), "Os meus ficheiros") {
+	if strings.Contains(get(h, c).Body.String(), "os meus ficheiros na nube") {
 		t.Error("ligazón sen filesURL")
 	}
 }

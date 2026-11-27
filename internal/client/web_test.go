@@ -21,7 +21,7 @@ const (
 )
 
 // fakeST é un Syncthing falso: responde ao mínimo que usa App e garda as
-// escrituras (PUT/PATCH) por "MÉTODO ruta".
+// escrituras (PUT/PATCH/POST) por "MÉTODO ruta".
 type fakeST struct {
 	*httptest.Server
 	mu     sync.Mutex
@@ -41,6 +41,7 @@ func fakeSyncthing(t *testing.T) *fakeST {
 		"/rest/config/devices":         []any{map[string]any{"deviceID": srvID, "paused": false}},
 		"/rest/config/defaults/device": map[string]any{"addresses": []any{"dynamic"}},
 		"/rest/system/connections":     map[string]any{"connections": map[string]any{srvID: map[string]any{"connected": true}}},
+		"/rest/config/defaults/folder": map[string]any{},
 		"/rest/config/folders":         []any{map[string]any{"id": "f1", "label": "Común <b>", "path": "/home/u/syncply/Común"}},
 		"/rest/db/status":              map[string]any{"state": "syncing", "needFiles": 3, "needBytes": 1536, "globalFiles": 10, "globalBytes": 5 << 20},
 		"/rest/cluster/pending/folders": map[string]any{
@@ -50,7 +51,7 @@ func fakeSyncthing(t *testing.T) *fakeST {
 	}
 	f := &fakeST{writes: map[string]map[string]any{}}
 	f.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodPut || r.Method == http.MethodPatch {
+		if r.Method == http.MethodPut || r.Method == http.MethodPatch || r.Method == http.MethodPost {
 			var body map[string]any
 			json.NewDecoder(r.Body).Decode(&body)
 			f.mu.Lock()
@@ -247,7 +248,7 @@ func TestPagesRender(t *testing.T) {
 	for _, want := range []string{
 		"alice", "Conectado ao servidor", "faltan 3 ficheiros (1,5 KiB)", "5 MiB",
 		"Común &lt;b&gt;", // escapado
-		"Documentos", "/home/u/syncply/Documentos",
+		"Documentos", `href="/browse?elixir=f2&amp;modo=aceptar`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("index: falta %q", want)
