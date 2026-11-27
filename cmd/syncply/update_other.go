@@ -20,8 +20,8 @@ import (
 
 func hideWindow(*exec.Cmd) {}
 
-// platformUpdateDisabled: en Linux, o instalado por install.sh (syncply e
-// syncthing no mesmo directorio, con permiso de escritura para o usuario).
+// platformUpdateDisabled: en Linux, o instalado (syncply e syncthing no
+// mesmo directorio, con permiso de escritura para o usuario).
 func platformUpdateDisabled(exe, stBin string) string {
 	if runtime.GOOS != "linux" {
 		return "non hai actualizacións automáticas para " + runtime.GOOS
@@ -36,13 +36,14 @@ func platformUpdateDisabled(exe, stBin string) string {
 	return ""
 }
 
-// applyUpdate (Linux): extrae syncply e syncthing do paquete, substitúeos
-// (renomear sobre un binario en execución é seguro) e pecha o daemon, que
-// volve arrancar co binario novo (reexec). Gárdase a versión anterior como
+// applyUpdate (Linux): extrae syncply do paquete e substitúeo (renomear
+// sobre un binario en execución é seguro) e pecha o daemon, que volve
+// arrancar co binario novo (reexec). O syncply novo leva Syncthing dentro e
+// instálao ao arrancar (prepareSyncthing). Gárdase a versión anterior como
 // syncply.old e syncthing.old.
 func applyUpdate(ctx context.Context, u *updater, staged string, m *update.Manifest) error {
 	dir := filepath.Dir(u.exe)
-	newBins, err := extractBins(staged, dir, "syncply", "syncthing")
+	newBins, err := extractBins(staged, dir, "syncply")
 	defer func() {
 		for _, p := range newBins {
 			os.Remove(p)
@@ -58,16 +59,16 @@ func applyUpdate(ctx context.Context, u *updater, staged string, m *update.Manif
 		cur := filepath.Join(dir, name)
 		os.Remove(cur + ".old")
 		os.Link(cur, cur+".old") // copia de seguridade (sen erro se non se pode)
-		if err := os.Rename(newBins[name], cur); err != nil {
-			return err
-		}
+	}
+	if err := os.Rename(newBins["syncply"], filepath.Join(dir, "syncply")); err != nil {
+		return err
 	}
 	u.restart()
 	return nil
 }
 
-// extractBins extrae do paquete (syncply-linux-amd64/<nome>) os binarios
-// indicados a ficheiros temporais en dir.
+// extractBins extrae do paquete os binarios indicados (na raíz ou nun
+// subdirectorio) a ficheiros temporais en dir.
 func extractBins(tgz, dir string, names ...string) (map[string]string, error) {
 	f, err := os.Open(tgz)
 	if err != nil {
@@ -93,8 +94,7 @@ func extractBins(tgz, dir string, names ...string) (map[string]string, error) {
 			return out, err
 		}
 		name := filepath.Base(h.Name)
-		if h.Typeflag != tar.TypeReg || !want[name] || out[name] != "" ||
-			filepath.Dir(filepath.Clean(h.Name)) == "." || h.Size > update.MaxPackage {
+		if h.Typeflag != tar.TypeReg || !want[name] || out[name] != "" || h.Size > update.MaxPackage {
 			continue
 		}
 		tmp := filepath.Join(dir, "."+name+".new")

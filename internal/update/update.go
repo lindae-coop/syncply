@@ -3,7 +3,7 @@
 // Cada versión publica, xunto aos paquetes do cliente (/descargas/ de
 // pairsrv), un manifesto asinado:
 //
-//	update.json      {"product":"syncply","version":"vX.Y.Z","packages":{"linux-amd64":{file,sha256,size},...}}
+//	update.json      {"product":"syncply","version":"vX.Y.Z","packages":{"linux-amd64-v2":{file,sha256,size},...}}
 //	update.json.sig  sinatura Ed25519 (base64) de sigContext + update.json
 //
 // A clave privada é do proxecto (segredo da CI), non do operador do
@@ -60,11 +60,25 @@ type Package struct {
 // Platform é a clave do paquete deste binario.
 func Platform() string { return runtime.GOOS + "-" + runtime.GOARCH }
 
-// PackageFiles: nome do paquete de cada plataforma (os mesmos que fan
-// `make dist`, `make dist-windows` e deploy/Containerfile.pairsrv).
+// PackageFiles: nome do paquete de cada clave do manifesto (os mesmos que
+// fan `make dist`, `make dist-windows` e deploy/Containerfile.pairsrv).
+//
+// Linux: desde v0.5.0 o paquete leva só syncply, con Syncthing dentro
+// (clave linux-amd64-v2). A clave linux-amd64 é a que buscan os clientes
+// anteriores, que esixen syncply-linux-amd64/{syncply,syncthing}: v0.5.0
+// publica ese formato para eles e as seguintes xa non (quitar entón a clave).
 var PackageFiles = map[string]string{
-	"linux-amd64":   "syncply-linux-amd64.tar.gz",
-	"windows-amd64": "syncply-windows-amd64.exe",
+	"linux-amd64-v2": "syncply-linux-amd64.tar.gz",
+	"linux-amd64":    "syncply-linux-amd64-anterior.tar.gz",
+	"windows-amd64":  "syncply-windows-amd64.exe",
+}
+
+// PackageKey é a clave do manifesto co paquete para este binario.
+func PackageKey() string {
+	if runtime.GOOS == "linux" {
+		return Platform() + "-v2"
+	}
+	return Platform()
 }
 
 // --- Versións ----------------------------------------------------------------

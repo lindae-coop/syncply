@@ -64,6 +64,9 @@ func runningInstalled() bool {
 	return err == nil && err2 == nil && samePath(filepath.Dir(exe), dir)
 }
 
+// prepareSyncthing: en Windows o Syncthing embebido instálao `install`.
+func prepareSyncthing() {}
+
 // defaultAction: o que pasa co dobre clic. Desde a descarga, instala; xa
 // instalado, abre a configuración.
 func defaultAction() error {

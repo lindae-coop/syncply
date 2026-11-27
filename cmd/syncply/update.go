@@ -44,8 +44,8 @@ func updateDisabled(noUpdate bool, stURL, stBin, exe string) string {
 		return "é unha versión de desenvolvemento (" + version + ")"
 	case stURL != "":
 		return "usa un Syncthing externo"
-	case update.PackageFiles[update.Platform()] == "":
-		return "non hai paquetes para esta plataforma (" + update.Platform() + ")"
+	case update.PackageFiles[update.PackageKey()] == "":
+		return "non hai paquetes para esta plataforma (" + update.PackageKey() + ")"
 	}
 	return platformUpdateDisabled(exe, stBin)
 }

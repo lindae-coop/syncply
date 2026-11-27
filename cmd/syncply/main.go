@@ -165,6 +165,7 @@ func daemon(args []string) error {
 		return err
 	}
 	if *stURL == "" && *stBin == "" {
+		prepareSyncthing()
 		if *stBin, err = findSyncthing(); err != nil {
 			return err
 		}
@@ -178,7 +179,7 @@ func daemon(args []string) error {
 	}
 	upd := &updater{app: app, dir: filepath.Join(*dir, "update"), exe: exe,
 		uc: &update.Client{HTTP: client.PairsrvHTTPClient(15 * time.Minute),
-			Keys: update.TrustedKeys(), Platform: update.Platform()},
+			Keys: update.TrustedKeys(), Platform: update.PackageKey()},
 		restart: func() {
 			log.Printf("syncply: reiniciando coa versión nova")
 			restartExe.Store(&exe)
@@ -482,13 +483,24 @@ func shortcut(args []string) error {
 	if err != nil {
 		return err
 	}
+	path, err := writeShortcut(exe, *dir)
+	if err != nil {
+		return err
+	}
+	fmt.Println("acceso directo creado:", path)
+	return nil
+}
+
+// writeShortcut escribe ~/.local/share/applications/syncply.desktop, que
+// executa `exe open`.
+func writeShortcut(exe, dir string) (string, error) {
 	execLine := fmt.Sprintf("%q open", exe)
-	if *dir != "" {
-		execLine += fmt.Sprintf(" -dir %q", *dir)
+	if dir != "" {
+		execLine += fmt.Sprintf(" -dir %q", dir)
 	}
 	data, err := os.UserHomeDir()
 	if err != nil {
-		return err
+		return "", err
 	}
 	if x := os.Getenv("XDG_DATA_HOME"); x != "" {
 		data = x
@@ -497,14 +509,10 @@ func shortcut(args []string) error {
 	}
 	path := filepath.Join(data, "applications", "syncply.desktop")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
+		return "", err
 	}
 	content := "[Desktop Entry]\nType=Application\nName=Syncply\nGenericName=Sincronización de ficheiros\n" +
 		"Comment=Configurar a sincronización co servidor de ficheiros\nExec=" + execLine + "\n" +
 		"Icon=folder-sync\nTerminal=false\nCategories=Network;FileTransfer;\n"
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		return err
-	}
-	fmt.Println("acceso directo creado:", path)
-	return nil
+	return path, os.WriteFile(path, []byte(content), 0o644)
 }

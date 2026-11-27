@@ -1,4 +1,4 @@
-//go:build !embedsyncthing
+//go:build !embedsyncthing || !(windows || linux)
 
 package main
 

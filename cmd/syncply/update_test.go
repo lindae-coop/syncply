@@ -29,13 +29,23 @@ func writeTgz(t *testing.T, path string, files map[string]string) {
 func TestExtractBins(t *testing.T) {
 	dir := t.TempDir()
 	tgz := filepath.Join(dir, "p.tar.gz")
+	// Paquete actual: só syncply, na raíz.
+	writeTgz(t, tgz, map[string]string{"syncply": "novo syncply"})
+	got, err := extractBins(tgz, dir, "syncply")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(got["syncply"]); string(b) != "novo syncply" {
+		t.Errorf("syncply: %q", b)
+	}
+
+	// Formato anterior (o que esperan os clientes ata v0.4.1).
 	writeTgz(t, tgz, map[string]string{
 		"syncply-linux-amd64/syncply":    "novo syncply",
 		"syncply-linux-amd64/syncthing":  "novo syncthing",
 		"syncply-linux-amd64/install.sh": "#!/bin/sh",
-		"syncply":                        "na raíz: ignorado",
 	})
-	got, err := extractBins(tgz, dir, "syncply", "syncthing")
+	got, err = extractBins(tgz, dir, "syncply", "syncthing")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,9 +56,9 @@ func TestExtractBins(t *testing.T) {
 		}
 	}
 
-	writeTgz(t, tgz, map[string]string{"syncply-linux-amd64/syncply": "x"})
-	if _, err := extractBins(tgz, dir, "syncply", "syncthing"); err == nil {
-		t.Fatal("aceptou un paquete sen syncthing")
+	writeTgz(t, tgz, map[string]string{"syncply-linux-amd64/install.sh": "x"})
+	if _, err := extractBins(tgz, dir, "syncply"); err == nil {
+		t.Fatal("aceptou un paquete sen syncply")
 	}
 }
 

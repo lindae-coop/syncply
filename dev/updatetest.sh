@@ -1,13 +1,18 @@
 #!/bin/sh
 # Proba as actualizacións automáticas do cliente de Linux nun Debian 13 con
-# systemd (a mesma imaxe que installtest):
-#   instalar v0.0.1 → vincular como alice e aceptar /comun → o servidor publica
-#   v0.0.2 asinada → `syncply update` → o servizo volve con v0.0.2 (mesmo PID,
-#   mesma vinculación) e segue sincronizando → manifesto manipulado rexeitado.
+# systemd (a mesma imaxe que installtest), incluída a migración ao paquete
+# dun só ficheiro:
+#   instalar v0.0.1 (código de v0.4.1 con install.sh: o formato anterior) →
+#   vincular como alice e aceptar /comun → o servidor publica v0.0.2 →
+#   `syncply update` instala o paquete anterior (clave linux-amd64) → o servizo
+#   volve con v0.0.2 (mesmo PID, mesma vinculación) e instala o seu Syncthing
+#   embebido → o servidor publica v0.0.3 → `syncply update` instala o paquete
+#   novo (clave linux-amd64-v2, só syncply) → segue sincronizando →
+#   manifesto manipulado rexeitado.
 # Asina cunha clave de desenvolvemento (.dev/update-dev.key), que o cliente só
 # acepta con SYNCPLY_DEV=1 e SYNCPLY_UPDATE_PUBKEY.
 # Require `make up` (con SFTPGo preparado: make demo ou make fresh). Deixa en
-# dist/ o paquete de Linux v0.0.2 (sen manifesto).
+# dist/ os paquetes de Linux v0.0.3 (sen manifesto).
 set -eu
 cd "$(dirname "$0")/.."
 
@@ -15,27 +20,70 @@ img=localhost/syncply-installtest:latest
 name=syncply-updatetest
 key=.dev/update-dev.key
 tar=dist/syncply-linux-amd64.tar.gz
-old=.dev/updatetest/syncply-v0.0.1.tar.gz
+legacy=dist/syncply-linux-amd64-anterior.tar.gz
+work=.dev/updatetest
+old=$work/syncply-v0.0.1.tar.gz
+oldtag=v0.4.1 # última versión co instalador install.sh
 
 ok() { printf '  OK  %s\n' "$*"; }
 fail() { printf 'ERRO: %s\n' "$*" >&2; exit 1; }
 as_ana() { podman exec -u ana -w /home/ana -e XDG_RUNTIME_DIR=/run/user/1000 "$@"; }
-relsign() { podman-compose run --rm tools go run ./cmd/relsign "$@" 2>/dev/null; }
-sign() { relsign manifest -key "$key" -version v0.0.2 "$tar" >/dev/null 2>&1; }
+tools() { podman-compose run --rm tools "$@" 2>/dev/null; }
+relsign() { tools go run ./cmd/relsign "$@"; }
+publish() { # versión: constrúe e asina os paquetes de Linux
+	make -s dist VERSION="$1" >/dev/null 2>&1 || fail "make dist $1"
+	relsign manifest -key "$key" -version "$1" "$tar" "$legacy" >/dev/null || fail "non se puido asinar $1"
+}
 cleanup() {
 	podman rm -f -t 2 "$name" >/dev/null 2>&1 || true
 	rm -f dist/update.json dist/update.json.sig .dev/sftpgo/data/shared/comun/actualizado-*.txt
 }
+wait_version() { # versión: o daemon volveu con ela
+	i=0
+	until as_ana "$name" sh -c "journalctl --user -u syncply -o cat | grep -q 'syncply $1: web en'"; do
+		i=$((i + 1)); [ $i -lt 60 ] || fail "o daemon non volveu con $1"; sleep 1
+	done
+	[ "$(as_ana "$name" $bin/syncply version)" = "syncply $1" ] || fail "o binario instalado non é $1"
+	[ "$(as_ana "$name" systemctl --user is-active syncply.service)" = active ] || fail "servizo inactivo"
+	[ "$(as_ana "$name" systemctl --user show -p MainPID --value syncply.service)" = "$pid" ] || fail "cambiou o PID (non foi reexec)"
+	as_ana "$name" test -x $bin/syncply.old || fail "non quedou a copia syncply.old"
+	i=0
+	until [ "$(as_ana "$name" sh -c 'ps -o args= -u ana | grep -c "[s]yncthing serve"')" -ge 1 ]; do
+		i=$((i + 1)); [ $i -lt 30 ] || fail "Syncthing non volveu arrancar"; sleep 1
+	done
+}
+check_sync() { # versión
+	f=actualizado-$(date +%s).txt
+	echo "despois da actualización" >.dev/sftpgo/data/shared/comun/$f
+	i=0
+	until as_ana "$name" test -f /home/ana/syncply/comun/$f; do
+		i=$((i + 1)); [ $i -lt 45 ] || fail "non chegou $f despois de actualizar"; sleep 2
+	done
+	as_ana "$name" env V="$1" bash -c '
+	set -eu
+	U=$(~/.local/share/syncply/bin/syncply open -print); B=${U%%/login*}
+	curl -sf -c /tmp/j -o /dev/null "$U"
+	curl -s -b /tmp/j "$B/devices" | grep -q "Syncply <strong>$V</strong>" || { echo "ERRO: a web non mostra $V"; exit 1; }
+	curl -s -b /tmp/j "$B/devices" | grep -q "alice" || { echo "ERRO: perdeuse a vinculación"; exit 1; }'
+	ok "segue vinculado como alice e sincronizando (chegou $f)"
+}
 
 cleanup
 trap cleanup EXIT
-echo "### Paquetes v0.0.1 (instalado) e v0.0.2 (publicado no servidor)"
+echo "### Paquetes v0.0.1 (instalado, formato anterior) e v0.0.2 (publicado no servidor)"
 [ -f "$key" ] || relsign keygen -out "$key" >/dev/null
 pub=$(relsign pubkey -key "$key" | tail -1)
-mkdir -p "$(dirname "$old")"
-make -s dist VERSION=v0.0.1 >/dev/null && cp "$tar" "$old"
-make -s dist VERSION=v0.0.2 >/dev/null
-sign || fail "non se puido asinar"
+rm -rf "$work/src" "$work/pkg"
+mkdir -p "$work/src" "$work/pkg/syncply-linux-amd64"
+git archive "$oldtag" | tar -x -C "$work/src"
+tools sh -c "cd $work/src && GOOS=linux GOARCH=amd64 go build -trimpath -ldflags '-s -w -X main.version=v0.0.1' \
+	-o ../pkg/syncply-linux-amd64/syncply ./cmd/syncply" || fail "non se puido compilar $oldtag"
+podman run --rm --entrypoint cat docker.io/syncthing/syncthing:2.1.7 /bin/syncthing >"$work/pkg/syncply-linux-amd64/syncthing"
+cp "$work/src/packaging/linux/install.sh" "$work/pkg/syncply-linux-amd64/"
+chmod 755 "$work/pkg/syncply-linux-amd64/"*
+tar -C "$work/pkg" -czf "$old" syncply-linux-amd64
+ok "v0.0.1 compilado desde $oldtag (install.sh)"
+publish v0.0.2
 ok "dist/update.json asinado (v0.0.2)"
 
 podman image exists "$img" || podman build -q -t "$img" -f dev/Containerfile.installtest dev >/dev/null
@@ -71,39 +119,32 @@ curl -s -b /tmp/j "$B/devices" | grep -q "Syncply <strong>v0.0.1</strong>" || { 
 ok "v0.0.1 vinculado e sincronizando /comun"
 pid=$(as_ana "$name" systemctl --user show -p MainPID --value syncply.service)
 
-echo "### Actualizar (syncply update)"
+echo "### Actualizar v0.0.1 → v0.0.2 (paquete no formato anterior)"
 out=$(as_ana "$name" $bin/syncply update 2>&1) || fail "syncply update: $out"
 case "$out" in *"Instalando a versión v0.0.2"*) ok "$out" ;; *) fail "resposta inesperada: $out" ;; esac
-i=0
-until as_ana "$name" sh -c "journalctl --user -u syncply -o cat | grep -q 'syncply v0.0.2: web en'"; do
-	i=$((i + 1)); [ $i -lt 60 ] || fail "o daemon non volveu con v0.0.2"; sleep 1
-done
-[ "$(as_ana "$name" $bin/syncply version)" = "syncply v0.0.2" ] || fail "o binario instalado non é v0.0.2"
-[ "$(as_ana "$name" systemctl --user is-active syncply.service)" = active ] || fail "servizo inactivo"
-[ "$(as_ana "$name" systemctl --user show -p MainPID --value syncply.service)" = "$pid" ] || fail "cambiou o PID (non foi reexec)"
-as_ana "$name" test -x $bin/syncply.old || fail "non quedou a copia syncply.old"
-[ "$(as_ana "$name" sh -c 'ps -o args= -u ana | grep -c "[s]yncthing serve"')" -ge 1 ] || fail "Syncthing non volveu arrancar"
-ok "daemon v0.0.2 co mesmo PID ($pid), Syncthing en marcha, copia da versión anterior"
+wait_version v0.0.2
+as_ana "$name" sh -c "journalctl --user -u syncply -o cat | grep -q 'instalado o Syncthing embebido'" ||
+	fail "v0.0.2 non instalou o seu Syncthing embebido"
+as_ana "$name" test -f $bin/.syncthing.sha256 || fail "sen marca do Syncthing embebido"
+ok "daemon v0.0.2 co mesmo PID ($pid), co seu Syncthing embebido instalado"
+check_sync v0.0.2
 
-f=actualizado-$(date +%s).txt
-echo "despois da actualización" >.dev/sftpgo/data/shared/comun/$f
-i=0
-until as_ana "$name" test -f /home/ana/syncply/comun/$f; do
-	i=$((i + 1)); [ $i -lt 45 ] || fail "non chegou $f despois de actualizar"; sleep 2
-done
-as_ana "$name" bash -c '
-set -eu
-U=$(~/.local/share/syncply/bin/syncply open -print); B=${U%%/login*}
-curl -sf -c /tmp/j -o /dev/null "$U"
-curl -s -b /tmp/j "$B/devices" | grep -q "Syncply <strong>v0.0.2</strong>" || { echo "ERRO: a web non mostra v0.0.2"; exit 1; }
-curl -s -b /tmp/j "$B/devices" | grep -q "alice" || { echo "ERRO: perdeuse a vinculación"; exit 1; }'
-ok "segue vinculado como alice e sincronizando (chegou $f)"
+echo "### Actualizar v0.0.2 → v0.0.3 (paquete novo: só syncply)"
+publish v0.0.3
+tar tzf "$tar" | grep -qx syncply || fail "o paquete novo non leva syncply na raíz"
+out=$(as_ana "$name" $bin/syncply update 2>&1) || fail "syncply update: $out"
+case "$out" in *"Instalando a versión v0.0.3"*) ok "$out" ;; *) fail "resposta inesperada: $out" ;; esac
+wait_version v0.0.3
+as_ana "$name" sh -c "journalctl --user -u syncply -o cat | grep 'actualización: v0.0.2 → v0.0.3' | grep -q 'syncply-linux-amd64.tar.gz'" ||
+	fail "v0.0.2 non usou o paquete novo"
+ok "daemon v0.0.3 co mesmo PID ($pid) desde o paquete dun só ficheiro"
+check_sync v0.0.3
 
 out=$(as_ana "$name" $bin/syncply update 2>&1) || fail "syncply update: $out"
-case "$out" in *"última versión (v0.0.2)"*) ok "$out" ;; *) fail "resposta inesperada: $out" ;; esac
+case "$out" in *"última versión (v0.0.3)"*) ok "$out" ;; *) fail "resposta inesperada: $out" ;; esac
 
 echo "### Rexeitar un manifesto manipulado"
-sed -i 's/"v0.0.2"/"v0.0.3"/' dist/update.json
+sed -i 's/"v0.0.3"/"v0.0.4"/' dist/update.json
 out=$(as_ana "$name" $bin/syncply update 2>&1) && fail "aceptou un manifesto manipulado: $out"
 case "$out" in *sinatura*) ok "rexeitado: $out" ;; *) fail "erro inesperado: $out" ;; esac
 

@@ -357,28 +357,47 @@ abrir o navegador (entran na web co contrasinal de proba).
 
 ## Instalador de Linux
 
-`make dist` xera `dist/syncply-linux-amd64.tar.gz`: `syncply` (estático),
-`syncthing` 2.1.7 (o binario da imaxe oficial fixada), `install.sh` e
-[LICENZAS.txt](packaging/linux/LICENZAS.txt) (Syncthing é MPL-2.0). De
-momento só amd64. **Non leva configuración de ningún servidor**: o mesmo
-paquete vale para todos.
+`make dist` xera `dist/syncply-linux-amd64.tar.gz`, que leva **un só
+ficheiro**: `syncply`, **autoinstalable**, co `syncthing` 2.1.7 da imaxe
+oficial fixada e as [licenzas](packaging/linux/LICENZAS.txt) dentro
+(comprimidos con `go:embed`, etiqueta `embedsyncthing`, coma en Windows). O tar
+só serve para conservar o permiso de execución ao descargalo. De momento só
+amd64. **Non leva configuración de ningún servidor**: o mesmo paquete vale
+para todos.
 
-[install.sh](packaging/linux/install.sh) instala **só para o usuario, sen
-root**:
+`syncply` sen argumentos (dobre clic ou `./syncply` no terminal) = `syncply
+install`; o instalado, sen argumentos, abre a configuración. Instala **só para
+o usuario, sen root** ([install_linux.go](cmd/syncply/install_linux.go)), coas
+mesmas rutas que o `install.sh` de ata v0.4.1 (instalar por riba actualiza):
 
-- binarios en `~/.local/share/syncply/bin`, estado en `~/.config/syncply`
-  (`0700`; borra o `syncply.json` das versións anteriores, que xa non se usa);
+- binarios en `~/.local/share/syncply/bin` (`syncply`, `syncthing`,
+  `LICENZAS.txt` e `.syncthing.sha256`, a marca do Syncthing embebido
+  instalado), estado en `~/.config/syncply` (`0700`; borra o `syncply.json` das
+  versións anteriores, que xa non se usa);
 - `syncply daemon` como **servizo de systemd de usuario** (`syncply.service`); sen
   systemd de usuario, arranque automático XDG (`~/.config/autostart`) e
-  arráncao xa;
-- acceso directo `syncply` no menú e, se hai sesión gráfica, abre a web para
-  vincular (`--no-open` para non abrila);
-- `install.sh --uninstall` desinstala e conserva a configuración (identidade
-  do equipo) e as carpetas sincronizadas.
+  arráncao xa (rexistro en `~/.config/syncply/syncply.log`);
+- acceso directo `syncply` no menú;
+- antes de substituír os binarios pecha o daemon en marcha (systemd, pidfile
+  ou canle de control);
+- **progreso**: no terminal e, se hai sesión gráfica (`DISPLAY`/`WAYLAND_DISPLAY`),
+  nunha páxina local que abre no navegador antes de empezar
+  ([install_progress_linux.go](cmd/syncply/install_progress_linux.go)):
+  `127.0.0.1`, porto libre, URL cun token aleatorio, comprobación de `Host`,
+  CSP sen scripts, recarga cada segundo (`meta refresh`). Ao rematar redirixe á
+  web local cunha URL de acceso dun só uso («Vincular este equipo») ou mostra o
+  erro; despois o instalador pecha (como moito 2 min). Sen terminal nin
+  navegador, avisa con `notify-send`. `-no-open`: sen navegador;
+- `syncply uninstall` desinstala e conserva a configuración (identidade do
+  equipo) e as carpetas sincronizadas.
+
+O daemon instalado, ao arrancar, instala o Syncthing que leva dentro se non
+coincide coa marca: así as actualizacións só teñen que substituír `syncply`.
 
 `make installtest` ([dev/installtest.sh](dev/installtest.sh)) próbao nun
-Debian 13 con systemd e un usuario normal, na rede do contorno: instalar,
-servizo activo, vincular como alice desde a web (texto de vinculación,
+Debian 13 con systemd e un usuario normal, na rede do contorno: o paquete leva
+só `syncply`, instalar con `./syncply` (cun `xdg-open` falso que fai de
+navegador: progreso e redirección á web local), servizo activo, vincular como alice desde a web (texto de vinculación,
 confirmación e código), recibir ficheiros de
 `/comun`, reiniciar o equipo, revogar o equipo e desinstalar. Require o
 contorno en marcha con SFTPGo preparado (`make demo` ou `make fresh`).
@@ -479,10 +498,20 @@ Os clientes **actualízanse sós desde o servidor ao que están vinculados**
   `-update-every`, `-no-update`). Se hai unha versión maior: descarga o
   paquete, comproba tamaño e SHA-256, executa `syncply version` do novo e
   instala:
-  - **Linux**: substitúe `syncply` e `syncthing` no directorio de instalación
-    (gardando `*.old`), pecha Syncthing limpamente e **reexecútase** (mesmo
-    PID: systemd non o ve caer). Só se `syncthing` está xunto a `syncply` e o
-    directorio é escribible (o que fai `install.sh`).
+  - **Linux**: substitúe `syncply` no directorio de instalación (gardando
+    `syncply.old` e `syncthing.old`), pecha Syncthing limpamente e
+    **reexecútase** (mesmo PID: systemd non o ve caer); o `syncply` novo instala
+    ao arrancar o Syncthing que leva dentro. Só se `syncthing` está xunto a
+    `syncply` e o directorio é escribible (o que fai o instalador).
+    **Clave do manifesto `linux-amd64-v2`** (paquete dun só ficheiro). Os
+    clientes ata v0.4.1 buscan `linux-amd64` e esixen
+    `syncply-linux-amd64/{syncply,syncthing}`: **v0.5.0 publica tamén ese
+    formato** (`syncply-linux-amd64-anterior.tar.gz`, non se mostra na web)
+    para que se actualicen; as versións seguintes xa non (quitalo de
+    `update.PackageFiles`, do [Makefile](Makefile) e do
+    [Containerfile](deploy/Containerfile.pairsrv)). Un cliente ≤ v0.4.1 que
+    non se actualice mentres v0.5.0 é a última quedará sen actualizacións e
+    haberá que reinstalalo a man (decisión: só hai dous usuarios).
   - **Windows**: executa o `syncply.exe` novo como `install -update`: o mesmo
     camiño ca unha instalación a man por riba (pecha o daemon pola canle de
     control, substitúe os binarios, actualiza «Aplicacións instaladas» e
@@ -504,7 +533,9 @@ Os clientes **actualízanse sós desde o servidor ao que están vinculados**
   clave de desenvolvemento (`.dev/update-dev.key`, aceptada só con
   `SYNCPLY_DEV=1` e `SYNCPLY_UPDATE_PUBKEY`) e comproban que o cliente se
   actualiza, segue vinculado e sincronizando, e rexeita un manifesto
-  manipulado.
+  manipulado. En Linux, v0.0.1 compílase desde a etiqueta v0.4.1 e instálase
+  co seu `install.sh`; despois v0.0.2 chega polo paquete no formato anterior e
+  v0.0.3 polo paquete dun só ficheiro (mesmo PID en todo o camiño).
 - **Migración desde v0.1.0**: os clientes v0.1.0 non teñen actualizador; hai
   que reinstalalos unha vez a man (descarga da web do servidor por riba da
   instalación: consérvanse vinculación e carpetas). Desde aí, sós.

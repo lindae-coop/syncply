@@ -51,7 +51,7 @@ func newFixture(t *testing.T, version string) *fixture {
 	t.Helper()
 	f := &fixture{dir: t.TempDir()}
 	f.pub, f.priv, _ = ed25519.GenerateKey(rand.Reader)
-	f.pkg = filepath.Join(f.dir, PackageFiles["linux-amd64"])
+	f.pkg = filepath.Join(f.dir, PackageFiles["linux-amd64-v2"])
 	os.WriteFile(f.pkg, []byte("paquete "+version), 0o644)
 	f.sign(t, version)
 	f.srv = httptest.NewServer(http.StripPrefix("/descargas/", http.FileServer(http.Dir(f.dir))))
@@ -60,7 +60,7 @@ func newFixture(t *testing.T, version string) *fixture {
 }
 
 func (f *fixture) sign(t *testing.T, version string) {
-	man, err := BuildManifest(version, map[string]string{"linux-amd64": f.pkg})
+	man, err := BuildManifest(version, map[string]string{"linux-amd64-v2": f.pkg})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +69,7 @@ func (f *fixture) sign(t *testing.T, version string) {
 }
 
 func (f *fixture) client() *Client {
-	return &Client{Keys: []ed25519.PublicKey{f.pub}, Platform: "linux-amd64"}
+	return &Client{Keys: []ed25519.PublicKey{f.pub}, Platform: "linux-amd64-v2"}
 }
 
 func TestCheckAndDownload(t *testing.T) {
@@ -107,7 +107,7 @@ func TestRejects(t *testing.T) {
 	t.Run("outra clave", func(t *testing.T) {
 		f := newFixture(t, "v0.2.0")
 		other, _, _ := ed25519.GenerateKey(rand.Reader)
-		c := &Client{Keys: []ed25519.PublicKey{other}, Platform: "linux-amd64"}
+		c := &Client{Keys: []ed25519.PublicKey{other}, Platform: "linux-amd64-v2"}
 		if _, _, err := c.Check(ctx, f.srv.URL, "v0.1.0"); err == nil || !strings.Contains(err.Error(), "sinatura") {
 			t.Fatalf("err = %v", err)
 		}
@@ -145,14 +145,14 @@ func TestRejects(t *testing.T) {
 	})
 	t.Run("sen claves", func(t *testing.T) {
 		f := newFixture(t, "v0.2.0")
-		c := &Client{Platform: "linux-amd64"}
+		c := &Client{Platform: "linux-amd64-v2"}
 		if _, _, err := c.Check(ctx, f.srv.URL, "v0.1.0"); err == nil {
 			t.Fatal("sen claves non debería aceptar nada")
 		}
 	})
 	t.Run("ficheiro con ruta", func(t *testing.T) {
 		f := newFixture(t, "v0.2.0")
-		man := []byte(`{"product":"syncply","version":"v0.2.0","packages":{"linux-amd64":{"file":"../x","sha256":"` +
+		man := []byte(`{"product":"syncply","version":"v0.2.0","packages":{"linux-amd64-v2":{"file":"../x","sha256":"` +
 			strings.Repeat("0", 64) + `","size":1}}}`)
 		os.WriteFile(filepath.Join(f.dir, ManifestFile), man, 0o644)
 		os.WriteFile(filepath.Join(f.dir, SigFile), Sign(f.priv, man), 0o644)
