@@ -1,0 +1,23 @@
+Esta imaxe inclúe:
+
+- pairsrv: servidor de vinculación do proxecto Syncply (SFTPGo + Syncthing),
+  cos paquetes do cliente syncply en /descargas (cada un leva as súas
+  licenzas).
+  Copyright (C) 2026 Lindæ S. Coop. Galega
+  Licenza: GNU Affero General Public License, versión 3 ou (á túa
+  elección) calquera versión posterior (SPDX: AGPL-3.0-or-later). O texto
+  completo vai ao final deste ficheiro.
+  Código fonte: https://github.com/lindae-coop/syncply
+
+  Este programa é software libre: podes redistribuílo e modificalo nos
+  termos da GNU AGPL v3 ou posterior. Distribúese coa esperanza de que
+  sexa útil, pero SEN NINGUNHA GARANTÍA, nin sequera a garantía implícita
+  de COMERCIABILIDADE ou de ADECUACIÓN A UN FIN DETERMINADO.
+
+  Se modificas pairsrv e o ofreces a outras persoas pola rede, a AGPL
+  (sección 13) obriga a ofrecerlles o código fonte da túa versión: cambia
+  a ligazón «Código fonte» do pé das webs (internal/pairing/templates/base.html)
+  para que apunte a el.
+
+- Alpine Linux (imaxe base): os paquetes levan as súas licenzas
+  (apk info -L, /usr/share/licenses).

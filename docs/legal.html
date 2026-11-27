@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="gl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aviso legal — Syncply</title>
+<meta name="description" content="Aviso legal, privacidade e descargo de responsabilidade da web de Syncply, contado en claro.">
+<link rel="icon" type="image/svg+xml" href="logo.svg">
+<link rel="icon" type="image/png" href="logo.png">
+<style>
+  /* Mesma paleta e compoñentes ca index.html: ao cambialos alí, cambialos aquí. */
+  :root {
+    color-scheme: light;
+    --cian: #00ffff;
+    --cian-suave: #d9ffff;
+    --tinta: #000;
+    --texto: #1b1b1b;
+    --apagado: #4a4a4a;
+    --fondo: #fff;
+    --fondo-alt: #f4fbfb;
+    --raio: 18px;
+    --borde: 3px solid var(--tinta);
+    --sombra: 6px 6px 0 var(--tinta);
+    --ancho: 48rem;
+    --negro: #000;
+    --barra-fondo: rgba(255,255,255,.92);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --cian-suave: #0f3a3c;
+      --tinta: #e6f7f7;
+      --texto: #e3ecec;
+      --apagado: #a3b1b1;
+      --fondo: #0e1314;
+      --fondo-alt: #132022;
+      --barra-fondo: rgba(14,19,20,.92);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 1.0625rem/1.6 system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", Ubuntu, Cantarell, sans-serif;
+    color: var(--texto);
+    background: var(--fondo);
+  }
+  a { color: inherit; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+  a:hover { background: var(--cian); color: var(--negro); }
+  img { max-width: 100%; }
+  h1, h2 { color: var(--tinta); line-height: 1.15; letter-spacing: -0.01em; }
+  h1 { font-size: clamp(2rem, 5vw, 3rem); font-weight: 900; margin: 0 0 1rem; }
+  h1 mark { background: var(--cian); color: var(--negro); padding: 0 .2em; border-radius: 8px; }
+  h2 { font-size: 1.35rem; font-weight: 850; margin: 0 0 .7rem; }
+  p { margin: 0 0 1rem; }
+  .envoltorio { max-width: var(--ancho); margin: 0 auto; padding-inline: 1.25rem; }
+  main { padding-block: 3rem 4rem; }
+  .entradilla { font-size: 1.2rem; color: var(--apagado); }
+
+  .barra { position: sticky; top: 0; z-index: 10; background: var(--barra-fondo); backdrop-filter: blur(6px); border-bottom: var(--borde); }
+  .barra .envoltorio { max-width: 68rem; display: flex; align-items: center; gap: 1rem; padding-block: .5rem; flex-wrap: wrap; }
+  .barra .marca { display: block; text-decoration: none; }
+  .barra .marca:hover { background: none; }
+  .barra .marca picture, .barra .marca img { display: block; width: 72px; height: 72px; }
+  .barra nav { margin-left: auto; font-weight: 600; font-size: 1.2rem; }
+  .barra nav a { text-decoration: none; padding: .15rem .35rem; border-radius: 6px; }
+
+  .tarxeta {
+    background: var(--fondo); border: var(--borde); border-radius: var(--raio);
+    box-shadow: var(--sombra); padding: 1.4rem 1.4rem .4rem; margin-top: 1.6rem;
+  }
+  .tarxeta ul { padding-left: 1.2rem; margin: 0 0 1rem; }
+  .tarxeta li { margin-bottom: .4rem; }
+  dl.datos { display: grid; grid-template-columns: max-content 1fr; gap: .3rem 1rem; margin: 0 0 1rem; }
+  dl.datos dt { font-weight: 700; }
+  dl.datos dd { margin: 0; }
+  @media (max-width: 34rem) { dl.datos { grid-template-columns: 1fr; } dl.datos dd { margin-bottom: .4rem; } }
+  .aviso { border: var(--borde); border-left-width: 10px; border-radius: 12px; padding: 1rem 1.2rem; background: var(--cian-suave); margin-top: 1.6rem; }
+  .aviso p:last-child { margin: 0; }
+  .actualizado { color: var(--apagado); font-size: .95rem; margin-top: 2rem; }
+
+  footer { background: var(--negro); color: #fff; padding-block: 3rem; border-top: var(--borde); }
+  footer .envoltorio { max-width: 68rem; display: flex; flex-wrap: wrap; gap: 1rem 2rem; align-items: center; justify-content: space-between; }
+  footer img { width: 72px; height: 72px; }
+  footer a:hover { background: var(--cian); color: var(--negro); }
+  footer p { margin: .2rem 0; color: #ddd; }
+  footer .esquerda { display: flex; gap: 1rem; align-items: center; }
+</style>
+</head>
+<body>
+
+<header class="barra">
+  <div class="envoltorio">
+    <a class="marca" href="./"><picture><source srcset="logo-escuro.svg" media="(prefers-color-scheme: dark)"><img src="logo.svg" alt="Syncply: volver ao inicio" width="72" height="72"></picture></a>
+    <nav aria-label="Navegación"><a href="./">← Volver ao inicio</a></nav>
+  </div>
+</header>
+
+<main>
+  <div class="envoltorio">
+    <h1>A <mark>letra pequena</mark>, en grande</h1>
+    <p class="entradilla">A lei pide que contemos certas cousas. Preferimos contalas claras e sen xerga, para que saibas con quen falas e que podes esperar de Syncply.</p>
+
+    <section class="tarxeta" aria-labelledby="quen">
+      <h2 id="quen">Quen está detrás</h2>
+      <p>Esta web e o proxecto Syncply son da cooperativa lindæ. Estes son os nosos datos:</p>
+      <dl class="datos">
+        <dt>Titular</dt><dd>Lindæ S. Coop. Galega</dd>
+        <dt>NIF</dt><dd>F05655402</dd>
+        <dt>Domicilio</dt><dd>Rúa Hedras, 2, 15895 O Milladoiro, Ames (A Coruña)</dd>
+        <dt>Rexistro</dt><dd>Rexistro de Cooperativas de Galicia, número 1823-C</dd>
+        <dt>Correo</dt><dd><a href="mailto:info@lindae.eu">info@lindae.eu</a></dd>
+      </dl>
+      <p>Se algo non che cadra ou atopas un erro, escríbenos e mirámolo.</p>
+    </section>
+
+    <section class="tarxeta" aria-labelledby="garantias">
+      <h2 id="garantias">Facémolo con coidado, pero sen garantías</h2>
+      <p>Syncply é software libre e está <strong>en desenvolvemento</strong>. Poñemos todo o coidado que sabemos, probámolo antes de publicar cada versión e usámolo nós mesmos. Aínda así, ofrecémolo <strong>tal como está</strong>, sen garantía de ningún tipo, como é habitual no software libre.</p>
+      <p>En concreto:</p>
+      <ul>
+        <li><strong>Garda outra copia do que che importa.</strong> Sincronizar non é o mesmo que ter unha copia de seguridade: se borras un ficheiro nun equipo, bórrase en todos.</li>
+        <li><strong>Non nos podemos facer responsables</strong> de perdas de datos, interrupcións ou outros danos derivados de usar Syncply, nin dos servidores que instalen e administren outras persoas ou organizacións.</li>
+        <li><strong>A información desta web pode quedar atrasada.</strong> Intentamos que estea ao día, pero o proxecto cambia rápido. Se ves algo que xa non é certo, avísanos.</li>
+        <li><strong>As ligazóns a outras webs</strong> (SFTPGo, Syncthing, GitHub…) están aí porque cremos que che serán útiles, pero o seu contido non depende de nós.</li>
+      </ul>
+      <p>Nada disto limita os dereitos que che recoñece a lei e que non se poden renunciar.</p>
+    </section>
+
+    <section class="tarxeta" aria-labelledby="privacidade">
+      <h2 id="privacidade">Esta web non te segue</h2>
+      <ul>
+        <li><strong>Sen cookies, sen estatísticas e sen formularios.</strong> Non recollemos ningún dato teu ao visitar esta web, nin cargamos tipos de letra, scripts ou imaxes doutros sitios.</li>
+        <li><strong>Está aloxada en <a href="https://pages.github.com/">GitHub Pages</a>.</strong> Como calquera servidor web, GitHub pode rexistrar datos técnicos da visita, como o enderezo IP, para servir a páxina e por seguridade. Podes ler como o fai na súa <a href="https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement">declaración de privacidade</a>.</li>
+        <li><strong>Se nos escribes</strong>, usaremos o teu nome, o teu correo e o que nos contes só para responderche, e non o compartimos con ninguén. Podes pedirnos en calquera momento que vexamos, corrixamos ou borremos eses datos en <a href="mailto:info@lindae.eu">info@lindae.eu</a>, e se cres que non o fixemos ben, reclamar ante a <a href="https://www.aepd.es/">Axencia Española de Protección de Datos</a>.</li>
+      </ul>
+      <div class="aviso">
+        <p><strong>E os servidores de Syncply?</strong> Cada servidor é de quen o instala e o administra (a túa asociación, a túa empresa, o teu grupo…), e é esa persoa ou organización quen responde dos datos que garda e de como os trata. Se tes dúbidas sobre os teus ficheiros, pregúntalle a ela.</p>
+      </div>
+    </section>
+
+    <section class="tarxeta" aria-labelledby="licenzas">
+      <h2 id="licenzas">Licenzas e nomes doutros proxectos</h2>
+      <p>Syncply é software libre: o seu <a href="https://github.com/lindae-coop/syncply">código está en GitHub</a> e podes usalo, estudalo, modificalo e compartilo nos termos da <a href="https://github.com/lindae-coop/syncply/blob/main/LICENSE">GNU Affero General Public License</a>, versión 3 ou posterior. A AGPL tamén di, en maiúsculas, o mesmo que contamos arriba: vai sen garantía. O programa para os ordenadores inclúe <a href="https://syncthing.net/">Syncthing</a>, distribuído baixo a <a href="https://mozilla.org/MPL/2.0/">Mozilla Public License 2.0</a>, e o servidor usa <a href="https://github.com/drakkan/sftpgo">SFTPGo</a>, baixo a <a href="https://www.gnu.org/licenses/agpl-3.0.html">GNU AGPL v3</a>.</p>
+      <p>Syncthing e SFTPGo son marcas e nomes dos seus respectivos proxectos. Nomeámolos para explicar con que está feito Syncply; non somos parte deles nin falamos no seu nome. Moitas grazas a quen os fai posibles.</p>
+    </section>
+
+    <p class="actualizado">Aplícase a lexislación española. Última actualización: 27 de novembro de 2026.</p>
+  </div>
+</main>
+
+<footer>
+  <div class="envoltorio">
+    <div class="esquerda">
+      <img src="logo-escuro.svg" alt="" width="72" height="72">
+      <div>
+        <p><strong style="color:#fff">Syncply</strong> — a nube simple para pequenos equipos.</p>
+        <p>Un proxecto da cooperativa <a href="https://lindae.eu">lindæ</a>.</p>
+      </div>
+    </div>
+    <div>
+      <p><a href="https://github.com/lindae-coop/syncply">Código fonte en GitHub</a></p>
+      <p><a href="legal.html">Aviso legal e privacidade</a></p>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

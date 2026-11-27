@@ -31,7 +31,7 @@ Verificar sempre contra a versión concreta de Syncthing/SFTPGo que se use.
 ### Enfoque recomendado para empezar
 Prototipo con **Syncthing como proceso separado** controlado pola súa REST API desde SFTPGo (hooks/código), antes de fusionar o núcleo no binario de SFTPGo. Menos acoplamento e menos mantemento ao actualizar ambos. Se o prototipo non chega, entón embeber a lib de Syncthing (ambos son Go).
 
-Licenzas: Syncthing é MPL-2.0 e SFTPGo é AGPL-3.0; compatibles, pero o resultado combinado debería ir en AGPL (revisar).
+Licenzas: Syncthing é MPL-2.0 e SFTPGo é AGPL-3.0. **Decidido (2026-11-27): Syncply é AGPL-3.0-or-later**, copyright Lindæ S. Coop. Galega (`LICENSE`, sección «Licenza» do README). `packaging/licenzas.sh` xera ao compilar o `LICENZAS.txt` de cada binario (cabeceira + licenzas das dependencias segundo `go list -deps` + AGPL); úsano o Makefile e o Containerfile. Os pés das webs de pairsrv e do cliente levan o aviso de licenza e a ligazón ao código (AGPL §5d e §13). Aviso legal da web pública: `docs/legal.html`.
 
 ### Interface de Syncthing
 - A API REST e a UI web comparten o listener `gui`: `gui.enabled=false` quita ambas. Non serve para o enfoque por API.

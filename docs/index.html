@@ -174,6 +174,17 @@
   .estado .pendente { border-style: dashed; }
   .estado .pendente b::before { content: "○ "; }
   .estado span { color: var(--apagado); font-size: .95rem; }
+  .selo {
+    display: inline-flex; align-items: center; gap: .8rem; margin-top: 1.8rem;
+    padding: .55rem 1.3rem .55rem .55rem; border: var(--borde); border-radius: 999px;
+    background: var(--cian); color: var(--negro); text-decoration: none;
+    box-shadow: 4px 4px 0 var(--tinta); transform: rotate(-1.5deg); transition: transform .1s, box-shadow .1s;
+  }
+  .selo:hover { transform: rotate(-1.5deg) translate(2px,2px); box-shadow: 2px 2px 0 var(--tinta); }
+  .selo .disco { display: grid; place-items: center; flex: none; width: 2.8rem; height: 2.8rem; border-radius: 50%; background: var(--negro); color: var(--cian); }
+  .selo .disco svg { width: 1.7rem; height: 1.7rem; }
+  .selo b { display: block; font-weight: 900; font-size: 1.1rem; line-height: 1.2; }
+  .selo small { display: block; font-weight: 600; font-size: .85rem; }
 
   /* Pequeno a propósito */
   .manifesto { font-size: clamp(1.35rem, 3vw, 1.75rem); font-weight: 800; line-height: 1.35; color: var(--tinta); max-width: 50rem; margin: 0 0 1.5rem; }
@@ -206,7 +217,7 @@
   }
   @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior: auto; }
-    .boton { transition: none; }
+    .boton, .selo { transition: none; }
   }
 </style>
 </head>
@@ -314,7 +325,7 @@
       <article class="tarxeta">
         <span class="icona" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z"/></svg></span>
         <h3>Sen modelo de crecemento</h3>
-        <p>Non hai plans prémium, nin persoas usuarias que captar, nin datos que vender. Syncply é un proxecto da cooperativa <a href="https://lindae.eu">lindæ</a> e o seu código é libre.</p>
+        <p>Non hai plans prémium, nin persoas usuarias que captar, nin datos que vender. Syncply é un proxecto da cooperativa <a href="https://lindae.eu">lindæ</a> e o seu código é libre, baixo a <a href="https://github.com/lindae-coop/syncply/blob/main/LICENSE">licenza AGPL</a>.</p>
       </article>
     </div>
   </div>
@@ -486,7 +497,7 @@
 
     <details>
       <summary>Podo cambiar a carpeta onde se garda un recurso?</summary>
-      <div><p>Polo de agora, deixa de sincronizalo e volve aceptalo escollendo a carpeta nova. (Estamos traballando para facelo máis cómodo.)</p></div>
+      <div><p>Si. Na web do programa, preme a icona de carpeta xunto ao recurso, escolle unha carpeta nova ou baleira e preme <strong>«Mover aquí»</strong>. Syncply leva alí os ficheiros e segue sincronizando; os demais equipos non notan nada. A carpeta nova ten que estar no mesmo disco: se non, deixa de sincronizar o recurso e volve aceptalo na carpeta nova.</p></div>
     </details>
 
     <details>
@@ -529,9 +540,16 @@
       <li class="feito"><b>Panel de administración</b><span>Usuarios, contrasinais e grupos desde a web.</span></li>
       <li class="feito"><b>Programa para Linux</b><span>Probado en Debian 13.</span></li>
       <li class="proba"><b>Programa para Windows</b><span>Probado en Windows 11; falta asinalo.</span></li>
+      <li class="feito"><b>Cambiar a carpeta dun recurso</b><span>Cun explorador de carpetas e sen perder ficheiros.</span></li>
+      <li class="feito"><b>Descubrimento e relay propios</b><span>Os equipos atópanse e conectan a través do voso servidor, sen depender de ninguén máis.</span></li>
+      <li class="feito"><b>Actualizacións automáticas</b><span>O programa actualízase só desde o voso servidor, con descargas asinadas.</span></li>
       <li class="pendente"><b>macOS</b><span>Pendente.</span></li>
       <li class="pendente"><b>Integración en SFTPGo</b><span>Plan a medio prazo: todo nunha soa web.</span></li>
     </ul>
+    <a class="selo" href="https://github.com/lindae-coop/syncply/blob/main/LICENSE">
+      <span class="disco" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><circle cx="12" cy="12" r="9.5"/><path d="M9.2 9.2a4 4 0 1 1 0 5.6"/></svg></span>
+      <span><b>Software libre</b><small>Licenza AGPL-3.0 · o código é de todo o mundo</small></span>
+    </a>
     <div class="aviso">
       <p><strong>Administras un servidor?</strong> As instrucións de instalación están na <a href="https://github.com/lindae-coop/syncply/blob/main/deploy/README.md">guía de despregamento</a>, e os detalles técnicos no <a href="https://github.com/lindae-coop/syncply#readme">README do repositorio</a>.</p>
     </div>
@@ -549,7 +567,10 @@
         <p>Un proxecto da cooperativa <a href="https://lindae.eu">lindæ</a>.</p>
       </div>
     </div>
-    <p><a href="https://github.com/lindae-coop/syncply">Código fonte en GitHub</a></p>
+    <div>
+      <p><a href="https://github.com/lindae-coop/syncply">Código fonte en GitHub</a></p>
+      <p><a href="legal.html">Aviso legal e privacidade</a></p>
+    </div>
   </div>
 </footer>
 

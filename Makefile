@@ -100,7 +100,7 @@ dist:
 	podman run --rm --entrypoint cat $(SYNCTHING_IMAGE) /bin/syncthing > dist/linux/syncthing
 	$(RUN) sh -ec '\
 	  gzip -9 -c dist/linux/syncthing > cmd/syncply/embed/linux/syncthing.gz; \
-	  cp packaging/linux/LICENZAS.txt cmd/syncply/embed/linux/LICENZAS.txt; \
+	  sh packaging/licenzas.sh packaging/linux/LICENZAS.txt ./cmd/syncply linux > cmd/syncply/embed/linux/LICENZAS.txt; \
 	  GOOS=linux GOARCH=amd64 go build -tags embedsyncthing -trimpath \
 	    -ldflags "-s -w -X main.version=$(VERSION)" -o dist/linux/syncply ./cmd/syncply'
 	chmod 755 dist/linux/syncply dist/linux/syncthing
@@ -117,7 +117,7 @@ dist-windows:
 	  if [ ! -f $$z ]; then wget -q -O $$z.part https://github.com/syncthing/syncthing/releases/download/v$(ST_VERSION)/$(ST_WIN_ZIP); mv $$z.part $$z; fi; \
 	  echo "$(ST_WIN_SHA)  $$z" | sha256sum -c -; \
 	  unzip -p $$z syncthing-windows-amd64-v$(ST_VERSION)/syncthing.exe | gzip -9 > cmd/syncply/embed/windows/syncthing.exe.gz; \
-	  sed "s/$$/\r/" packaging/linux/LICENZAS.txt > cmd/syncply/embed/windows/LICENZAS.txt; \
+	  sh packaging/licenzas.sh packaging/linux/LICENZAS.txt ./cmd/syncply windows | sed "s/$$/\r/" > cmd/syncply/embed/windows/LICENZAS.txt; \
 	  GOOS=windows GOARCH=amd64 go build -tags embedsyncthing -trimpath \
 	    -ldflags "-s -w -H windowsgui -X main.version=$(VERSION)" -o $(DIST_WIN) ./cmd/syncply'
 	@echo "Instalador: $(DIST_WIN) ($(VERSION))"

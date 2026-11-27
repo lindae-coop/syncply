@@ -554,3 +554,25 @@ make proto ARGS="accept st-client1 sftpgo-folder-comun"
 make proto ARGS="devices st-client1"
 make proto ARGS="revoke st-client1 st-client3 alice"
 ```
+
+## Licenza
+
+Copyright (C) 2026 Lindæ S. Coop. Galega.
+
+Syncply é software libre: podes redistribuílo e modificalo nos termos da
+[GNU Affero General Public License](LICENSE), versión 3 ou (á túa elección)
+calquera versión posterior (SPDX: `AGPL-3.0-or-later`). Distribúese **sen
+ningunha garantía**; ver o texto completo en [LICENSE](LICENSE).
+
+- **Servizo en rede (AGPL, sección 13):** se modificas pairsrv ou o cliente e
+  ofreces o servizo a outras persoas, tes que ofrecerlles o código fonte da túa
+  versión. As webs de pairsrv e do cliente ligan ao código no pé
+  (`internal/pairing/templates/base.html`, `internal/client/templates/base.html`):
+  se tes cambios propios, apunta esa ligazón ao teu repositorio.
+- **Binarios:** `packaging/licenzas.sh` xera ao compilar o `LICENZAS.txt` de
+  cada paquete (cabeceira de `packaging/linux/` ou `packaging/pairsrv/`, as
+  licenzas do código de terceiros que enlaza segundo `go list -deps` e o texto
+  da AGPL). Os paquetes do cliente instálano xunto a `syncply`; a imaxe de
+  pairsrv lévao en `/usr/share/licenses/syncply/`.
+- **Syncthing** (embebido nos paquetes do cliente e no servidor) é MPL-2.0 e
+  **SFTPGo**, AGPL-3.0: ambos son compatibles con esta licenza.

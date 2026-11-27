@@ -1,6 +1,16 @@
 Este paquete inclúe:
 
 - syncply: cliente do proxecto Syncply (SFTPGo + Syncthing).
+  Copyright (C) 2026 Lindæ S. Coop. Galega
+  Licenza: GNU Affero General Public License, versión 3 ou (á túa
+  elección) calquera versión posterior (SPDX: AGPL-3.0-or-later). O texto
+  completo vai ao final deste ficheiro.
+  Código fonte: https://github.com/lindae-coop/syncply
+
+  Este programa é software libre: podes redistribuílo e modificalo nos
+  termos da GNU AGPL v3 ou posterior. Distribúese coa esperanza de que
+  sexa útil, pero SEN NINGUNHA GARANTÍA, nin sequera a garantía implícita
+  de COMERCIABILIDADE ou de ADECUACIÓN A UN FIN DETERMINADO.
 
 - Syncthing 2.1.7, binario oficial sen modificar.
   Licenza: Mozilla Public License 2.0 (https://mozilla.org/MPL/2.0/).
